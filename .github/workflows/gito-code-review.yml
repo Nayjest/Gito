@@ -17,13 +17,13 @@ jobs:
 
     - name: Set up Python
       uses: actions/setup-python@v5
-      with: { python-version: "3.13"}
+      with: { python-version: "3.13" }
 
     - name: Fetch Latest Gito Version
       id: gito-version
       run: pip index versions gito.bot 2>/dev/null | head -1 | sed -n 's/.* (\([^)]*\)).*/version=\1/p' >> $GITHUB_OUTPUT
 
-    - uses: actions/cache@v3
+    - uses: actions/cache@v4
       id: cache
       with:
         path: |
@@ -33,18 +33,17 @@ jobs:
 
     - name: Install Gito
       if: steps.cache.outputs.cache-hit != 'true'
-      run: |
-        pip install gito.bot~=2.0
+      run: pip install gito.bot~=2.0
 
     - name: Run AI code review
       env:
         # OpenAI Setup:
-        # LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
         # LLM_API_TYPE: openai
+        # LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
         # MODEL: "gpt-4.1"
-        LLM_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         LLM_API_TYPE: anthropic
-        MODEL: "claude-sonnet-4-20250514"
+        LLM_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        MODEL: claude-sonnet-4-20250514
         JIRA_TOKEN: ${{ secrets.JIRA_TOKEN }}
         JIRA_URL: ${{ secrets.JIRA_URL }}
         JIRA_USER: ${{ secrets.JIRA_USER }}
