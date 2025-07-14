@@ -1,5 +1,5 @@
 from gito.issue_trackers import extract_issue_key
-import gito
+
 
 def test_extract_issue_key():
     assert extract_issue_key("feature/PROJ-123") == "PROJ-123"
