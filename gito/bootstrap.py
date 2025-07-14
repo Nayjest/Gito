@@ -44,7 +44,7 @@ def bootstrap(verbosity: int = 1):
     logging.info("Bootstrapping... "+mc.ui.gray(f"[verbosity={verbosity}]"))
 
     # cp1251 is used on Windows when redirecting output
-    if sys.stdout.encoding.lower() != "utf-8":
+    if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
         sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
     try:
