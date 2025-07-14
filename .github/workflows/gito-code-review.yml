@@ -41,7 +41,7 @@ jobs:
         GITO_DEBUG: "1"
         PR_NUMBER_FROM_WORKFLOW_DISPATCH: ${{ github.event.inputs.pr_number }}
       run: |
-        gito --verbose review
+        gito --verbose review ${{ github.event.pull_request.base.ref && format(' --against="origin/{0}"', github.event.pull_request.base.ref) || '' }}
         gito github-comment --token ${{ secrets.GITHUB_TOKEN }}
 
     - uses: actions/upload-artifact@v4
