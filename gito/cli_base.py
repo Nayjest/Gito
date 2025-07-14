@@ -82,7 +82,7 @@ def get_repo_context(url: str, branch: str):
             finally:
                 repo.close()
     else:
-        logging.info(f"get_repo_context: Using local repo...")
+        logging.info("get_repo_context: Using local repo...")
         repo = Repo(".")
         try:
             yield repo, "."

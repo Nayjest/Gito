@@ -450,7 +450,9 @@ decorators add depth and texture, and observer masterfully completes the composi
 The Gang of Four gives a standing ovation from the stalls."
 ```
 """
-requirements = ""
+requirements = """
+- (!) Never report issues related to software versions, model names, or similar details that you believe have not yet been released—you cannot reliably determine this.
+"""
 summary_requirements = ""
 answering_instructions = """
 - (!) Provide a concise, direct answer in engaging speech.
