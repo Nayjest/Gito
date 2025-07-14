@@ -26,7 +26,7 @@ from .utils import no_subcommand, extract_gh_owner_repo, remove_html_comments
 from .gh_api import resolve_gh_token
 
 # Import fix command to register it
-from .commands import fix, gh_react_to_comment, repl, deploy  # noqa
+from .commands import fix, gh_react_to_comment, repl, deploy, version  # noqa
 from .commands.gh_post_review_comment import post_github_cr_comment
 from .commands.linear_comment import linear_comment
 
