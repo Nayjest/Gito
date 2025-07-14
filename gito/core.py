@@ -229,7 +229,7 @@ def make_cr_summary(ctx: Context, **kwargs) -> str:
             ctx.config.summary_prompt,
             diff=mc.tokenizing.fit_to_token_size(ctx.diff, ctx.config.max_code_tokens)[0],
             issues=ctx.report.issues,
-            pipeline_out = ctx.pipeline_out,
+            pipeline_out=ctx.pipeline_out,
             **ctx.config.prompt_vars,
             **kwargs,
         ).to_llm()
@@ -390,7 +390,7 @@ def answer(
         repo=repo,
         diff=diff,
         config=config,
-        report = Report()
+        report=Report()
     )
     if use_pipeline:
         pipe = Pipeline(

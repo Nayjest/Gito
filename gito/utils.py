@@ -8,7 +8,6 @@ from typing import Optional
 import typer
 import git
 from git import Repo
-from microcore import ui
 
 
 _EXT_TO_HINT: dict[str, str] = {
@@ -234,6 +233,7 @@ def make_streaming_function(handler: Optional[callable] = None) -> callable:
 
 def version() -> str:
     return importlib.metadata.version("gito.bot")
+
 
 def remove_html_comments(text):
     """

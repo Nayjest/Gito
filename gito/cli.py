@@ -26,7 +26,7 @@ from .utils import no_subcommand, extract_gh_owner_repo, remove_html_comments
 from .gh_api import resolve_gh_token
 
 # Import fix command to register it
-from .commands import fix, gh_react_to_comment, repl, deploy, linear_comment  # noqa
+from .commands import fix, gh_react_to_comment, repl, deploy  # noqa
 from .commands.gh_post_review_comment import post_github_cr_comment
 from .commands.linear_comment import linear_comment
 
@@ -64,7 +64,7 @@ def cli(
     if verbose is not None:
         verbosity = 2 if verbose else 0
     if verbosity is None:
-       verbosity = 1
+        verbosity = 1
 
     if ctx.invoked_subcommand != "setup":
         bootstrap(verbosity)

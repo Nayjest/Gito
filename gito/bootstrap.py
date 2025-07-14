@@ -41,7 +41,7 @@ def bootstrap(verbosity: int = 1):
     Env.verbosity = verbosity
     Env.logging_level = log_levels_by_verbosity.get(verbosity, logging.INFO)
     setup_logging(Env.logging_level)
-    logging.info(f"Bootstrapping... "+mc.ui.gray(f"[verbosity={verbosity}]"))
+    logging.info("Bootstrapping... "+mc.ui.gray(f"[verbosity={verbosity}]"))
 
     # cp1251 is used on Windows when redirecting output
     if sys.stdout.encoding.lower() != "utf-8":
@@ -50,7 +50,7 @@ def bootstrap(verbosity: int = 1):
     try:
         mc.configure(
             DOT_ENV_FILE=HOME_ENV_PATH,
-            USE_LOGGING=verbosity>=1,
+            USE_LOGGING=verbosity >= 1,
             EMBEDDING_DB_TYPE=mc.EmbeddingDbType.NONE,
             PROMPT_TEMPLATES_PATH=[
                 PROJECT_GITO_FOLDER,

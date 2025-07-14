@@ -10,8 +10,9 @@ from ..issue_trackers import resolve_issue_key
 
 import requests
 
+
 def post_linear_comment(issue_key, text, api_key):
-   response = requests.post(
+    response = requests.post(
        'https://api.linear.app/graphql',
        headers={'Authorization': api_key, 'Content-Type': 'application/json'},
        json={
@@ -24,8 +25,9 @@ def post_linear_comment(issue_key, text, api_key):
            ''',
            'variables': {'issueId': issue_key, 'body': text}
        }
-   )
-   return response.json()
+    )
+    return response.json()
+
 
 @app.command()
 def linear_comment(
