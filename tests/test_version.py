@@ -14,6 +14,7 @@ def test_version_command_shell():
     assert Env.gito_version and '.' in Env.gito_version
     assert result.stderr == ""
 
+
 def test_version_return_val():
     from gito.commands.version import version
     assert version() == Env.gito_version
