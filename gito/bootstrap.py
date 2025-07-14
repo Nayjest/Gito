@@ -41,7 +41,10 @@ def bootstrap(verbosity: int = 1):
     Env.verbosity = verbosity
     Env.logging_level = log_levels_by_verbosity.get(verbosity, logging.INFO)
     setup_logging(Env.logging_level)
-    logging.info("Bootstrapping... "+mc.ui.gray(f"[verbosity={verbosity}]"))
+    logging.info(
+        f"Bootstrapping Gito v{Env.gito_version}... "
+        + mc.ui.gray(f"[verbosity={verbosity}]")
+    )
 
     # cp1251 is used on Windows when redirecting output
     if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
