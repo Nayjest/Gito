@@ -72,13 +72,17 @@ def get_repo_context(url: str, branch: str):
     """Context manager for handling both local and remote repositories."""
     if url:
         with tempfile.TemporaryDirectory() as temp_dir:
-            logging.info(f"Cloning [{mc.ui.green(url)}] to {mc.utils.file_link(temp_dir)} ...")
+            logging.info(
+                f"get_repo_context: "
+                f"Cloning [{mc.ui.green(url)}] to {mc.utils.file_link(temp_dir)} ..."
+            )
             repo = Repo.clone_from(url, branch=branch, to_path=temp_dir)
             try:
                 yield repo, temp_dir
             finally:
                 repo.close()
     else:
+        logging.info(f"get_repo_context: Using local repo...")
         repo = Repo(".")
         try:
             yield repo, "."
