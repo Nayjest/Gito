@@ -3,23 +3,32 @@ import asyncio
 import logging
 import sys
 import textwrap
-import tempfile
-import contextlib
 
 import microcore as mc
 import typer
 from git import Repo
 
 from .core import review, get_diff, filter_diff, answer
+from .cli_base import (
+    app,
+    args_to_target,
+    arg_refs,
+    arg_what,
+    arg_filters,
+    arg_out,
+    arg_against,
+    get_repo_context,
+)
 from .report_struct import Report
 from .constants import HOME_ENV_PATH, GITHUB_MD_REPORT_FILE_NAME
-from .bootstrap import bootstrap, app
-from .utils import no_subcommand, parse_refs_pair, extract_gh_owner_repo
+from .bootstrap import bootstrap
+from .utils import no_subcommand, extract_gh_owner_repo, remove_html_comments
 from .gh_api import resolve_gh_token
 
 # Import fix command to register it
-from .commands import fix, gh_react_to_comment, repl, deploy  # noqa
+from .commands import fix, gh_react_to_comment, repl, deploy, linear_comment  # noqa
 from .commands.gh_post_review_comment import post_github_cr_comment
+from .commands.linear_comment import linear_comment
 
 app_no_subcommand = typer.Typer(pretty_exceptions_show_locals=False)
 
@@ -39,86 +48,26 @@ def main():
 
 
 @app.callback(invoke_without_command=True)
-def cli(ctx: typer.Context, verbose: bool = typer.Option(default=False)):
+def cli(
+    ctx: typer.Context,
+    verbose: bool = typer.Option(default=None),
+    verbosity: int = typer.Option(
+        None,
+        '--verbosity', '-v',
+        help="Set verbosity level (0-3, default 1)"
+    ),
+):
+    if verbose is not None and verbosity is not None:
+        raise typer.BadParameter(
+            "Please specify either --verbose or --verbosity, not both."
+        )
+    if verbose is not None:
+        verbosity = 2 if verbose else 0
+    if verbosity is None:
+       verbosity = 1
+
     if ctx.invoked_subcommand != "setup":
-        bootstrap()
-    if verbose:
-        mc.logging.LoggingConfig.STRIP_REQUEST_LINES = None
-
-
-def args_to_target(refs, what, against) -> tuple[str | None, str | None]:
-    _what, _against = parse_refs_pair(refs)
-    if _what:
-        if what:
-            raise typer.BadParameter(
-                "You cannot specify both 'refs' <WHAT>..<AGAINST> and '--what'. Use one of them."
-            )
-    else:
-        _what = what
-    if _against:
-        if against:
-            raise typer.BadParameter(
-                "You cannot specify both 'refs' <WHAT>..<AGAINST> and '--against'. Use one of them."
-            )
-    else:
-        _against = against
-    return _what, _against
-
-
-def arg_refs() -> typer.Argument:
-    return typer.Argument(
-        default=None,
-        help="Git refs to review, [what]..[against] e.g. 'HEAD..HEAD~1'"
-    )
-
-
-def arg_what() -> typer.Option:
-    return typer.Option(None, "--what", "-w", help="Git ref to review")
-
-
-def arg_filters() -> typer.Option:
-    return typer.Option(
-        "", "--filter", "-f", "--filters",
-        help="""
-            filter reviewed files by glob / fnmatch pattern(s),
-            e.g. 'src/**/*.py', may be comma-separated
-            """,
-    )
-
-
-def arg_out() -> typer.Option:
-    return typer.Option(
-        None,
-        "--out", "-o", "--output",
-        help="Output folder for the code review report"
-    )
-
-
-def arg_against() -> typer.Option:
-    return typer.Option(
-        None,
-        "--against", "-vs", "--vs",
-        help="Git ref to compare against"
-    )
-
-
-@contextlib.contextmanager
-def get_repo_context(url: str, branch: str):
-    """Context manager for handling both local and remote repositories."""
-    if url:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            logging.info(f"Cloning [{mc.ui.green(url)}] to {mc.utils.file_link(temp_dir)} ...")
-            repo = Repo.clone_from(url, branch=branch, to_path=temp_dir)
-            try:
-                yield repo, temp_dir
-            finally:
-                repo.close()
-    else:
-        repo = Repo(".")
-        try:
-            yield repo, "."
-        finally:
-            repo.close()
+        bootstrap(verbosity)
 
 
 @app_no_subcommand.command(name="review", help="Perform code review")
@@ -179,15 +128,32 @@ def cmd_answer(
     against: str = arg_against(),
     filters: str = arg_filters(),
     merge_base: bool = typer.Option(default=True, help="Use merge base for comparison"),
+    use_pipeline: bool = typer.Option(default=True),
+    post_to: str = typer.Option(
+        help="Post answer to ... Supported values: linear",
+        default=None,
+        show_default=False
+    ),
 ):
     _what, _against = args_to_target(refs, what, against)
-    return answer(
+    if str(question).startswith("tpl:"):
+        prompt_file = str(question)[4:]
+        question = ""
+    else:
+        prompt_file = None
+    out = answer(
         question=question,
         what=_what,
         against=_against,
         filters=filters,
         use_merge_base=merge_base,
+        prompt_file=prompt_file,
+        use_pipeline=use_pipeline,
     )
+    if post_to == 'linear':
+        logging.info("Posting answer to Linear...")
+        linear_comment(remove_html_comments(out))
+    return out
 
 
 @app.command(help="Configure LLM for local usage interactively")

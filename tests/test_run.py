@@ -1,6 +1,7 @@
 from typer.testing import CliRunner
 from unittest.mock import AsyncMock, ANY
-from gito.cli import app_no_subcommand, app
+from gito.cli import app_no_subcommand
+from gito.cli_base import app
 
 
 runner = CliRunner()

@@ -16,7 +16,7 @@ from rich.pretty import pprint
 import microcore as mc
 from microcore import ui
 
-from ..cli import app
+from ..cli_base import app
 from ..constants import *
 from ..core import *
 from ..utils import *

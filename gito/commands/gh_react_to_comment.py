@@ -16,7 +16,7 @@ from microcore import ui
 from ghapi.all import GhApi
 import git
 
-from ..bootstrap import app
+from ..cli_base import app
 from ..constants import JSON_REPORT_FILE_NAME, HTML_TEXT_ICON
 from ..core import answer
 from ..gh_api import post_gh_comment, resolve_gh_token

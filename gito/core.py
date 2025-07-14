@@ -3,6 +3,7 @@ import logging
 from os import PathLike
 from typing import Iterable
 from pathlib import Path
+from functools import partial
 
 import microcore as mc
 from microcore import ui
@@ -11,11 +12,13 @@ from git.exc import GitCommandError
 from unidiff import PatchSet, PatchedFile
 from unidiff.constants import DEV_NULL
 
+from .context import Context
 from .project_config import ProjectConfig
 from .report_struct import Report
 from .constants import JSON_REPORT_FILE_NAME
-from .utils import stream_to_cli
+from .utils import make_streaming_function
 from .pipeline import Pipeline
+from .env import Env
 
 
 def review_subject_is_index(what):
@@ -90,7 +93,7 @@ def get_diff(
         merge_base = repo.merge_base(current_ref or repo.active_branch.name, against)[0]
         logging.info(
             f"Merge base({ui.green(current_ref)},{ui.yellow(against)})"
-            f"-->{ui.cyan(merge_base.hexsha)}"
+            f" --> {ui.cyan(merge_base.hexsha)}"
         )
         # if branch is already an ancestor of "against", merge_base == branch ⇒ it’s been merged
         if merge_base.hexsha == repo.commit(current_ref or repo.active_branch.name).hexsha:
@@ -220,16 +223,17 @@ def file_lines(repo: Repo, file: str, max_tokens: int = None, use_local_files: b
     return "".join(lines)
 
 
-def make_cr_summary(config: ProjectConfig, report: Report, diff, **kwargs) -> str:
+def make_cr_summary(ctx: Context, **kwargs) -> str:
     return (
         mc.prompt(
-            config.summary_prompt,
-            diff=mc.tokenizing.fit_to_token_size(diff, config.max_code_tokens)[0],
-            issues=report.issues,
-            **config.prompt_vars,
+            ctx.config.summary_prompt,
+            diff=mc.tokenizing.fit_to_token_size(ctx.diff, ctx.config.max_code_tokens)[0],
+            issues=ctx.report.issues,
+            pipeline_out = ctx.pipeline_out,
+            **ctx.config.prompt_vars,
             **kwargs,
         ).to_llm()
-        if config.summary_prompt
+        if ctx.config.summary_prompt
         else ""
     )
 
@@ -341,12 +345,11 @@ async def review(
     out_folder = Path(out_folder or repo.working_tree_dir)
     out_folder.mkdir(parents=True, exist_ok=True)
     report = Report(issues=issues, number_of_processed_files=len(diff))
-    ctx = dict(
+    ctx = Context(
         report=report,
         config=cfg,
         diff=diff,
         repo=repo,
-        pipeline_out={},
     )
     if cfg.pipeline_steps:
         pipe = Pipeline(
@@ -357,7 +360,7 @@ async def review(
     else:
         logging.info("No pipeline steps defined, skipping pipeline execution")
 
-    report.summary = make_cr_summary(**ctx)
+    report.summary = make_cr_summary(ctx)
     report.save(file_name=out_folder / JSON_REPORT_FILE_NAME)
     report_text = report.render(cfg, Report.Format.MARKDOWN)
     text_report_path = out_folder / "code-review-report.md"
@@ -372,20 +375,41 @@ def answer(
     against: str = None,
     filters: str | list[str] = "",
     use_merge_base: bool = True,
+    use_pipeline: bool = True,
+    prompt_file: str = None,
 ) -> str | None:
     try:
-        repo, cfg, diff, lines = _prepare(
+        repo, config, diff, lines = _prepare(
             repo=repo, what=what, against=against, filters=filters, use_merge_base=use_merge_base
         )
     except NoChangesInContextError:
         logging.error("No changes to review")
         return
-    response = mc.llm(mc.prompt(
-        cfg.answer_prompt,
-        question=question,
+
+    ctx = Context(
+        repo=repo,
         diff=diff,
-        all_file_lines=lines,
-        **cfg.prompt_vars,
-        callback=stream_to_cli
-    ))
+        config=config,
+        report = Report()
+    )
+    if use_pipeline:
+        pipe = Pipeline(
+            ctx=ctx,
+            steps=config.pipeline_steps
+        )
+        pipe.run()
+    if prompt_file:
+        prompt_func = partial(mc.tpl, prompt_file)
+    else:
+        prompt_func = partial(mc.prompt, config.answer_prompt)
+    response = mc.llm(
+        prompt_func(
+            question=question,
+            diff=diff,
+            all_file_lines=lines,
+            pipeline_out=ctx.pipeline_out,
+            **config.prompt_vars,
+        ),
+        callback=make_streaming_function() if Env.verbosity == 0 else None,
+    )
     return response

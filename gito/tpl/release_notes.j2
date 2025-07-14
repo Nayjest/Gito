@@ -1,0 +1,24 @@
+{{ self_id }}
+----TASK----
+Write release notes for public documentation.
+Summarize the following changes, focusing on what is new, improved, or fixed for the end user.
+Do not include internal or technical details.
+Structure release notes using clear sections: Added, Changed, Fixed.
+Avoid internal technical jargon or developer-specific details.
+
+
+----RELATED CODEBASE CHANGES----
+{% for part in diff %}{{ part }}\n{% endfor %}
+
+----FULL FILE CONTENT AFTER APPLYING CHANGES----
+{% for file, file_lines in all_file_lines.items() %}
+--FILE: {{ file }}--
+{{ file_lines }}
+{% endfor %}
+
+{%- if pipeline_out.associated_issue and pipeline_out.associated_issue.title %}
+----ASSOCIATED ISSUE----
+# {{ pipeline_out.associated_issue.title }}
+{{ pipeline_out.associated_issue.description }}
+URL: {{ pipeline_out.associated_issue.url }}
+{%- endif -%}{{ '\n' }}

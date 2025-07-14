@@ -5,7 +5,7 @@ from time import sleep
 import typer
 from ghapi.core import GhApi
 
-from ..bootstrap import app
+from ..cli_base import app
 from ..constants import GITHUB_MD_REPORT_FILE_NAME, HTML_CR_COMMENT_MARKER
 from ..gh_api import (
     post_gh_comment,

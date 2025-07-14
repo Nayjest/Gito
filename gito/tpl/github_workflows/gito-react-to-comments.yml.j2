@@ -59,12 +59,12 @@ jobs:
         fetch-depth: 0
         {%- endraw %}
 
-      {%- include("github_workflows/components/installs.jinja2") %}
+      {%- include("github_workflows/components/installs.j2") %}
 
     - name: Run Gito react
       env:
         # LLM config is needed only if answer_github_comments = true in .gito/config.toml
         # Otherwise, use LLM_API_TYPE: none
-        {%- include("github_workflows/components/env-vars.jinja2") %}
+        {%- include("github_workflows/components/env-vars.j2") %}
       run: |
         {% raw %}gito react-to-comment ${{ github.event.comment.id }} --token ${{ secrets.GITHUB_TOKEN }}{%- endraw %}

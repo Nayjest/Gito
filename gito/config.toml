@@ -50,7 +50,7 @@ report_template_cli = """
 {%- if report.summary -%}
     {{- "\n" }}
     {{- "\n" }}{{- Style.BRIGHT }}✨  SUMMARY {{ Style.RESET_ALL -}}
-    {{- "\n" }}{{- report.summary -}}
+    {{- "\n" }}{{- remove_html_comments(report.summary) -}}
 {%- endif %}
 {% for issue in report.plain_issues -%}
     {{"\n"}}{{ Style.BRIGHT }}{{Back.RED}}[ {{ issue.id}} ]{{Back.RESET}}  {{ issue.title -}}{{ Style.RESET_ALL -}}
@@ -205,14 +205,16 @@ Summarize the code review in one sentence.
 {{ issues | tojson(indent=2) }}
 ---
 If the code changes include exceptional achievements, you may also present an award to the author in the summary text.
-Note: Awards should only be given to authors of initial codebase changes, not to code reviewers.
+ - (!) Only give awards to initial codebase authors, NOT to reviewers.
+ - (!) If you give an award, place the hidden <!-- award --> HTML comment on its own line immediately before the award text.
 --Available Awards--
 {{ awards }}
 ---
 {% if pipeline_out.associated_issue and pipeline_out.associated_issue.title %}
 ----SUBTASK----
 Include one sentence about how the code changes address the requirements of the associated issue listed below.
-
+- (!) Place the hidden <!-- issue_alignment --> comment on its own line immediately before the related text.
+- Use ✅ or ⚠️ to indicate whether the implementation fully satisfies the issue requirements.
 --Associated Issue--
 # {{ pipeline_out.associated_issue.title }}
 {{ pipeline_out.associated_issue.description }}
@@ -223,10 +225,12 @@ Examples:
 
 If the implementation fully delivers the requested functionality:
 ```
+<!-- issue_alignment -->
 ✅  Implementation Satisfies [<ISSUE_KEY>](<ISSUE_URL>).
 ```
 If there are concerns about how thoroughly the code covers the requirements and technical description from the associated issue:
 ```
+<!-- issue_alignment -->
 ⚠️ <Describe specific gap or concern>.
 ⚠️ <Describe additional limitation or missing feature>.
 ```
@@ -253,6 +257,14 @@ Answer the following user question:
 --FILE: {{ file }}--
 {{ file_lines }}
 {% endfor %}
+
+{%- if pipeline_out.associated_issue and pipeline_out.associated_issue.title %}
+----ASSOCIATED ISSUE----
+# {{ pipeline_out.associated_issue.title }}
+{{ pipeline_out.associated_issue.description }}
+URL: {{ pipeline_out.associated_issue.url }}
+{%- endif -%}{{ '\n' }}
+
 ----ANSWERING INSTRUCTIONS----
 {{ answering_instructions }}
 """

@@ -10,7 +10,7 @@ import git
 import typer
 from microcore import ui
 
-from ..bootstrap import app
+from ..cli_base import app
 from ..constants import JSON_REPORT_FILE_NAME
 from ..report_struct import Report, Issue
 

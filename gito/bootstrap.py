@@ -1,16 +1,18 @@
-import logging
 import os
+import sys
+import io
+import logging
 from datetime import datetime
 from pathlib import Path
 
 import microcore as mc
-import typer
 
 from .utils import is_running_in_github_action
 from .constants import HOME_ENV_PATH, EXECUTABLE, PROJECT_GITO_FOLDER
+from .env import Env
 
 
-def setup_logging():
+def setup_logging(log_level: int = logging.INFO):
     class CustomFormatter(logging.Formatter):
         def format(self, record):
             dt = datetime.fromtimestamp(record.created).strftime("%Y-%m-%d %H:%M:%S")
@@ -25,23 +27,41 @@ def setup_logging():
 
     handler = logging.StreamHandler()
     handler.setFormatter(CustomFormatter())
-    logging.basicConfig(level=logging.INFO, handlers=[handler])
+    logging.basicConfig(level=log_level, handlers=[handler])
 
 
-def bootstrap():
+def bootstrap(verbosity: int = 1):
     """Bootstrap the application with the environment configuration."""
-    setup_logging()
-    logging.info("Bootstrapping...")
+    log_levels_by_verbosity = {
+        0: logging.CRITICAL,
+        1: logging.INFO,
+        2: logging.DEBUG,
+        3: logging.DEBUG,
+    }
+    Env.verbosity = verbosity
+    Env.logging_level = log_levels_by_verbosity.get(verbosity, logging.INFO)
+    setup_logging(Env.logging_level)
+    logging.info(f"Bootstrapping... "+mc.ui.gray(f"[verbosity={verbosity}]"))
+
+    # cp1251 is used on Windows when redirecting output
+    if sys.stdout.encoding.lower() != "utf-8":
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+
     try:
         mc.configure(
             DOT_ENV_FILE=HOME_ENV_PATH,
-            USE_LOGGING=True,
+            USE_LOGGING=verbosity>=1,
             EMBEDDING_DB_TYPE=mc.EmbeddingDbType.NONE,
             PROMPT_TEMPLATES_PATH=[
                 PROJECT_GITO_FOLDER,
                 Path(__file__).parent / "tpl"
             ],
         )
+        if verbosity > 1:
+            mc.logging.LoggingConfig.STRIP_REQUEST_LINES = None
+        else:
+            mc.logging.LoggingConfig.STRIP_REQUEST_LINES = [300, 15]
+
     except mc.LLMConfigError as e:
         msg = str(e)
         if is_running_in_github_action():
@@ -65,7 +85,3 @@ def bootstrap():
     except Exception as e:
         logging.error(f"Unexpected configuration error: {e}")
         raise SystemExit(3)
-    mc.logging.LoggingConfig.STRIP_REQUEST_LINES = [300, 15]
-
-
-app = typer.Typer(pretty_exceptions_show_locals=False)
