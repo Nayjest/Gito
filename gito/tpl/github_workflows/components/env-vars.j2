@@ -1,6 +1,6 @@
 
         LLM_API_TYPE: {{ api_type }}
-        LLM_API_KEY: {{ "${{ secrets." + secret_name + "}}" }}
+        LLM_API_KEY: {{ "${{ secrets." + secret_name + " }}" }}
         MODEL: {{ model }}
         {% raw -%}
         JIRA_TOKEN: ${{ secrets.JIRA_TOKEN }}
