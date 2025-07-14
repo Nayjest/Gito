@@ -5,7 +5,7 @@ import requests
 from fastcore.basics import AttrDict  # objects returned by ghapi
 
 
-def resolve_gh_token(token_or_none):
+def resolve_gh_token(token_or_none: str | None = None) -> str | None:
     return token_or_none or os.getenv("GITHUB_TOKEN", None) or os.getenv("GH_TOKEN", None)
 
 

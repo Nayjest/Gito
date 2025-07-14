@@ -5,7 +5,7 @@ from time import sleep
 import typer
 from ghapi.core import GhApi
 
-from ..bootstrap import app
+from ..cli_base import app
 from ..constants import GITHUB_MD_REPORT_FILE_NAME, HTML_CR_COMMENT_MARKER
 from ..gh_api import (
     post_gh_comment,
@@ -15,8 +15,11 @@ from ..gh_api import (
 from ..project_config import ProjectConfig
 
 
-@app.command(help="Leave a GitHub PR comment with the review.")
-def github_comment(
+@app.command(name="github-comment", help="Leave a GitHub PR comment with the review.")
+def post_github_cr_comment(
+    md_report_file: str = typer.Option(default=None),
+    pr: int = typer.Option(default=None),
+    gh_repo: str = typer.Option(default=None, help="owner/repo"),
     token: str = typer.Option(
         "", help="GitHub token (or set GITHUB_TOKEN env var)"
     ),
@@ -24,7 +27,7 @@ def github_comment(
     """
     Leaves a comment with the review on the current GitHub pull request.
     """
-    file = GITHUB_MD_REPORT_FILE_NAME
+    file = md_report_file or GITHUB_MD_REPORT_FILE_NAME
     if not os.path.exists(file):
         logging.error(f"Review file not found: {file}, comment will not be posted.")
         raise typer.Exit(4)
@@ -38,25 +41,25 @@ def github_comment(
         raise typer.Exit(1)
     config = ProjectConfig.load()
     gh_env = config.prompt_vars["github_env"]
-    gh_repo = gh_env.get("github_repo", "")
+    gh_repo = gh_repo or gh_env.get("github_repo", "")
     pr_env_val = gh_env.get("github_pr_number", "")
     logging.info(f"github_pr_number = {pr_env_val}")
 
-    pr = None
-    # e.g. could be "refs/pull/123/merge" or a direct number
-    if "/" in pr_env_val and "pull" in pr_env_val:
-        # refs/pull/123/merge
-        try:
-            pr_num_candidate = pr_env_val.strip("/").split("/")
-            idx = pr_num_candidate.index("pull")
-            pr = int(pr_num_candidate[idx + 1])
-        except Exception:
-            pass
-    else:
-        try:
-            pr = int(pr_env_val)
-        except ValueError:
-            pass
+    if not pr:
+        # e.g. could be "refs/pull/123/merge" or a direct number
+        if "/" in pr_env_val and "pull" in pr_env_val:
+            # refs/pull/123/merge
+            try:
+                pr_num_candidate = pr_env_val.strip("/").split("/")
+                idx = pr_num_candidate.index("pull")
+                pr = int(pr_num_candidate[idx + 1])
+            except Exception:
+                pass
+        else:
+            try:
+                pr = int(pr_env_val)
+            except ValueError:
+                pass
     if not pr:
         if pr_str := os.getenv("PR_NUMBER_FROM_WORKFLOW_DISPATCH"):
             try:

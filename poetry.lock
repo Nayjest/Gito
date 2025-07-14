@@ -2,14 +2,14 @@
 
 [[package]]
 name = "ai-microcore"
-version = "4.0.0"
+version = "4.2.1"
 description = "# Minimalistic Foundation for AI Applications"
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "ai_microcore-4.0.0-py3-none-any.whl", hash = "sha256:06ce02738de675207e4b58011958c093c7e79cad2e896f0de9305087af5651b9"},
-    {file = "ai_microcore-4.0.0.tar.gz", hash = "sha256:fec9e0deb9903ebc27a989597272521c4a54b2767328e835a7a82bd9792cb5f4"},
+    {file = "ai_microcore-4.2.1-py3-none-any.whl", hash = "sha256:ad9f6f1ed4c2d4f6fc1f5394df334a66309210edbd5c218f9d06959136740304"},
+    {file = "ai_microcore-4.2.1.tar.gz", hash = "sha256:c561ee5e06f164c88cd9880ed0e88558274b1e609d957af03e30ee752e1ab236"},
 ]
 
 [package.dependencies]
@@ -17,6 +17,7 @@ chardet = ">=5.2.0,<5.3.0"
 colorama = ">=0.4.6,<0.5.0"
 docstring_parser = ">=0.16.0,<0.17.0"
 fastmcp = ">=2.8.0,<2.9.0"
+httpx = ">=0.28.1,<0.29.0"
 Jinja2 = ">=3.1.2,<3.2.0"
 mcp = ">=1.9.2,<1.10.0"
 openai = ">=0.28.1,<2"
@@ -38,14 +39,14 @@ files = [
 
 [[package]]
 name = "anthropic"
-version = "0.52.2"
+version = "0.57.1"
 description = "The official Python library for the anthropic API"
 optional = false
 python-versions = ">=3.8"
 groups = ["main"]
 files = [
-    {file = "anthropic-0.52.2-py3-none-any.whl", hash = "sha256:00d52555f503e81e21aff0103db04cd93979cdf87ce8dd43c660ca6deae83ac6"},
-    {file = "anthropic-0.52.2.tar.gz", hash = "sha256:9047bc960e8513950579c9cb730c16a84af3fcb56341ad7dc730772f83757050"},
+    {file = "anthropic-0.57.1-py3-none-any.whl", hash = "sha256:33afc1f395af207d07ff1bffc0a3d1caac53c371793792569c5d2f09283ea306"},
+    {file = "anthropic-0.57.1.tar.gz", hash = "sha256:7815dd92245a70d21f65f356f33fc80c5072eada87fb49437767ea2918b2c4b0"},
 ]
 
 [package.dependencies]
@@ -58,6 +59,7 @@ sniffio = "*"
 typing-extensions = ">=4.10,<5"
 
 [package.extras]
+aiohttp = ["aiohttp", "httpx-aiohttp (>=0.1.6)"]
 bedrock = ["boto3 (>=1.28.57)", "botocore (>=1.31.57)"]
 vertex = ["google-auth[requests] (>=2,<3)"]
 
@@ -3604,4 +3606,4 @@ cffi = ["cffi (>=1.11)"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "379d150133542cae9b5a679466c1c423dee5e2ae20d781f9cf3a34cfe4d6cc6b"
+content-hash = "6e80ac59d189b351057c388be1c1f0aeac38da22dd8b45ebffef0fc1511db168"

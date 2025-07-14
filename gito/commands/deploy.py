@@ -5,7 +5,7 @@ from microcore import ApiType, ui, utils
 from git import Repo
 
 from ..utils import version, extract_gh_owner_repo
-from ..bootstrap import app
+from ..cli_base import app
 
 
 @app.command(name="deploy", help="Deploy Gito workflows to GitHub Actions")
@@ -56,11 +56,11 @@ def deploy(api_type: ApiType = None, commit: bool = None, rewrite: bool = False)
         remove_indent=True,
     )
     gito_code_review_yml = mc.tpl(
-        "github_workflows/gito-code-review.yml.jinja2",
+        "github_workflows/gito-code-review.yml.j2",
         **template_vars
     )
     gito_react_to_comments_yml = mc.tpl(
-        "github_workflows/gito-react-to-comments.yml.jinja2",
+        "github_workflows/gito-react-to-comments.yml.j2",
         **template_vars
     )
 

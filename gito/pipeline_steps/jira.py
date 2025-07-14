@@ -2,7 +2,7 @@ import logging
 import os
 
 import git
-from jira import JIRA
+from jira import JIRA, JIRAError
 
 from gito.issue_trackers import IssueTrackerIssue, resolve_issue_key
 
@@ -16,6 +16,11 @@ def fetch_issue(issue_key, jira_url, username, api_token) -> IssueTrackerIssue |
             description=issue.fields.description or "",
             url=f"{jira_url.rstrip('/')}/browse/{issue_key}"
         )
+    except JIRAError as e:
+        logging.error(
+            f"Failed to fetch Jira issue {issue_key}: code {e.status_code} :: {e.text}"
+        )
+        return None
     except Exception as e:
         logging.error(f"Failed to fetch Jira issue {issue_key}: {e}")
         return None

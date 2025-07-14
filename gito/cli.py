@@ -1,22 +1,34 @@
+import os
 import asyncio
 import logging
 import sys
 import textwrap
-import tempfile
 
 import microcore as mc
 import typer
 from git import Repo
 
 from .core import review, get_diff, filter_diff, answer
+from .cli_base import (
+    app,
+    args_to_target,
+    arg_refs,
+    arg_what,
+    arg_filters,
+    arg_out,
+    arg_against,
+    get_repo_context,
+)
 from .report_struct import Report
-from .constants import HOME_ENV_PATH
-from .bootstrap import bootstrap, app
-from .utils import no_subcommand, parse_refs_pair
+from .constants import HOME_ENV_PATH, GITHUB_MD_REPORT_FILE_NAME
+from .bootstrap import bootstrap
+from .utils import no_subcommand, extract_gh_owner_repo, remove_html_comments
+from .gh_api import resolve_gh_token
 
 # Import fix command to register it
-from .commands import fix, gh_post_review_comment, gh_react_to_comment, repl, deploy  # noqa
-
+from .commands import fix, gh_react_to_comment, repl, deploy  # noqa
+from .commands.gh_post_review_comment import post_github_cr_comment
+from .commands.linear_comment import linear_comment
 
 app_no_subcommand = typer.Typer(pretty_exceptions_show_locals=False)
 
@@ -36,67 +48,26 @@ def main():
 
 
 @app.callback(invoke_without_command=True)
-def cli(ctx: typer.Context, verbose: bool = typer.Option(default=False)):
+def cli(
+    ctx: typer.Context,
+    verbose: bool = typer.Option(default=None),
+    verbosity: int = typer.Option(
+        None,
+        '--verbosity', '-v',
+        help="Set verbosity level (0-3, default 1)"
+    ),
+):
+    if verbose is not None and verbosity is not None:
+        raise typer.BadParameter(
+            "Please specify either --verbose or --verbosity, not both."
+        )
+    if verbose is not None:
+        verbosity = 2 if verbose else 0
+    if verbosity is None:
+        verbosity = 1
+
     if ctx.invoked_subcommand != "setup":
-        bootstrap()
-    if verbose:
-        mc.logging.LoggingConfig.STRIP_REQUEST_LINES = None
-
-
-def args_to_target(refs, what, against) -> tuple[str | None, str | None]:
-    _what, _against = parse_refs_pair(refs)
-    if _what:
-        if what:
-            raise typer.BadParameter(
-                "You cannot specify both 'refs' <WHAT>..<AGAINST> and '--what'. Use one of them."
-            )
-    else:
-        _what = what
-    if _against:
-        if against:
-            raise typer.BadParameter(
-                "You cannot specify both 'refs' <WHAT>..<AGAINST> and '--against'. Use one of them."
-            )
-    else:
-        _against = against
-    return _what, _against
-
-
-def arg_refs() -> typer.Argument:
-    return typer.Argument(
-        default=None,
-        help="Git refs to review, [what]..[against] e.g. 'HEAD..HEAD~1'"
-    )
-
-
-def arg_what() -> typer.Option:
-    return typer.Option(None, "--what", "-w", help="Git ref to review")
-
-
-def arg_filters() -> typer.Option:
-    return typer.Option(
-        "", "--filter", "-f", "--filters",
-        help="""
-            filter reviewed files by glob / fnmatch pattern(s),
-            e.g. 'src/**/*.py', may be comma-separated
-            """,
-    )
-
-
-def arg_out() -> typer.Option:
-    return typer.Option(
-        None,
-        "--out", "-o", "--output",
-        help="Output folder for the code review report"
-    )
-
-
-def arg_against() -> typer.Option:
-    return typer.Option(
-        None,
-        "--against", "-vs", "--vs",
-        help="Git ref to compare against"
-    )
+        bootstrap(verbosity)
 
 
 @app_no_subcommand.command(name="review", help="Perform code review")
@@ -108,16 +79,43 @@ def cmd_review(
     against: str = arg_against(),
     filters: str = arg_filters(),
     merge_base: bool = typer.Option(default=True, help="Use merge base for comparison"),
+    url: str = typer.Option("", "--url", help="Git repository URL"),
+    post_comment: bool = typer.Option(default=False, help="Post review comment to GitHub"),
+    pr: int = typer.Option(
+        default=None,
+        help=textwrap.dedent("""\n
+        GitHub Pull Request number to post the comment to
+        (for local usage together with --post-comment,
+        in the github actions PR is resolved from the environment)
+        """)
+    ),
     out: str = arg_out()
 ):
     _what, _against = args_to_target(refs, what, against)
-    asyncio.run(review(
-        what=_what,
-        against=_against,
-        filters=filters,
-        use_merge_base=merge_base,
-        out_folder=out,
-    ))
+    with get_repo_context(url, _what) as (repo, out_folder):
+        asyncio.run(review(
+            repo=repo,
+            what=_what,
+            against=_against,
+            filters=filters,
+            use_merge_base=merge_base,
+            out_folder=out or out_folder,
+        ))
+        if post_comment:
+            try:
+                owner, repo_name = extract_gh_owner_repo(repo)
+            except ValueError as e:
+                logging.error(
+                    "Error posting comment:\n"
+                    "Could not extract GitHub owner and repository name from the local repository."
+                )
+                raise typer.Exit(code=1) from e
+            post_github_cr_comment(
+                md_report_file=os.path.join(out or out_folder, GITHUB_MD_REPORT_FILE_NAME),
+                pr=pr,
+                gh_repo=f"{owner}/{repo_name}",
+                token=resolve_gh_token()
+            )
 
 
 @app.command(name="ask", help="Answer questions about codebase changes")
@@ -130,15 +128,32 @@ def cmd_answer(
     against: str = arg_against(),
     filters: str = arg_filters(),
     merge_base: bool = typer.Option(default=True, help="Use merge base for comparison"),
+    use_pipeline: bool = typer.Option(default=True),
+    post_to: str = typer.Option(
+        help="Post answer to ... Supported values: linear",
+        default=None,
+        show_default=False
+    ),
 ):
     _what, _against = args_to_target(refs, what, against)
-    return answer(
+    if str(question).startswith("tpl:"):
+        prompt_file = str(question)[4:]
+        question = ""
+    else:
+        prompt_file = None
+    out = answer(
         question=question,
         what=_what,
         against=_against,
         filters=filters,
         use_merge_base=merge_base,
+        prompt_file=prompt_file,
+        use_pipeline=use_pipeline,
     )
+    if post_to == 'linear':
+        logging.info("Posting answer to Linear...")
+        linear_comment(remove_html_comments(out))
+    return out
 
 
 @app.command(help="Configure LLM for local usage interactively")
@@ -160,31 +175,6 @@ def render(
     Report.load(file_name=source).to_cli(report_format=format)
 
 
-@app.command(help="Review remote code")
-def remote(
-    url: str = typer.Argument(..., help="Git repository URL"),
-    refs: str = arg_refs(),
-    what: str = arg_what(),
-    against: str = arg_against(),
-    filters: str = arg_filters(),
-    merge_base: bool = typer.Option(default=True, help="Use merge base for comparison"),
-    out: str = arg_out()
-):
-    _what, _against = args_to_target(refs, what, against)
-    with tempfile.TemporaryDirectory() as temp_dir:
-        logging.info(f"Cloning [{mc.ui.green(url)}] to {mc.utils.file_link(temp_dir)} ...")
-        repo = Repo.clone_from(url, branch=_what, to_path=temp_dir)
-        asyncio.run(review(
-            repo=repo,
-            what=_what,
-            against=_against,
-            filters=filters,
-            use_merge_base=merge_base,
-            out_folder=out or '.',
-        ))
-        repo.close()
-
-
 @app.command(help="List files in the diff. Might be useful to check what will be reviewed.")
 def files(
     refs: str = arg_refs(),
@@ -196,22 +186,25 @@ def files(
 ):
     _what, _against = args_to_target(refs, what, against)
     repo = Repo(".")
-    patch_set = get_diff(repo=repo, what=_what, against=_against, use_merge_base=merge_base)
-    patch_set = filter_diff(patch_set, filters)
-    print(
-        f"Changed files: "
-        f"{mc.ui.green(_what or 'INDEX')} vs "
-        f"{mc.ui.yellow(_against or repo.remotes.origin.refs.HEAD.reference.name)}"
-        f"{' filtered by '+mc.ui.cyan(filters) if filters else ''}"
-    )
-    repo.close()
-    for patch in patch_set:
-        if patch.is_added_file:
-            color = mc.ui.green
-        elif patch.is_removed_file:
-            color = mc.ui.red
-        else:
-            color = mc.ui.blue
-        print(f"- {color(patch.path)}")
-        if diff:
-            print(mc.ui.gray(textwrap.indent(str(patch), "  ")))
+    try:
+        patch_set = get_diff(repo=repo, what=_what, against=_against, use_merge_base=merge_base)
+        patch_set = filter_diff(patch_set, filters)
+        print(
+            f"Changed files: "
+            f"{mc.ui.green(_what or 'INDEX')} vs "
+            f"{mc.ui.yellow(_against or repo.remotes.origin.refs.HEAD.reference.name)}"
+            f"{' filtered by ' + mc.ui.cyan(filters) if filters else ''}"
+        )
+
+        for patch in patch_set:
+            if patch.is_added_file:
+                color = mc.ui.green
+            elif patch.is_removed_file:
+                color = mc.ui.red
+            else:
+                color = mc.ui.blue
+            print(f"- {color(patch.path)}")
+            if diff:
+                print(mc.ui.gray(textwrap.indent(str(patch), "  ")))
+    finally:
+        repo.close()

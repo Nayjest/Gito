@@ -3,11 +3,11 @@ import sys
 import os
 from pathlib import Path
 import importlib.metadata
+from typing import Optional
 
 import typer
 import git
 from git import Repo
-from microcore import ui
 
 
 _EXT_TO_HINT: dict[str, str] = {
@@ -223,9 +223,20 @@ def detect_github_env() -> dict:
     return d
 
 
-def stream_to_cli(text):
-    print(ui.blue(text), end='')
+def make_streaming_function(handler: Optional[callable] = None) -> callable:
+    def stream(text):
+        if handler:
+            text = handler(text)
+        print(text, end='', flush=True)
+    return stream
 
 
 def version() -> str:
     return importlib.metadata.version("gito.bot")
+
+
+def remove_html_comments(text):
+    """
+    Removes all HTML comments (<!-- ... -->) from the input text.
+    """
+    return re.sub(r'<!--.*?-->\s*', '', text, flags=re.DOTALL)
