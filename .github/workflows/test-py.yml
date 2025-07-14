@@ -1,0 +1,25 @@
+name: "Gito: AI Code Reviewer"
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "Pull Request number"
+        required: true
+jobs:
+  testpy:
+    runs-on: ubuntu-latest
+    permissions: { contents: read, pull-requests: write } # 'write' for leaving the summary comment
+    steps:
+    - uses: actions/checkout@v4
+      with: { fetch-depth: 0 }
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with: { python-version: "3.13" }
+
+    - name: Show python
+      run: |
+        echo "{{ steps.setup-python.outputs.python-version }}"
+        
