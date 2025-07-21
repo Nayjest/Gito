@@ -175,7 +175,7 @@ def get_diff(
         )
         if file_path == DEV_NULL:
             continue
-        if is_binary_file(repo, file_path.lstrip("b/")):
+        if is_binary_file(repo, file_path.removeprefix("b/")):
             logging.info(f"Skipping binary file: {patched_file.path}")
             continue
         non_binary_diff.append(patched_file)
