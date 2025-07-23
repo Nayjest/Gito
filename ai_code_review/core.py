@@ -40,7 +40,10 @@ def get_diff(
 ) -> PatchSet | list[PatchedFile]:
     repo = repo or Repo(".")
     if not against:
+        pprint("Against available")
         against = repo.remotes.origin.refs.HEAD.reference.name  # origin/main
+    else:
+        pprint("Against not available")
     if not what:
         what = None  # working copy
     if use_merge_base:
