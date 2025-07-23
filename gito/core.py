@@ -1,6 +1,6 @@
+import os
 import fnmatch
 import logging
-from os import PathLike
 from typing import Iterable
 from pathlib import Path
 from functools import partial
@@ -345,7 +345,7 @@ async def review(
     against: str = None,
     filters: str | list[str] = "",
     use_merge_base: bool = True,
-    out_folder: str | PathLike | None = None,
+    out_folder: str | os.PathLike | None = None,
 ):
     try:
         repo, cfg, diff, lines = _prepare(
