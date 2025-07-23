@@ -29,7 +29,7 @@ def gh_api(
         owner, repo_name = gh_repo.split('/')
 
     token = resolve_gh_token(token)
-    api = GhApi(owner, repo, token=token)
+    api = GhApi(owner, repo_name, token=token)
     return api
 
 
