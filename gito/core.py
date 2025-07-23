@@ -293,7 +293,7 @@ def _prepare(
     against: str = None,
     filters: str | list[str] = "",
     use_merge_base: bool = True,
-    pr=pr,
+    pr: str | int = None,
 ):
     repo = repo or Repo(".")
     cfg = ProjectConfig.load_for_repo(repo)
