@@ -5,9 +5,10 @@ jobs:
     runs-on: ubuntu-latest
     permissions: { contents: read, pull-requests: write } # 'write' for leaving the summary comment
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v3
+      with: { fetch-depth: 2 }
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v4
       with: { python-version: "3.11.7" }
     - name: Install AI Code Review tool
       run: |
