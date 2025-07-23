@@ -25,7 +25,7 @@ from ..utils import extract_gh_owner_repo
 from .fix import fix
 
 
-def cleanup_comment_addresed_to_gito(text):
+def cleanup_comment_addressed_to_gito(text):
     if not text:
         return text
     patterns = [
@@ -123,7 +123,7 @@ def react_to_comment(
         )
     else:
         if cfg.answer_github_comments:
-            question = cleanup_comment_addresed_to_gito(comment.body)
+            question = cleanup_comment_addressed_to_gito(comment.body)
             response = answer(question, repo=repo, pr=pr)
             post_gh_comment(
                 gh_repository=f"{owner}/{repo_name}",

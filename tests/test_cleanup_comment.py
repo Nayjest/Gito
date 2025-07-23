@@ -1,4 +1,4 @@
-from gito.commands.gh_react_to_comment import cleanup_comment_addresed_to_gito
+from gito.commands.gh_react_to_comment import cleanup_comment_addressed_to_gito
 
 
 def test_remove_comment_prefixes():
@@ -37,4 +37,4 @@ def test_remove_comment_prefixes():
         ""
     ]
     for text, expected in zip(test_cases, expected_outputs):
-        assert cleanup_comment_addresed_to_gito(text) == expected, f"Failed for: {text}"
+        assert cleanup_comment_addressed_to_gito(text) == expected, f"Failed for: {text}"
