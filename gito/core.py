@@ -6,6 +6,7 @@ from pathlib import Path
 from functools import partial
 
 import microcore as mc
+from gito.gh_api import gh_api
 from microcore import ui
 from git import Repo, Commit
 from git.exc import GitCommandError
@@ -66,13 +67,26 @@ def commit_in_branch(repo: Repo, commit: Commit, target_branch: str) -> bool:
     return False
 
 
-def get_default_branch(repo):
+def get_base_branch(repo):
     if os.getenv('GITHUB_ACTIONS'):
-        base_ref = os.getenv('GITHUB_BASE_REF')
-        if base_ref:
-            logging.info(f"Using GITHUB_BASE_REF:{base_ref} as --against branch")
+
+        # triggered from PR
+        if base_ref := os.getenv('GITHUB_BASE_REF'):
+            logging.info(f"Using GITHUB_BASE_REF:{base_ref} as base branch")
             return f'origin/{base_ref}'
+        logging.info(f"GITHUB_BASE_REF is not available...")
+        if pr := os.getenv("PR_NUMBER_FROM_WORKFLOW_DISPATCH"):
+            api = gh_api(repo=repo)
+            pr_obj = api.pulls.get(pr_number)
+            logging.info(
+                f"Using {pr_obj.base.ref} as -base branch (received via GH API for PR#{pr})"
+            )
+            return pr_obj.base.ref
+
     try:
+        logging.info(
+            "Trying to resolve base branch from repo.remotes.origin.refs.HEAD.reference.name..."
+        )
         # 'origin/main', 'origin/master', etc
         # Stopped working in github actions since 07/2025
         return repo.remotes.origin.refs.HEAD.reference.name
@@ -87,11 +101,7 @@ def get_default_branch(repo):
             # Terminate app
             logging.error("Could not determine default branch from remote refs.")
             raise ValueError("No default branch found in the repository.")
-        #
-        # try:
-        #     return repo.active_branch.name
-        # except:
-        #     return 'origin/main'
+
 
 def get_diff(
     repo: Repo = None,

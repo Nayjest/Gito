@@ -2,7 +2,36 @@ import os
 import logging
 
 import requests
+import git
 from fastcore.basics import AttrDict  # objects returned by ghapi
+from ghapi.core import GhApi
+
+from .project_config import ProjectConfig
+from .utils import extract_gh_owner_repo
+
+
+def gh_api(
+    repo: git.Repo = None,  # used to resolve owner/repo
+    config: ProjectConfig | None = None, # used to resolve owner/repo
+    token: str | None = None
+) -> GhApi:
+    if repo:
+        # resolve owner/repo from repo.remotes.origin.url
+        owner, repo_name = extract_gh_owner_repo(repo)
+    else:
+        if not config:
+            config = ProjectConfig.load()
+        # resolve owner/repo from github env vars (github actions)
+        gh_env = config.prompt_vars["github_env"]
+        gh_repo = gh_env.get("github_repo")
+        if not gh_repo:
+            raise ValueError("GitHub repository not specified and not found in project config.")
+        owner, repo_name = gh_repo.split('/')
+
+
+    token = resolve_gh_token(token)
+    api = GhApi(owner, repo, token=token)
+    return api
 
 
 def resolve_gh_token(token_or_none: str | None = None) -> str | None:
