@@ -23,3 +23,7 @@ upload: publish
 test:
 	pytest --log-cli-level=INFO
 tests: test
+
+cli-reference:
+	typer gito.cli utils docs --name gito --title="Gito CLI Reference" --output documentation/command_line_reference.md
+cli-ref: cli-reference

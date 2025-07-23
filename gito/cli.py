@@ -47,14 +47,31 @@ def main():
         app()
 
 
-@app.callback(invoke_without_command=True)
+@app.callback(
+    invoke_without_command=True,
+    help="\bGito is an open-source AI code reviewer that works with any language model provider."
+         "\nIt detects issues in GitHub pull requests or local codebase changes"
+         "—instantly, reliably, and without vendor lock-in."
+)
 def cli(
     ctx: typer.Context,
-    verbose: bool = typer.Option(default=None),
     verbosity: int = typer.Option(
         None,
         '--verbosity', '-v',
-        help="Set verbosity level (0-3, default 1)"
+        show_default=False,
+        help="\b"
+             "Set verbosity level. Supported values: 0-3. Default: 1."
+             "\n [ 0 ]: no additional output, "
+             "\n [ 1 ]: normal mode, shows warnings, LLM requests and logging.INFO"
+             "\n [ 2 ]: verbose mode, show additional debug information"
+             "\n [ 3 ]: very verbose mode, show all debug information"
+    ),
+    verbose: bool = typer.Option(
+        default=None,
+        help="\b"
+             "--verbose is equivalent to -v2, "
+             "\n--no-verbose is equivalent to -v0. "
+             "\n(!) Can't be used together with -v or --verbosity."
     ),
 ):
     if verbose is not None and verbosity is not None:
@@ -71,7 +88,7 @@ def cli(
 
 
 @app_no_subcommand.command(name="review", help="Perform code review")
-@app.command(name="review", help="Perform code review")
+@app.command(name="review", help="Perform code review.")
 @app.command(name="run", hidden=True)
 def cmd_review(
     refs: str = arg_refs(),
@@ -120,7 +137,7 @@ def cmd_review(
             )
 
 
-@app.command(name="ask", help="Answer questions about codebase changes")
+@app.command(name="ask", help="Answer questions about codebase changes.")
 @app.command(name="answer", hidden=True)
 @app.command(name="talk", hidden=True)
 def cmd_answer(
@@ -164,12 +181,12 @@ def cmd_answer(
     return out
 
 
-@app.command(help="Configure LLM for local usage interactively")
+@app.command(help="Configure LLM for local usage interactively.")
 def setup():
     mc.interactive_setup(HOME_ENV_PATH)
 
 
-@app.command(name="render")
+@app.command(name="render", help="Render and display code review report.")
 @app.command(name="report", hidden=True)
 def render(
     format: str = typer.Argument(default=Report.Format.CLI),
@@ -183,7 +200,11 @@ def render(
     Report.load(file_name=source).to_cli(report_format=format)
 
 
-@app.command(help="List files in the diff. Might be useful to check what will be reviewed.")
+@app.command(
+    help="\bList files in the changeset. "
+         "\nMight be useful to check what will be reviewed if run `gito review` "
+         "with current CLI arguments and options."
+)
 def files(
     refs: str = arg_refs(),
     what: str = arg_what(),

@@ -8,9 +8,21 @@
 </p>
 
 **Gito** is an open-source **AI code reviewer** that works with any language model provider.
-It detects issues in GitHub pull requests or local changes—instantly, reliably, and without vendor lock-in.
+It detects issues in GitHub pull requests or local codebase changes—instantly, reliably, and without vendor lock-in.
 
 Get consistent, thorough code reviews in seconds—no waiting for human availability.
+
+## 📋 Table of Contents
+- [Why Gito?](#-why-gito)
+- [Perfect For](#-perfect-for)
+- [Quickstart](#-quickstart)
+  - [1. Review Pull Requests via GitHub Actions](#1-review-pull-requests-via-github-actions)
+  - [2. Running Code Analysis Locally](#2-running-code-analysis-locally)
+- [Configuration](#-configuration)
+- [Documentation](#-documentation)
+- [Development Setup](#-development-setup)
+- [Contributing](#-contributing)
+- [License](#-license)
 
 ## ✨ Why Gito?
 
@@ -77,7 +89,7 @@ jobs:
           code-review-report.json
 ```
 
-> ⚠️ Make sure to add `LLM_API_KEY` to your repository’s GitHub secrets.
+> ⚠️ Make sure to add `LLM_API_KEY` to your repository's GitHub secrets.
 
 💪 Done!  
 PRs to your repository will now receive AI code reviews automatically. ✨  
@@ -150,6 +162,14 @@ You can override the default config by placing `.gito/config.toml` in your repo 
 See default configuration [here](https://github.com/Nayjest/Gito/blob/main/gito/config.toml).
 
 More details can be found in [📖 Configuration Cookbook](https://github.com/Nayjest/Gito/blob/main/documentation/config_cookbook.md)
+
+## 📚 Documentation
+
+- [Command Line Reference](https://github.com/Nayjest/Gito/blob/main/documentation/command_line_reference.md)
+- [Configuration Cookbook](https://github.com/Nayjest/Gito/blob/main/documentation/config_cookbook.md)
+- [GitHub Setup Guide](https://github.com/Nayjest/Gito/blob/main/documentation/github_setup.md)
+- [Troubleshooting](https://github.com/Nayjest/Gito/blob/main/documentation/troubleshooting.md)
+
 
 ## 💻 Development Setup
 

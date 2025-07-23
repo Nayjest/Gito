@@ -15,7 +15,10 @@ from ..constants import JSON_REPORT_FILE_NAME
 from ..report_struct import Report, Issue
 
 
-@app.command(help="Fix an issue from the code review report")
+@app.command(
+    help="Fix an issue from the code review report "
+         "(latest code review results will be used by default)"
+)
 def fix(
     issue_number: int = typer.Argument(..., help="Issue number to fix"),
     report_path: Optional[str] = typer.Option(
