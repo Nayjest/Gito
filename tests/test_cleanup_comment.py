@@ -1,4 +1,6 @@
 from gito.commands.gh_react_to_comment import cleanup_comment_addresed_to_gito
+
+
 def test_remove_comment_prefixes():
     test_cases = [
         "gito please help me with this",
