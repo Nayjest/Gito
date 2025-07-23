@@ -12,7 +12,7 @@ from .utils import extract_gh_owner_repo
 
 def gh_api(
     repo: git.Repo = None,  # used to resolve owner/repo
-    config: ProjectConfig | None = None, # used to resolve owner/repo
+    config: ProjectConfig | None = None,  # used to resolve owner/repo
     token: str | None = None
 ) -> GhApi:
     if repo:
@@ -27,7 +27,6 @@ def gh_api(
         if not gh_repo:
             raise ValueError("GitHub repository not specified and not found in project config.")
         owner, repo_name = gh_repo.split('/')
-
 
     token = resolve_gh_token(token)
     api = GhApi(owner, repo, token=token)

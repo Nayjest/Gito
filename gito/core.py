@@ -74,12 +74,12 @@ def get_base_branch(repo: Repo):
         if base_ref := os.getenv('GITHUB_BASE_REF'):
             logging.info(f"Using GITHUB_BASE_REF:{base_ref} as base branch")
             return f'origin/{base_ref}'
-        logging.info(f"GITHUB_BASE_REF is not available...")
-        if pr := os.getenv("PR_NUMBER_FROM_WORKFLOW_DISPATCH"):
+        logging.info("GITHUB_BASE_REF is not available...")
+        if pr_number := os.getenv("PR_NUMBER_FROM_WORKFLOW_DISPATCH"):
             api = gh_api(repo=repo)
             pr_obj = api.pulls.get(pr_number)
             logging.info(
-                f"Using {pr_obj.base.ref} as -base branch (received via GH API for PR#{pr})"
+                f"Using {pr_obj.base.ref} as -base branch (received via GH API for PR#{pr_number})"
             )
             return pr_obj.base.ref
 
@@ -92,15 +92,18 @@ def get_base_branch(repo: Repo):
         return repo.remotes.origin.refs.HEAD.reference.name
     except AttributeError:
         try:
-            logging.info("Checking if repo has 'main' or 'master' branchs to use as --against branch...")
+            logging.info(
+                "Checking if repo has 'main' or 'master' branchs to use as --against branch..."
+            )
             remote_refs = repo.remotes.origin.refs
             for branch_name in ['main', 'master']:
                 if hasattr(remote_refs, branch_name):
                     return f'origin/{branch_name}'
-        except:
-            # Terminate app
-            logging.error("Could not determine default branch from remote refs.")
-            raise ValueError("No default branch found in the repository.")
+        except Exception:
+            pass
+
+        logging.error("Could not determine default branch from remote refs.")
+        raise ValueError("No default branch found in the repository.")
 
 
 def get_diff(
