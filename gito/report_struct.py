@@ -10,9 +10,9 @@ from colorama import Fore, Style, Back
 from microcore.utils import file_link
 import textwrap
 
-from .constants import JSON_REPORT_FILE_NAME, HTML_TEXT_ICON
+from .constants import JSON_REPORT_FILE_NAME, HTML_TEXT_ICON, HTML_CR_COMMENT_MARKER
 from .project_config import ProjectConfig
-from .utils import syntax_hint, block_wrap_lr, max_line_len
+from .utils import syntax_hint, block_wrap_lr, max_line_len, remove_html_comments
 
 
 @dataclass
@@ -125,6 +125,8 @@ class Report:
             block_wrap_lr=block_wrap_lr,
             max_line_len=max_line_len,
             HTML_TEXT_ICON=HTML_TEXT_ICON,
+            HTML_CR_COMMENT_MARKER=HTML_CR_COMMENT_MARKER,
+            remove_html_comments=remove_html_comments,
             **config.prompt_vars
         )
 

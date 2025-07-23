@@ -33,6 +33,11 @@ class ProjectConfig:
     when referenced in code review comments.
     """
     pipeline_steps: dict[str, dict | PipelineStep] = field(default_factory=dict)
+    collapse_previous_code_review_comments: bool = field(default=True)
+    """
+    If True, previously added code review comments in the pull request
+    will be collapsed automatically when a new comment is added.
+    """
 
     def __post_init__(self):
         self.pipeline_steps = {
@@ -61,10 +66,16 @@ class ProjectConfig:
             logging.info(
                 f"Loading project-specific configuration from {mc.utils.file_link(config_path)}...")
             default_prompt_vars = config["prompt_vars"]
+            default_pipeline_steps = config["pipeline_steps"]
             with open(config_path, "rb") as f:
                 config.update(tomllib.load(f))
             # overriding prompt_vars config section will not empty default values
             config["prompt_vars"] = default_prompt_vars | config["prompt_vars"]
+            # merge individual pipeline steps
+            for k, v in config["pipeline_steps"].items():
+                config["pipeline_steps"][k] = default_pipeline_steps.get(k, {}) | v
+            # merge pipeline steps dict
+            config["pipeline_steps"] = default_pipeline_steps | config["pipeline_steps"]
         else:
             logging.info(
                 f"No project config found at {ui.blue(config_path)}, using defaults"

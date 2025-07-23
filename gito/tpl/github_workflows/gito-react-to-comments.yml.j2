@@ -52,31 +52,19 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
+        {% raw -%}
         repository: ${{ github.repository }}
         token: ${{ secrets.GITHUB_TOKEN }}
         ref: ${{ fromJson(steps.pr.outputs.result).head_ref }}
         fetch-depth: 0
+        {%- endraw %}
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with: { python-version: "3.13" }
-
-    - name: Install Gito
-      run: |
-        pip install poetry
-        poetry install
-        echo "$(poetry env info --path)/bin" >> $GITHUB_PATH
+      {%- include("github_workflows/components/installs.j2") %}
 
     - name: Run Gito react
       env:
         # LLM config is needed only if answer_github_comments = true in .gito/config.toml
         # Otherwise, use LLM_API_TYPE: none
-        LLM_API_TYPE: anthropic
-        LLM_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        MODEL: claude-sonnet-4-20250514
-        JIRA_TOKEN: ${{ secrets.JIRA_TOKEN }}
-        JIRA_URL: ${{ secrets.JIRA_URL }}
-        JIRA_USER: ${{ secrets.JIRA_USER }}
-        LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+        {%- include("github_workflows/components/env-vars.j2") %}
       run: |
-        gito react-to-comment ${{ github.event.comment.id }} --token ${{ secrets.GITHUB_TOKEN }}
+        {% raw %}gito react-to-comment ${{ github.event.comment.id }} --token ${{ secrets.GITHUB_TOKEN }}{%- endraw %}

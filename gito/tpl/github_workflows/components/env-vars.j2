@@ -1,0 +1,10 @@
+
+        LLM_API_TYPE: {{ api_type }}
+        LLM_API_KEY: {{ "${{ secrets." + secret_name + " }}" }}
+        MODEL: {{ model }}
+        {% raw -%}
+        JIRA_TOKEN: ${{ secrets.JIRA_TOKEN }}
+        JIRA_URL: ${{ secrets.JIRA_URL }}
+        JIRA_USER: ${{ secrets.JIRA_USER }}
+        LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+        {%- endraw %}

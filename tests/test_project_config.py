@@ -1,5 +1,7 @@
 import logging
 import textwrap
+from pathlib import Path
+
 from gito.project_config import ProjectConfig
 
 
@@ -28,3 +30,12 @@ def test_prompt_vars_merging(tmp_path):
     assert "self_id" in cfg.prompt_vars
     assert cfg.prompt_vars["foo"] == "bar"
     assert cfg.retries == 7
+
+
+def test_merge_pipeline_steps():
+    file = Path(__file__).parent / "fixtures" / "config-disable-jira.toml"
+    cfg = ProjectConfig.load(config_path=file)
+    assert "linear" in cfg.pipeline_steps
+    assert "jira" in cfg.pipeline_steps
+    assert cfg.pipeline_steps["linear"].enabled
+    assert not cfg.pipeline_steps["jira"].enabled

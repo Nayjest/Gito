@@ -3,6 +3,7 @@
 # Defines the keyword or mention tag that triggers bot actions when referenced in code review comments.
 # list of strings, case-insensitive
 mention_triggers = ["gito", "bot", "ai", "/fix"]
+collapse_previous_code_review_comments = true
 report_template_md = """
 <h2>{{ HTML_TEXT_ICON }}I've Reviewed the Code</h2>
 
@@ -36,7 +37,7 @@ report_template_md = """
     {%- endfor -%}
     {{ "\n" }}
 {%- endfor -%}
-
+{{- HTML_CR_COMMENT_MARKER -}}
 """
 report_template_cli = """
 {{ Back.BLUE }}  +  +  +  ---==<<[ CODE REVIEW{{Style.NORMAL}} ]>>==---  +  +  +  {{Style.RESET_ALL}}
@@ -49,7 +50,7 @@ report_template_cli = """
 {%- if report.summary -%}
     {{- "\n" }}
     {{- "\n" }}{{- Style.BRIGHT }}✨  SUMMARY {{ Style.RESET_ALL -}}
-    {{- "\n" }}{{- report.summary -}}
+    {{- "\n" }}{{- remove_html_comments(report.summary) -}}
 {%- endif %}
 {% for issue in report.plain_issues -%}
     {{"\n"}}{{ Style.BRIGHT }}{{Back.RED}}[ {{ issue.id}} ]{{Back.RESET}}  {{ issue.title -}}{{ Style.RESET_ALL -}}
@@ -134,18 +135,18 @@ Review the provided code diff carefully and identify *only* highly confident iss
 {{ requirements -}}
 {{ json_requirements }}
 
-Respond with a valid JSON array of issues in the following format:
+Respond with a valid JSON array of issues following this schema:
 [
     {
         "title": "<issue_title>",
         "details": "<issue_description>",
-        "tags": ["<issue_tag1>", "<issue_tag2>"],
-        "severity": <issue_severity>,
-        "confidence": <confidence_score>,
-        "affected_lines": [ // optional; list of affected lines
+        "tags": ["<issue_tag1>", "<issue_tag2>", ...],
+        "severity": <issue_severity:int>,
+        "confidence": <confidence_score:int>,
+        "affected_lines": [ // optional;
             {
-                "start_line": <start_line:int>,
-                "end_line": <end_line:int>,
+                "start_line": <int>,
+                "end_line": <int>,
                 "proposal": "<proposed code to replace the affected lines (optional)>"
             },
             ...
@@ -153,6 +154,10 @@ Respond with a valid JSON array of issues in the following format:
     },
     ...
 ]
+
+- if present, `proposal` blocks must match the indentation of the original code
+  and apply cleanly to lines `start_line`..`end_line`. It is designed for programmatical substitution.
+
 Available issue tags:
 - bug
 - security
@@ -200,14 +205,16 @@ Summarize the code review in one sentence.
 {{ issues | tojson(indent=2) }}
 ---
 If the code changes include exceptional achievements, you may also present an award to the author in the summary text.
-Note: Awards should only be given to authors of initial codebase changes, not to code reviewers.
+ - (!) Only give awards to initial codebase authors, NOT to reviewers.
+ - (!) If you give an award, place the hidden <!-- award --> HTML comment on its own line immediately before the award text.
 --Available Awards--
 {{ awards }}
 ---
 {% if pipeline_out.associated_issue and pipeline_out.associated_issue.title %}
 ----SUBTASK----
 Include one sentence about how the code changes address the requirements of the associated issue listed below.
-
+- (!) Place the hidden <!-- issue_alignment --> comment on its own line immediately before the related text.
+- Use ✅ or ⚠️ to indicate whether the implementation fully satisfies the issue requirements.
 --Associated Issue--
 # {{ pipeline_out.associated_issue.title }}
 {{ pipeline_out.associated_issue.description }}
@@ -218,10 +225,12 @@ Examples:
 
 If the implementation fully delivers the requested functionality:
 ```
+<!-- issue_alignment -->
 ✅  Implementation Satisfies [<ISSUE_KEY>](<ISSUE_URL>).
 ```
 If there are concerns about how thoroughly the code covers the requirements and technical description from the associated issue:
 ```
+<!-- issue_alignment -->
 ⚠️ <Describe specific gap or concern>.
 ⚠️ <Describe additional limitation or missing feature>.
 ```
@@ -248,6 +257,14 @@ Answer the following user question:
 --FILE: {{ file }}--
 {{ file_lines }}
 {% endfor %}
+
+{%- if pipeline_out.associated_issue and pipeline_out.associated_issue.title %}
+----ASSOCIATED ISSUE----
+# {{ pipeline_out.associated_issue.title }}
+{{ pipeline_out.associated_issue.description }}
+URL: {{ pipeline_out.associated_issue.url }}
+{%- endif -%}{{ '\n' }}
+
 ----ANSWERING INSTRUCTIONS----
 {{ answering_instructions }}
 """
@@ -433,7 +450,9 @@ decorators add depth and texture, and observer masterfully completes the composi
 The Gang of Four gives a standing ovation from the stalls."
 ```
 """
-requirements = ""
+requirements = """
+- (!) Never report issues related to software versions, model names, or similar details that you believe have not yet been released—you cannot reliably determine this.
+"""
 summary_requirements = ""
 answering_instructions = """
 - (!) Provide a concise, direct answer in engaging speech.

@@ -2,9 +2,11 @@ import logging
 from enum import StrEnum
 from dataclasses import dataclass, field
 
-from gito.utils import is_running_in_github_action
 from microcore import ui
 from microcore.utils import resolve_callable
+
+from .context import Context
+from .utils import is_running_in_github_action
 
 
 class PipelineEnv(StrEnum):
@@ -42,7 +44,7 @@ class PipelineStep:
 
 @dataclass
 class Pipeline:
-    ctx: dict = field(default_factory=dict)
+    ctx: Context = field()
     steps: dict[str, PipelineStep] = field(default_factory=dict)
     verbose: bool = False
 
@@ -55,15 +57,14 @@ class Pipeline:
     def run(self, *args, **kwargs):
         cur_env = PipelineEnv.current()
         logging.info("Running pipeline... [env: %s]", ui.yellow(cur_env))
-        self.ctx["pipeline_out"] = self.ctx.get("pipeline_out", {})
         for step_name, step in self.enabled_steps.items():
             if cur_env in step.envs:
                 logging.info(f"Running pipeline step: {step_name}")
                 try:
-                    step_output = step.run(*args, **kwargs, **self.ctx)
+                    step_output = step.run(*args, **kwargs, **vars(self.ctx))
                     if isinstance(step_output, dict):
-                        self.ctx["pipeline_out"].update(step_output)
-                    self.ctx["pipeline_out"][step_name] = step_output
+                        self.ctx.pipeline_out.update(step_output)
+                    self.ctx.pipeline_out[step_name] = step_output
                     if self.verbose and step_output:
                         logging.info(
                             f"Pipeline step {step_name} output: {repr(step_output)}"
@@ -79,4 +80,4 @@ class Pipeline:
                     f"Skipping pipeline step: {step_name}"
                     f" [env: {ui.yellow(cur_env)} not in {step.envs}]"
                 )
-        return self.ctx["pipeline_out"]
+        return self.ctx.pipeline_out

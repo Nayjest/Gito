@@ -16,10 +16,10 @@ from microcore import ui
 from ghapi.all import GhApi
 import git
 
-from ..bootstrap import app
+from ..cli_base import app
 from ..constants import JSON_REPORT_FILE_NAME, HTML_TEXT_ICON
 from ..core import answer
-from ..gh_api import post_gh_comment
+from ..gh_api import post_gh_comment, resolve_gh_token
 from ..project_config import ProjectConfig
 from ..utils import extract_gh_owner_repo
 from .fix import fix
@@ -51,9 +51,7 @@ def react_to_comment(
     repo = git.Repo(".")  # Current directory
     owner, repo_name = extract_gh_owner_repo(repo)
     logging.info(f"Using repository: {ui.yellow}{owner}/{repo_name}{ui.reset}")
-    gh_token = (
-        gh_token or os.getenv("GITHUB_TOKEN", None) or os.getenv("GH_TOKEN", None)
-    )
+    gh_token = resolve_gh_token(gh_token)
     api = GhApi(owner=owner, repo=repo_name, token=gh_token)
     comment = api.issues.get_comment(comment_id=comment_id)
     logging.info(
