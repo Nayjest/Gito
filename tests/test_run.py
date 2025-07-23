@@ -22,6 +22,7 @@ def test_review_command_calls_review(monkeypatch):
         filters="",
         out_folder=".",
         use_merge_base=True,
+        pr=None,
     )
 
 
@@ -40,4 +41,5 @@ def test_calls_review(monkeypatch):
         filters="*.py,*.md",
         out_folder=".",
         use_merge_base=True,
+        pr=None,
     )
