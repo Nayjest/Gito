@@ -67,7 +67,7 @@ def commit_in_branch(repo: Repo, commit: Commit, target_branch: str) -> bool:
     return False
 
 
-def get_base_branch(repo):
+def get_base_branch(repo: Repo):
     if os.getenv('GITHUB_ACTIONS'):
 
         # triggered from PR
@@ -112,7 +112,7 @@ def get_diff(
     repo = repo or Repo(".")
     if not against:
         # 'origin/main', 'origin/master', etc
-        against = get_default_branch(repo)
+        against = get_base_branch(repo)
     if review_subject_is_index(what):
         what = None  # working copy
     if use_merge_base:
