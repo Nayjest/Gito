@@ -366,7 +366,12 @@ async def review(
 ):
     try:
         repo, cfg, diff, lines = _prepare(
-            repo=repo, what=what, against=against, filters=filters, use_merge_base=use_merge_base, pr=pr,
+            repo=repo,
+            what=what,
+            against=against,
+            filters=filters,
+            use_merge_base=use_merge_base,
+            pr=pr,
         )
     except NoChangesInContextError:
         logging.error("No changes to review")
