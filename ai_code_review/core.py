@@ -39,6 +39,7 @@ def get_diff(
     use_merge_base: bool = True,
 ) -> PatchSet | list[PatchedFile]:
     repo = repo or Repo(".")
+    from pprint import pprint
     if not against:
         pprint("Against available")
         against = repo.remotes.origin.refs.HEAD.reference.name  # origin/main
