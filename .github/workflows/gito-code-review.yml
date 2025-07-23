@@ -42,7 +42,7 @@ jobs:
         PR_NUMBER_FROM_WORKFLOW_DISPATCH: ${{ github.event.inputs.pr_number }}
       run: |
         gito --verbose review
-        # Don't work when triggering from comments
+        # alternative way to capture PR base
         # gito --verbose review ${{ github.event_name == 'pull_request' && github.event.pull_request.base.ref && format(' --against="origin/{0}"', github.event.pull_request.base.ref) || '' }}
         gito github-comment --token ${{ secrets.GITHUB_TOKEN }}
 
