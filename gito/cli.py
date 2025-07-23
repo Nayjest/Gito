@@ -111,6 +111,9 @@ def cmd_review(
     out: str = arg_out()
 ):
     _what, _against = args_to_target(refs, what, against)
+    from pprint import pprint
+    print("Against v2:")
+    pprint(_against)
     asyncio.run(review(
         what=_what,
         against=_against,
