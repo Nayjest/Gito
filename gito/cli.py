@@ -92,6 +92,7 @@ def cmd_review(
     out: str = arg_out()
 ):
     _what, _against = args_to_target(refs, what, against)
+    pr = pr or os.getenv("PR_NUMBER_FROM_WORKFLOW_DISPATCH")
     with get_repo_context(url, _what) as (repo, out_folder):
         asyncio.run(review(
             repo=repo,
@@ -100,6 +101,7 @@ def cmd_review(
             filters=filters,
             use_merge_base=merge_base,
             out_folder=out or out_folder,
+            pr=pr,
         ))
         if post_comment:
             try:
@@ -134,8 +136,13 @@ def cmd_answer(
         default=None,
         show_default=False
     ),
+    pr: int = typer.Option(
+        default=None,
+        help="GitHub Pull Request number"
+    ),
 ):
     _what, _against = args_to_target(refs, what, against)
+    pr = pr or os.getenv("PR_NUMBER_FROM_WORKFLOW_DISPATCH")
     if str(question).startswith("tpl:"):
         prompt_file = str(question)[4:]
         question = ""
@@ -149,6 +156,7 @@ def cmd_answer(
         use_merge_base=merge_base,
         prompt_file=prompt_file,
         use_pipeline=use_pipeline,
+        pr=pr,
     )
     if post_to == 'linear':
         logging.info("Posting answer to Linear...")

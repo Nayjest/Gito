@@ -67,7 +67,7 @@ def commit_in_branch(repo: Repo, commit: Commit, target_branch: str) -> bool:
     return False
 
 
-def get_base_branch(repo: Repo):
+def get_base_branch(repo: Repo, pr: int | str = None):
     if os.getenv('GITHUB_ACTIONS'):
 
         # triggered from PR
@@ -75,12 +75,12 @@ def get_base_branch(repo: Repo):
             logging.info(f"Using GITHUB_BASE_REF:{base_ref} as base branch")
             return f'origin/{base_ref}'
         logging.info("GITHUB_BASE_REF is not available...")
-        if pr_number := os.getenv("PR_NUMBER_FROM_WORKFLOW_DISPATCH"):
+        if pr:
             api = gh_api(repo=repo)
-            pr_obj = api.pulls.get(pr_number)
+            pr_obj = api.pulls.get(pr)
             logging.info(
                 f"Using 'origin/{pr_obj.base.ref}' as base branch "
-                f"(received via GH API for PR#{pr_number})"
+                f"(received via GH API for PR#{pr})"
             )
             return f'origin/{pr_obj.base.ref}'
 
@@ -112,11 +112,12 @@ def get_diff(
     what: str = None,
     against: str = None,
     use_merge_base: bool = True,
+    pr: str | int = None
 ) -> PatchSet | list[PatchedFile]:
     repo = repo or Repo(".")
     if not against:
         # 'origin/main', 'origin/master', etc
-        against = get_base_branch(repo)
+        against = get_base_branch(repo, pr=pr)
     if review_subject_is_index(what):
         what = None  # working copy
     if use_merge_base:
@@ -292,11 +293,12 @@ def _prepare(
     against: str = None,
     filters: str | list[str] = "",
     use_merge_base: bool = True,
+    pr=pr,
 ):
     repo = repo or Repo(".")
     cfg = ProjectConfig.load_for_repo(repo)
     diff = get_diff(
-        repo=repo, what=what, against=against, use_merge_base=use_merge_base
+        repo=repo, what=what, against=against, use_merge_base=use_merge_base, pr=pr,
     )
     diff = filter_diff(diff, filters)
     if not diff:
@@ -360,10 +362,11 @@ async def review(
     filters: str | list[str] = "",
     use_merge_base: bool = True,
     out_folder: str | os.PathLike | None = None,
+    pr: str | int = None
 ):
     try:
         repo, cfg, diff, lines = _prepare(
-            repo=repo, what=what, against=against, filters=filters, use_merge_base=use_merge_base
+            repo=repo, what=what, against=against, filters=filters, use_merge_base=use_merge_base, pr=pr,
         )
     except NoChangesInContextError:
         logging.error("No changes to review")
@@ -419,10 +422,16 @@ def answer(
     use_merge_base: bool = True,
     use_pipeline: bool = True,
     prompt_file: str = None,
+    pr: str | int = None,
 ) -> str | None:
     try:
         repo, config, diff, lines = _prepare(
-            repo=repo, what=what, against=against, filters=filters, use_merge_base=use_merge_base
+            repo=repo,
+            what=what,
+            against=against,
+            filters=filters,
+            use_merge_base=use_merge_base,
+            pr=pr
         )
     except NoChangesInContextError:
         logging.error("No changes to review")
