@@ -1,16 +1,31 @@
+import logging
 from pathlib import Path
 
 import microcore as mc
 from microcore import ApiType, ui, utils
-from git import Repo
+from git import Repo, GitCommandError
+import typer
 
+from ..core import get_base_branch
 from ..utils import version, extract_gh_owner_repo
 from ..cli_base import app
+from ..gh_api import gh_api
 
 
 @app.command(name="deploy", help="Deploy Gito workflows to GitHub Actions")
 @app.command(name="init", hidden=True)
-def deploy(api_type: ApiType = None, commit: bool = None, rewrite: bool = False):
+def deploy(
+    api_type: ApiType = None,
+    commit: bool = None,
+    rewrite: bool = False,
+    to_branch: str = typer.Option(
+        default="gito_deploy",
+        help="Branch name for new PR containing with Gito workflows commit"
+    ),
+    token: str = typer.Option(
+        "", help="GitHub token (or set GITHUB_TOKEN env var)"
+    ),
+):
     repo = Repo(".")
     workflow_files = dict(
         code_review=Path(".github/workflows/gito-code-review.yml"),
@@ -77,16 +92,35 @@ def deploy(api_type: ApiType = None, commit: bool = None, rewrite: bool = False)
         "Do you want to commit and push created GitHub workflows to a new branch?"
     ):
         repo.git.add([str(file) for file in workflow_files.values()])
-        branch_name = "gito_deploy"
-        if not repo.active_branch.name.startswith(branch_name):
-            repo.git.checkout("-b", branch_name)
-        repo.git.commit("-m", "Deploy Gito workflows")
-        repo.git.push("origin", branch_name)
-        print(f"Changes pushed to {branch_name} branch.")
-        print(
-            f"Please create a PR from {branch_name} to your main branch and merge it:\n"
-            f"https://github.com/{owner}/{repo_name}/compare/gito_deploy?expand=1"
-        )
+        if not repo.active_branch.name.startswith(to_branch):
+            repo.git.checkout("-b", to_branch)
+        try:
+            repo.git.commit("-m", "Deploy Gito workflows")
+        except GitCommandError as e:
+            if "nothing added" in str(e):
+                ui.warning("Failed to commit changes: nothing was added")
+            else:
+                ui.error(f"Failed to commit changes: {e}")
+                return False
+
+        repo.git.push("origin", to_branch)
+        print(f"Changes pushed to {to_branch} branch.")
+        try:
+            api = gh_api(repo=repo)
+            base = get_base_branch(repo).split('/')[-1]
+            logging.info(f"Creating PR {ui.green(to_branch)} -> {ui.yellow(base)}...")
+            res = api.pulls.create(
+                head=to_branch,
+                base=base,
+                title="Deploy Gito workflows",
+            )
+            print(f"Pull request #{res.number} created successfully:\n{res.html_url}")
+        except Exception as e:
+            mc.ui.error(f"Failed to create pull request automatically: {e}")
+            print(
+                f"Please create a PR from '{to_branch}' to your main branch and merge it:\n"
+                f"https://github.com/{owner}/{repo_name}/compare/{to_branch}?expand=1"
+            )
     else:
         print(
             "Now you can commit and push created GitHub workflows to your main repository branch.\n"
