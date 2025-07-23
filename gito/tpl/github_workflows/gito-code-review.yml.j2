@@ -22,7 +22,7 @@ jobs:
         {%- include("github_workflows/components/env-vars.j2") %}
         PR_NUMBER_FROM_WORKFLOW_DISPATCH: {% raw %}${{ github.event.inputs.pr_number }}{% endraw %}
       run: |{% raw %}
-        gito --verbose review ${{ github.event_name == 'pull_request' && github.event.pull_request.base.ref && format(' --against="origin/{0}"', github.event.pull_request.base.ref) || '' }}
+        gito --verbose review
         gito github-comment --token ${{ secrets.GITHUB_TOKEN }}{% endraw %}
 
     - uses: actions/upload-artifact@v4
