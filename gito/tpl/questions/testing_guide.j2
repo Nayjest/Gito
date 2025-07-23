@@ -1,0 +1,23 @@
+{{ self_id }}
+----TASK----
+Create a concise comment for QA specialists that explains how to test the code‑base changes.
+Include:
+- User journeys that could be disrupted by failures
+- Relevant security scenarios and edge cases
+- Potential risk areas introduced by the changes, with suggestions for focused testing to mitigate them
+
+----RELATED CODEBASE CHANGES----
+{% for part in diff %}{{ part }}\n{% endfor %}
+
+----FULL FILE CONTENT AFTER APPLYING CHANGES----
+{% for file, file_lines in all_file_lines.items() %}
+--FILE: {{ file }}--
+{{ file_lines }}
+{% endfor %}
+
+{%- if pipeline_out.associated_issue and pipeline_out.associated_issue.title %}
+----ASSOCIATED ISSUE----
+# {{ pipeline_out.associated_issue.title }}
+{{ pipeline_out.associated_issue.description }}
+URL: {{ pipeline_out.associated_issue.url }}
+{%- endif -%}{{ '\n' }}
