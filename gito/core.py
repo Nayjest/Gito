@@ -66,6 +66,33 @@ def commit_in_branch(repo: Repo, commit: Commit, target_branch: str) -> bool:
     return False
 
 
+def get_default_branch(repo):
+    if os.getenv('GITHUB_ACTIONS'):
+        base_ref = os.getenv('GITHUB_BASE_REF')
+        if base_ref:
+            logging.info(f"Using GITHUB_BASE_REF:{base_ref} as --against branch")
+            return f'origin/{base_ref}'
+    try:
+        # 'origin/main', 'origin/master', etc
+        # Stopped working in github actions since 07/2025
+        return repo.remotes.origin.refs.HEAD.reference.name
+    except AttributeError:
+        try:
+            logging.info("Checking if repo has 'main' or 'master' branchs to use as --against branch...")
+            remote_refs = repo.remotes.origin.refs
+            for branch_name in ['main', 'master']:
+                if hasattr(remote_refs, branch_name):
+                    return f'origin/{branch_name}'
+        except:
+            # Terminate app
+            logging.error("Could not determine default branch from remote refs.")
+            raise ValueError("No default branch found in the repository.")
+        #
+        # try:
+        #     return repo.active_branch.name
+        # except:
+        #     return 'origin/main'
+
 def get_diff(
     repo: Repo = None,
     what: str = None,
@@ -75,7 +102,7 @@ def get_diff(
     repo = repo or Repo(".")
     if not against:
         # 'origin/main', 'origin/master', etc
-        against = repo.remotes.origin.refs.HEAD.reference.name
+        against = get_default_branch(repo)
     if review_subject_is_index(what):
         what = None  # working copy
     if use_merge_base:
