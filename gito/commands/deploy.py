@@ -11,6 +11,7 @@ from ..utils import version, extract_gh_owner_repo
 from ..cli_base import app
 from ..gh_api import gh_api
 
+
 @app.command(name="deploy", help="Deploy Gito workflows to GitHub Actions")
 @app.command(name="init", hidden=True)
 def deploy(
