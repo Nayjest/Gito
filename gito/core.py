@@ -79,7 +79,8 @@ def get_base_branch(repo: Repo):
             api = gh_api(repo=repo)
             pr_obj = api.pulls.get(pr_number)
             logging.info(
-                f"Using 'origin/{pr_obj.base.ref}' as -base branch (received via GH API for PR#{pr_number})"
+                f"Using 'origin/{pr_obj.base.ref}' as base branch "
+                f"(received via GH API for PR#{pr_number})"
             )
             return f'origin/{pr_obj.base.ref}'
 
