@@ -1,0 +1,55 @@
+{{ self_id }}
+----TASK----
+
+## Subtask 1:
+Write a codebase changes summary clearly describing and explaining it for the engineering managers.
+- It is intended to be posted into bug tracker for estimating work done in the pull request.
+- Summary should be in a form of compact changelist where each change is described by one sentence.
+- Caption should be: ## PR Summary: <3-10 words>
+- Each change summary BP list item should start from effort estimation icon:
+- - ◆◇◇ (up to 2 hours)
+- - ◆◆◇ (half day)
+- - ◆◆◆ (1-2 days and more)
+
+Also include this estimation legend below as "Pure Codebase Work Estimation Legend".
+
+
+## Subtask 1 (Issue alignment sentence)
+Include one sentence about how the code changes address the requirements of the associated issue listed below.
+- Use ✅ or ⚠️ to indicate whether the implementation fully satisfies the issue requirements.
+- Put this sentence immediately below the PR Summary title
+Examples:
+
+If the implementation fully delivers the requested functionality:
+```
+✅  Implementation Satisfies [<ISSUE_KEY>](<ISSUE_URL>).
+```
+If there are concerns about how thoroughly the code covers the requirements and technical description from the associated issue:
+```
+⚠️ <Describe specific gap or concern>.
+⚠️ <Describe additional limitation or missing feature>.
+```
+
+## Subtask 3:
+Write release notes for public documentation.
+- Caption should be: ## Release Notes Proposal
+Summarize the following changes, focusing on what is new, improved, or fixed for the end user.
+Do not include internal or technical details.
+Structure release notes using clear sections: Added, Changed, Fixed.
+Avoid internal technical jargon or developer-specific details.
+
+----RELATED CODEBASE CHANGES----
+{% for part in diff %}{{ part }}\n{% endfor %}
+
+----FULL FILE CONTENT AFTER APPLYING CHANGES----
+{% for file, file_lines in all_file_lines.items() %}
+--FILE: {{ file }}--
+{{ file_lines }}
+{% endfor %}
+
+{%- if pipeline_out.associated_issue and pipeline_out.associated_issue.title %}
+----ASSOCIATED ISSUE----
+# {{ pipeline_out.associated_issue.title }}
+{{ pipeline_out.associated_issue.description }}
+URL: {{ pipeline_out.associated_issue.url }}
+{%- endif -%}{{ '\n' }}

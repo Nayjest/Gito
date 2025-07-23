@@ -1,11 +1,12 @@
+import os
 import fnmatch
 import logging
-from os import PathLike
 from typing import Iterable
 from pathlib import Path
 from functools import partial
 
 import microcore as mc
+from gito.gh_api import gh_api
 from microcore import ui
 from git import Repo, Commit
 from git.exc import GitCommandError
@@ -66,6 +67,46 @@ def commit_in_branch(repo: Repo, commit: Commit, target_branch: str) -> bool:
     return False
 
 
+def get_base_branch(repo: Repo):
+    if os.getenv('GITHUB_ACTIONS'):
+
+        # triggered from PR
+        if base_ref := os.getenv('GITHUB_BASE_REF'):
+            logging.info(f"Using GITHUB_BASE_REF:{base_ref} as base branch")
+            return f'origin/{base_ref}'
+        logging.info("GITHUB_BASE_REF is not available...")
+        if pr_number := os.getenv("PR_NUMBER_FROM_WORKFLOW_DISPATCH"):
+            api = gh_api(repo=repo)
+            pr_obj = api.pulls.get(pr_number)
+            logging.info(
+                f"Using 'origin/{pr_obj.base.ref}' as base branch "
+                f"(received via GH API for PR#{pr_number})"
+            )
+            return f'origin/{pr_obj.base.ref}'
+
+    try:
+        logging.info(
+            "Trying to resolve base branch from repo.remotes.origin.refs.HEAD.reference.name..."
+        )
+        # 'origin/main', 'origin/master', etc
+        # Stopped working in github actions since 07/2025
+        return repo.remotes.origin.refs.HEAD.reference.name
+    except AttributeError:
+        try:
+            logging.info(
+                "Checking if repo has 'main' or 'master' branchs to use as --against branch..."
+            )
+            remote_refs = repo.remotes.origin.refs
+            for branch_name in ['main', 'master']:
+                if hasattr(remote_refs, branch_name):
+                    return f'origin/{branch_name}'
+        except Exception:
+            pass
+
+        logging.error("Could not determine default branch from remote refs.")
+        raise ValueError("No default branch found in the repository.")
+
+
 def get_diff(
     repo: Repo = None,
     what: str = None,
@@ -75,7 +116,7 @@ def get_diff(
     repo = repo or Repo(".")
     if not against:
         # 'origin/main', 'origin/master', etc
-        against = repo.remotes.origin.refs.HEAD.reference.name
+        against = get_base_branch(repo)
     if review_subject_is_index(what):
         what = None  # working copy
     if use_merge_base:
@@ -175,7 +216,7 @@ def get_diff(
         )
         if file_path == DEV_NULL:
             continue
-        if is_binary_file(repo, file_path.lstrip("b/")):
+        if is_binary_file(repo, file_path.removeprefix("b/")):
             logging.info(f"Skipping binary file: {patched_file.path}")
             continue
         non_binary_diff.append(patched_file)
@@ -318,7 +359,7 @@ async def review(
     against: str = None,
     filters: str | list[str] = "",
     use_merge_base: bool = True,
-    out_folder: str | PathLike | None = None,
+    out_folder: str | os.PathLike | None = None,
 ):
     try:
         repo, cfg, diff, lines = _prepare(
