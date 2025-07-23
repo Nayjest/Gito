@@ -25,6 +25,30 @@ from ..utils import extract_gh_owner_repo
 from .fix import fix
 
 
+def cleanup_comment_addresed_to_gito(text):
+    if not text:
+        return text
+    patterns = [
+        r'^\s*gito\b',
+        r'^\s*ai\b',
+        r'^\s*bot\b',
+        r'^\s*@gito\b',
+        r'^\s*@ai\b',
+        r'^\s*@bot\b'
+    ]
+    result = text
+    # Remove each pattern from the beginning
+    for pattern in patterns:
+        result = re.sub(pattern, '', result, flags=re.IGNORECASE)
+
+    # Remove leading comma and spaces that may be left after prefix removal
+    result = re.sub(r'^\s*,\s*', '', result)
+
+    # Clean up extra whitespace
+    result = re.sub(r'\s+', ' ', result).strip()
+    return result
+
+
 @app.command(hidden=True)
 def react_to_comment(
     comment_id: int = typer.Argument(),
@@ -99,7 +123,8 @@ def react_to_comment(
         )
     else:
         if cfg.answer_github_comments:
-            response = answer(comment.body, repo=repo, pr=pr)
+            question = cleanup_comment_addresed_to_gito(comment.body)
+            response = answer(question, repo=repo, pr=pr)
             post_gh_comment(
                 gh_repository=f"{owner}/{repo_name}",
                 pr_or_issue_number=pr,
