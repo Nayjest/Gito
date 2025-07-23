@@ -67,4 +67,4 @@ jobs:
         # Otherwise, use LLM_API_TYPE: none
         {%- include("github_workflows/components/env-vars.j2") %}
       run: |
-        {% raw %}gito react-to-comment ${{ github.event.comment.id }} --token ${{ secrets.GITHUB_TOKEN }}{%- endraw %}
+        {% raw %}gito react-to-comment ${{ github.event.comment.id }}{%- endraw %}
