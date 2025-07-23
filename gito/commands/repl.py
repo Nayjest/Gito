@@ -23,6 +23,8 @@ from ..utils import *
 from ..gh_api import *
 
 
-@app.command(help="python REPL")
+@app.command(
+    help="Python REPL with core functionality loaded for quick testing/debugging and exploration."
+)
 def repl():
     code.interact(local=globals())

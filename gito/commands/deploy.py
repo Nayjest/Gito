@@ -12,7 +12,10 @@ from ..cli_base import app
 from ..gh_api import gh_api
 
 
-@app.command(name="deploy", help="Deploy Gito workflows to GitHub Actions")
+@app.command(
+    name="deploy",
+    help="\bCreate and configure Gito GitHub Actions for current repository.\naliases: init"
+)
 @app.command(name="init", hidden=True)
 def deploy(
     api_type: ApiType = None,

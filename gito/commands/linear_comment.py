@@ -29,7 +29,7 @@ def post_linear_comment(issue_key, text, api_key):
     return response.json()
 
 
-@app.command()
+@app.command(help="Post a comment with specified text to the associated Linear issue.")
 def linear_comment(
     text: str = typer.Argument(None),
     refs: str = arg_refs(),

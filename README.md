@@ -8,7 +8,7 @@
 </p>
 
 **Gito** is an open-source **AI code reviewer** that works with any language model provider.
-It detects issues in GitHub pull requests or local changes—instantly, reliably, and without vendor lock-in.
+It detects issues in GitHub pull requests or local codebase changes—instantly, reliably, and without vendor lock-in.
 
 Get consistent, thorough code reviews in seconds—no waiting for human availability.
 
