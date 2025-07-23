@@ -22,11 +22,14 @@ def gh_api(
         if not config:
             config = ProjectConfig.load()
         # resolve owner/repo from github env vars (github actions)
-        gh_env = config.prompt_vars["github_env"]
+        gh_env = config.prompt_vars.get("github_env", {})
         gh_repo = gh_env.get("github_repo")
         if not gh_repo:
             raise ValueError("GitHub repository not specified and not found in project config.")
-        owner, repo_name = gh_repo.split('/')
+        parts = gh_repo.split('/')
+        if len(parts) != 2:
+            raise ValueError(f"Invalid GitHub repository format: {gh_repo}. Expected 'owner/repo'.")
+        owner, repo_name = parts
 
     token = resolve_gh_token(token)
     api = GhApi(owner, repo_name, token=token)
