@@ -242,6 +242,7 @@ def filter_diff(
     ]
     return files
 
+
 def read_file(repo: Repo, file: str, use_local_files: bool = False) -> str:
     if use_local_files:
         file_path = Path(repo.working_tree_dir) / file
@@ -249,11 +250,9 @@ def read_file(repo: Repo, file: str, use_local_files: bool = False) -> str:
             return file_path.read_text(encoding='utf-8')
         except (FileNotFoundError, UnicodeDecodeError) as e:
             logging.warning(f"Could not read file {file} from working directory: {e}")
-            return repo.tree()[file].data_stream.read().decode('utf-8')
-    else:
-        # Read from HEAD (committed version)
-        return repo.tree()[file].data_stream.read().decode('utf-8')
-    return text
+
+    # Read from HEAD (committed version)
+    return repo.tree()[file].data_stream.read().decode('utf-8')
 
 
 def file_lines(repo: Repo, file: str, max_tokens: int = None, use_local_files: bool = False) -> str:
