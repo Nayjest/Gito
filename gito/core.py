@@ -490,16 +490,16 @@ def answer(
         prompt_func = partial(mc.tpl, prompt_file)
     else:
         prompt_func = partial(mc.prompt, config.answer_prompt)
-
+    prompt = prompt_func(
+        question=question,
+        diff=diff,
+        all_file_lines=lines,
+        pipeline_out=ctx.pipeline_out,
+        aux_files=aux_files_dict,
+        **config.prompt_vars,
+    )
     response = mc.llm(
-        prompt_func(
-            question=question,
-            diff=diff,
-            all_file_lines=lines,
-            pipeline_out=ctx.pipeline_out,
-            aux_files=aux_files_dict,
-            **config.prompt_vars,
-        ),
+        prompt,
         callback=make_streaming_function() if Env.verbosity == 0 else None,
     )
     return response
