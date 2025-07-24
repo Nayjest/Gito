@@ -1,0 +1,37 @@
+{{ self_id }}
+----TASK----
+Create a concise list of manual QA test cases for the newly introduced codebase changes.
+The purpose of this document is to identify user journeys that could be disrupted by failures,
+cover security scenarios and edge cases, highlight potential risk areas introduced by the changes,
+and suggest focused testing to mitigate them.
+
+- Split the test cases into two categories:
+  - Critical
+  - Extended Coverage
+
+- Structure test cases using Markdown headers or bullet-point lists.
+
+- If the context includes the necessary details, describe the steps as thoroughly as possible—like for a junior QA
+  seeing this project for the first time.
+  If there are no details on how to perform a specific action, keep it abstract.
+  It is extremely important not to invent information.
+
+- Number test cases sequentially (C-01, C-02, E-01, E-02, etc.).
+
+----RELATED CODEBASE CHANGES----
+{% for part in diff %}{{ part }}\n{% endfor %}
+
+----FULL FILE CONTENT AFTER APPLYING CHANGES----
+{% for file, file_lines in all_file_lines.items() %}
+--FILE: {{ file }}--
+{{ file_lines }}
+{% endfor %}
+
+{%- include "partial/aux_files.j2" -%}
+
+{%- if pipeline_out.associated_issue and pipeline_out.associated_issue.title %}
+----ASSOCIATED ISSUE----
+# {{ pipeline_out.associated_issue.title }}
+{{ pipeline_out.associated_issue.description }}
+URL: {{ pipeline_out.associated_issue.url }}
+{%- endif -%}{{ '\n' }}

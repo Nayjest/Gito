@@ -1,7 +1,7 @@
 # Gito CLI Reference
 
 Gito is an open-source AI code reviewer that works with any language model provider.
-It detects issues in GitHub pull requests or local codebase changes�instantly, reliably, and without vendor lock-in.
+It detects issues in GitHub pull requests or local codebase changes—instantly, reliably, and without vendor lock-in.
 
 **Usage**:
 
@@ -13,9 +13,9 @@ $ gito [OPTIONS] COMMAND [ARGS]...
 
 * `-v, --verbosity INTEGER`: Set verbosity level. Supported values: 0-3. Default: 1.
 [ 0 ]: no additional output, 
-[ 1 ]: normal mode, shows warnings, LLM requests and logging.INFO
-[ 2 ]: verbose mode, show additional debug information
-[ 3 ]: very verbose mode, show all debug information
+[ 1 ]: normal mode, shows warnings, shortened LLM requests and logging.INFO
+[ 2 ]: verbose mode, show full LLM requests
+[ 3 ]: very verbose mode, also debug information
 * `--verbose / --no-verbose`: --verbose is equivalent to -v2, 
 --no-verbose is equivalent to -v0. 
 (!) Can&#x27;t be used together with -v or --verbosity.
@@ -32,10 +32,10 @@ $ gito [OPTIONS] COMMAND [ARGS]...
 * `github-comment`: Leave a GitHub PR comment with the review.
 * `linear-comment`: Post a comment with specified text to the...
 * `run`
-* `review`: Perform code review.
+* `review`: Perform a code review of the target...
 * `talk`
 * `answer`
-* `ask`: Answer questions about codebase changes.
+* `ask`: Answer questions about the target codebase...
 * `setup`: Configure LLM for local usage interactively.
 * `report`
 * `render`: Render and display code review report.
@@ -184,7 +184,7 @@ $ gito linear-comment [OPTIONS] [TEXT] [REFS]
 **Arguments**:
 
 * `[TEXT]`
-* `[REFS]`: Git refs to review, .. e.g. &#x27;HEAD..HEAD~1&#x27;
+* `[REFS]`: Git refs to review, .. (e.g., &#x27;HEAD..HEAD~1&#x27;). If omitted, the current index (including added but not committed files) will be compared to the repository’s main branch.
 
 **Options**:
 
@@ -200,7 +200,7 @@ $ gito run [OPTIONS] [REFS]
 
 **Arguments**:
 
-* `[REFS]`: Git refs to review, .. e.g. &#x27;HEAD..HEAD~1&#x27;
+* `[REFS]`: Git refs to review, .. (e.g., &#x27;HEAD..HEAD~1&#x27;). If omitted, the current index (including added but not committed files) will be compared to the repository’s main branch.
 
 **Options**:
 
@@ -219,7 +219,7 @@ in the github actions PR is resolved from the environment)
 
 ## `gito review`
 
-Perform code review.
+Perform a code review of the target codebase changes.
 
 **Usage**:
 
@@ -229,7 +229,7 @@ $ gito review [OPTIONS] [REFS]
 
 **Arguments**:
 
-* `[REFS]`: Git refs to review, .. e.g. &#x27;HEAD..HEAD~1&#x27;
+* `[REFS]`: Git refs to review, .. (e.g., &#x27;HEAD..HEAD~1&#x27;). If omitted, the current index (including added but not committed files) will be compared to the repository’s main branch.
 
 **Options**:
 
@@ -257,7 +257,7 @@ $ gito talk [OPTIONS] QUESTION [REFS]
 **Arguments**:
 
 * `QUESTION`: Question to ask about the codebase changes  [required]
-* `[REFS]`: Git refs to review, .. e.g. &#x27;HEAD..HEAD~1&#x27;
+* `[REFS]`: Git refs to review, .. (e.g., &#x27;HEAD..HEAD~1&#x27;). If omitted, the current index (including added but not committed files) will be compared to the repository’s main branch.
 
 **Options**:
 
@@ -269,6 +269,7 @@ e.g. &#x27;src/**/*.py&#x27;, may be comma-separated
 * `--use-pipeline / --no-use-pipeline`: [default: use-pipeline]
 * `--post-to TEXT`: Post answer to ... Supported values: linear
 * `--pr INTEGER`: GitHub Pull Request number
+* `--aux-files TEXT`: Auxiliary files that might be helpful
 * `--help`: Show this message and exit.
 
 ## `gito answer`
@@ -282,7 +283,7 @@ $ gito answer [OPTIONS] QUESTION [REFS]
 **Arguments**:
 
 * `QUESTION`: Question to ask about the codebase changes  [required]
-* `[REFS]`: Git refs to review, .. e.g. &#x27;HEAD..HEAD~1&#x27;
+* `[REFS]`: Git refs to review, .. (e.g., &#x27;HEAD..HEAD~1&#x27;). If omitted, the current index (including added but not committed files) will be compared to the repository’s main branch.
 
 **Options**:
 
@@ -294,11 +295,12 @@ e.g. &#x27;src/**/*.py&#x27;, may be comma-separated
 * `--use-pipeline / --no-use-pipeline`: [default: use-pipeline]
 * `--post-to TEXT`: Post answer to ... Supported values: linear
 * `--pr INTEGER`: GitHub Pull Request number
+* `--aux-files TEXT`: Auxiliary files that might be helpful
 * `--help`: Show this message and exit.
 
 ## `gito ask`
 
-Answer questions about codebase changes.
+Answer questions about the target codebase changes.
 
 **Usage**:
 
@@ -309,7 +311,7 @@ $ gito ask [OPTIONS] QUESTION [REFS]
 **Arguments**:
 
 * `QUESTION`: Question to ask about the codebase changes  [required]
-* `[REFS]`: Git refs to review, .. e.g. &#x27;HEAD..HEAD~1&#x27;
+* `[REFS]`: Git refs to review, .. (e.g., &#x27;HEAD..HEAD~1&#x27;). If omitted, the current index (including added but not committed files) will be compared to the repository’s main branch.
 
 **Options**:
 
@@ -321,6 +323,7 @@ e.g. &#x27;src/**/*.py&#x27;, may be comma-separated
 * `--use-pipeline / --no-use-pipeline`: [default: use-pipeline]
 * `--post-to TEXT`: Post answer to ... Supported values: linear
 * `--pr INTEGER`: GitHub Pull Request number
+* `--aux-files TEXT`: Auxiliary files that might be helpful
 * `--help`: Show this message and exit.
 
 ## `gito setup`
@@ -386,7 +389,7 @@ $ gito files [OPTIONS] [REFS]
 
 **Arguments**:
 
-* `[REFS]`: Git refs to review, .. e.g. &#x27;HEAD..HEAD~1&#x27;
+* `[REFS]`: Git refs to review, .. (e.g., &#x27;HEAD..HEAD~1&#x27;). If omitted, the current index (including added but not committed files) will be compared to the repository’s main branch.
 
 **Options**:
 

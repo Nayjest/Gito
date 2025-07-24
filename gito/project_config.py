@@ -32,6 +32,7 @@ class ProjectConfig:
     Defines the keyword or mention tag that triggers bot actions
     when referenced in code review comments.
     """
+    aux_files: list[str] = field(default_factory=list)
     pipeline_steps: dict[str, dict | PipelineStep] = field(default_factory=dict)
     collapse_previous_code_review_comments: bool = field(default=True)
     """

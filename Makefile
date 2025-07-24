@@ -25,5 +25,5 @@ test:
 tests: test
 
 cli-reference:
-	typer gito.cli utils docs --name gito --title="Gito CLI Reference" --output documentation/command_line_reference.md
+	PYTHONUTF8=1 typer gito.cli utils docs --name gito --title="Gito CLI Reference" --output documentation/command_line_reference.md
 cli-ref: cli-reference

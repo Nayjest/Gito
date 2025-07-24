@@ -242,32 +242,8 @@ If there are concerns about how thoroughly the code covers the requirements and 
 {{ summary_requirements -}}
 """
 answer_github_comments = true
-answer_prompt = """
-{{ self_id }}
-----TASK----
-Answer the following user question:
---USER QUESTION--
-{{ question }}
-----
-----RELATED CODEBASE CHANGES----
-{% for part in diff %}{{ part }}\n{% endfor %}
-
-----FULL FILE CONTENT AFTER APPLYING CHANGES----
-{% for file, file_lines in all_file_lines.items() %}
---FILE: {{ file }}--
-{{ file_lines }}
-{% endfor %}
-
-{%- if pipeline_out.associated_issue and pipeline_out.associated_issue.title %}
-----ASSOCIATED ISSUE----
-# {{ pipeline_out.associated_issue.title }}
-{{ pipeline_out.associated_issue.description }}
-URL: {{ pipeline_out.associated_issue.url }}
-{%- endif -%}{{ '\n' }}
-
-----ANSWERING INSTRUCTIONS----
-{{ answering_instructions }}
-"""
+answer_prompt = "tpl:answer.j2"
+aux_files = []
 [pipeline_steps.jira]
 call="gito.pipeline_steps.jira.fetch_associated_issue"
 envs=["local","gh-action"]

@@ -30,7 +30,11 @@ def args_to_target(refs, what, against) -> tuple[str | None, str | None]:
 def arg_refs() -> typer.Argument:
     return typer.Argument(
         default=None,
-        help="Git refs to review, [what]..[against] e.g. 'HEAD..HEAD~1'"
+        help=(
+            "Git refs to review, [what]..[against] (e.g., 'HEAD..HEAD~1'). "
+            "If omitted, the current index (including added but not committed files) "
+            "will be compared to the repository’s main branch."
+        ),
     )
 
 
