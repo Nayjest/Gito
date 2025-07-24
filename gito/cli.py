@@ -88,7 +88,7 @@ def cli(
 
 
 @app_no_subcommand.command(name="review", help="Perform code review")
-@app.command(name="review", help="Perform code review.")
+@app.command(name="review", help="Perform a code review of the target codebase changes.")
 @app.command(name="run", hidden=True)
 def cmd_review(
     refs: str = arg_refs(),
@@ -137,7 +137,7 @@ def cmd_review(
             )
 
 
-@app.command(name="ask", help="Answer questions about codebase changes.")
+@app.command(name="ask", help="Answer questions about the target codebase changes.")
 @app.command(name="answer", hidden=True)
 @app.command(name="talk", hidden=True)
 def cmd_answer(
