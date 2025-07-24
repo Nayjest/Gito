@@ -1,12 +1,9 @@
 {{ self_id }}
 ----TASK----
-Write release notes for public documentation.
-Summarize the following changes, focusing on what is new, improved, or fixed for the end user.
-Do not include internal or technical details.
-Structure release notes using clear sections: Added, Changed, Fixed.
-Avoid internal technical jargon or developer-specific details.
-
-
+Answer the following user question:
+--USER QUESTION--
+{{ question }}
+----
 ----RELATED CODEBASE CHANGES----
 {% for part in diff %}{{ part }}\n{% endfor %}
 
@@ -16,7 +13,7 @@ Avoid internal technical jargon or developer-specific details.
 {{ file_lines }}
 {% endfor %}
 
-{%- include "partial/aux_files.j2" -%}
+{% include "partial/aux_files.j2" %}
 
 {%- if pipeline_out.associated_issue and pipeline_out.associated_issue.title %}
 ----ASSOCIATED ISSUE----
@@ -24,3 +21,6 @@ Avoid internal technical jargon or developer-specific details.
 {{ pipeline_out.associated_issue.description }}
 URL: {{ pipeline_out.associated_issue.url }}
 {%- endif -%}{{ '\n' }}
+
+----ANSWERING INSTRUCTIONS----
+{{ answering_instructions }}

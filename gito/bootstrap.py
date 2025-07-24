@@ -35,7 +35,7 @@ def bootstrap(verbosity: int = 1):
     log_levels_by_verbosity = {
         0: logging.CRITICAL,
         1: logging.INFO,
-        2: logging.DEBUG,
+        2: logging.INFO,
         3: logging.DEBUG,
     }
     Env.verbosity = verbosity

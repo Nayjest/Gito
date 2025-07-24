@@ -190,7 +190,7 @@ def get_diff(
                 else:
                     logging.error(f"Can't find other merge parent for {merge_sha}")
             else:
-                logging.error(
+                logging.warning(
                     f"No merge‐commit found for {current_ref!r}→{against!r}; "
                     "falling back to merge‐base diff"
                 )
@@ -242,19 +242,22 @@ def filter_diff(
     ]
     return files
 
-
-def file_lines(repo: Repo, file: str, max_tokens: int = None, use_local_files: bool = False) -> str:
+def read_file(repo: Repo, file: str, use_local_files: bool = False) -> str:
     if use_local_files:
         file_path = Path(repo.working_tree_dir) / file
         try:
-            text = file_path.read_text(encoding='utf-8')
+            return file_path.read_text(encoding='utf-8')
         except (FileNotFoundError, UnicodeDecodeError) as e:
             logging.warning(f"Could not read file {file} from working directory: {e}")
-            text = repo.tree()[file].data_stream.read().decode('utf-8')
+            return repo.tree()[file].data_stream.read().decode('utf-8')
     else:
         # Read from HEAD (committed version)
-        text = repo.tree()[file].data_stream.read().decode('utf-8')
+        return repo.tree()[file].data_stream.read().decode('utf-8')
+    return text
 
+
+def file_lines(repo: Repo, file: str, max_tokens: int = None, use_local_files: bool = False) -> str:
+    text = read_file(repo=repo, file=file, use_local_files=use_local_files)
     lines = [f"{i + 1}: {line}\n" for i, line in enumerate(text.splitlines())]
     if max_tokens:
         lines, removed_qty = mc.tokenizing.fit_to_token_size(lines, max_tokens)
@@ -263,6 +266,22 @@ def file_lines(repo: Repo, file: str, max_tokens: int = None, use_local_files: b
                 f"(!) DISPLAYING ONLY FIRST {len(lines)} LINES DUE TO LARGE FILE SIZE\n"
             )
     return "".join(lines)
+
+
+def read_files(repo: Repo, files: list[str], max_tokens: int = None) -> dict:
+    out = dict()
+    total_tokens = 0
+    for file in files:
+        content = read_file(repo=repo, file=file, use_local_files=True)
+        total_tokens += mc.tokenizing.num_tokens_from_string(file)
+        total_tokens += mc.tokenizing.num_tokens_from_string(content)
+        if max_tokens and total_tokens > max_tokens:
+            logging.warning(
+                f"Skipping file {file} due to exceeding max_tokens limit ({max_tokens})"
+            )
+            continue
+        out[file] = content
+    return out
 
 
 def make_cr_summary(ctx: Context, **kwargs) -> str:
@@ -428,6 +447,7 @@ def answer(
     use_pipeline: bool = True,
     prompt_file: str = None,
     pr: str | int = None,
+    aux_files: list[str] = None,
 ) -> str | None:
     try:
         repo, config, diff, lines = _prepare(
@@ -454,16 +474,31 @@ def answer(
             steps=config.pipeline_steps
         )
         pipe.run()
+
+    if aux_files or config.aux_files:
+        aux_files_dict = read_files(
+            repo,
+            (aux_files or list()) + config.aux_files,
+            config.max_code_tokens // 2
+        )
+    else:
+        aux_files_dict = dict()
+
+    if not prompt_file and config.answer_prompt.startswith("tpl:"):
+        prompt_file = str(config.answer_prompt)[4:]
+
     if prompt_file:
         prompt_func = partial(mc.tpl, prompt_file)
     else:
         prompt_func = partial(mc.prompt, config.answer_prompt)
+
     response = mc.llm(
         prompt_func(
             question=question,
             diff=diff,
             all_file_lines=lines,
             pipeline_out=ctx.pipeline_out,
+            aux_files=aux_files_dict,
             **config.prompt_vars,
         ),
         callback=make_streaming_function() if Env.verbosity == 0 else None,

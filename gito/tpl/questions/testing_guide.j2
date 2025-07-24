@@ -15,6 +15,8 @@ Include:
 {{ file_lines }}
 {% endfor %}
 
+{%- include "partial/aux_files.j2" -%}
+
 {%- if pipeline_out.associated_issue and pipeline_out.associated_issue.title %}
 ----ASSOCIATED ISSUE----
 # {{ pipeline_out.associated_issue.title }}

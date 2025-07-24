@@ -62,9 +62,9 @@ def cli(
         help="\b"
              "Set verbosity level. Supported values: 0-3. Default: 1."
              "\n [ 0 ]: no additional output, "
-             "\n [ 1 ]: normal mode, shows warnings, LLM requests and logging.INFO"
-             "\n [ 2 ]: verbose mode, show additional debug information"
-             "\n [ 3 ]: very verbose mode, show all debug information"
+             "\n [ 1 ]: normal mode, shows warnings, shortened LLM requests and logging.INFO"
+             "\n [ 2 ]: verbose mode, show full LLM requests"
+             "\n [ 3 ]: very verbose mode, also debug information"
     ),
     verbose: bool = typer.Option(
         default=None,
@@ -157,6 +157,10 @@ def cmd_answer(
         default=None,
         help="GitHub Pull Request number"
     ),
+    aux_files: list[str] = typer.Option(
+        default=None,
+        help="Auxilliary files that might be helpful"
+    )
 ):
     _what, _against = args_to_target(refs, what, against)
     pr = pr or os.getenv("PR_NUMBER_FROM_WORKFLOW_DISPATCH")
@@ -174,6 +178,7 @@ def cmd_answer(
         prompt_file=prompt_file,
         use_pipeline=use_pipeline,
         pr=pr,
+        aux_files=aux_files,
     )
     if post_to == 'linear':
         logging.info("Posting answer to Linear...")
