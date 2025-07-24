@@ -121,85 +121,88 @@ def get_diff(
     if review_subject_is_index(what):
         what = None  # working copy
     if use_merge_base:
-        if review_subject_is_index(what):
-            try:
-                current_ref = repo.active_branch.name
-            except TypeError:
-                # In detached HEAD state, use HEAD directly
-                current_ref = "HEAD"
-                logging.info(
-                    "Detected detached HEAD state, using HEAD as current reference"
-                )
-        else:
-            current_ref = what
-        merge_base = repo.merge_base(current_ref or repo.active_branch.name, against)[0]
-        logging.info(
-            f"Merge base({ui.green(current_ref)},{ui.yellow(against)})"
-            f" --> {ui.cyan(merge_base.hexsha)}"
-        )
-        # if branch is already an ancestor of "against", merge_base == branch ⇒ it’s been merged
-        if merge_base.hexsha == repo.commit(current_ref or repo.active_branch.name).hexsha:
-            # @todo: check case: reviewing working copy index in main branch #103
-            logging.info(
-                f"Branch is already merged. ({ui.green(current_ref)} vs {ui.yellow(against)})"
-            )
-            merge_sha = repo.git.log(
-                '--merges',
-                '--ancestry-path',
-                f'{current_ref}..{against}',
-                '-n',
-                '1',
-                '--pretty=format:%H'
-            ).strip()
-            if merge_sha:
-                logging.info(f"Merge commit is {ui.cyan(merge_sha)}")
-                merge_commit = repo.commit(merge_sha)
-
-                other_merge_parent = None
-                for parent in merge_commit.parents:
-                    logging.info(f"Checking merge parent: {parent.hexsha[:8]}")
-                    if parent.hexsha == merge_base.hexsha:
-                        logging.info(f"merge parent is {ui.cyan(parent.hexsha[:8])}, skipping")
-                        continue
-                    if not commit_in_branch(repo, parent, against):
-                        logging.warning(f"merge parent is not in {against}, skipping")
-                        continue
-                    logging.info(f"Found other merge parent: {ui.cyan(parent.hexsha[:8])}")
-                    other_merge_parent = parent
-                    break
-                if other_merge_parent:
-                    first_common_ancestor = repo.merge_base(other_merge_parent, merge_base)[0]
-                    # for gito remote (feature_branch vs origin/main)
-                    # the same merge base appears in first_common_ancestor again
-                    if first_common_ancestor.hexsha == merge_base.hexsha:
-                        if merge_base.parents:
-                            first_common_ancestor = repo.merge_base(
-                                other_merge_parent, merge_base.parents[0]
-                            )[0]
-                        else:
-                            logging.error(
-                                "merge_base has no parents, "
-                                "using merge_base as first_common_ancestor"
-                            )
+        try:
+            if review_subject_is_index(what):
+                try:
+                    current_ref = repo.active_branch.name
+                except TypeError:
+                    # In detached HEAD state, use HEAD directly
+                    current_ref = "HEAD"
                     logging.info(
-                        f"{what} will be compared to "
-                        f"first common ancestor of {what} and {against}: "
-                        f"{ui.cyan(first_common_ancestor.hexsha[:8])}"
+                        "Detected detached HEAD state, using HEAD as current reference"
                     )
-                    against = first_common_ancestor.hexsha
-                else:
-                    logging.error(f"Can't find other merge parent for {merge_sha}")
             else:
-                logging.warning(
-                    f"No merge‐commit found for {current_ref!r}→{against!r}; "
-                    "falling back to merge‐base diff"
-                )
-        else:
-            # normal case: branch not yet merged
-            against = merge_base.hexsha
+                current_ref = what
+            merge_base = repo.merge_base(current_ref or repo.active_branch.name, against)[0]
             logging.info(
-                f"Using merge base: {ui.cyan(merge_base.hexsha[:8])} ({merge_base.summary})"
+                f"Merge base({ui.green(current_ref)},{ui.yellow(against)})"
+                f" --> {ui.cyan(merge_base.hexsha)}"
             )
+            # if branch is already an ancestor of "against", merge_base == branch ⇒ it’s been merged
+            if merge_base.hexsha == repo.commit(current_ref or repo.active_branch.name).hexsha:
+                # @todo: check case: reviewing working copy index in main branch #103
+                logging.info(
+                    f"Branch is already merged. ({ui.green(current_ref)} vs {ui.yellow(against)})"
+                )
+                merge_sha = repo.git.log(
+                    '--merges',
+                    '--ancestry-path',
+                    f'{current_ref}..{against}',
+                    '-n',
+                    '1',
+                    '--pretty=format:%H'
+                ).strip()
+                if merge_sha:
+                    logging.info(f"Merge commit is {ui.cyan(merge_sha)}")
+                    merge_commit = repo.commit(merge_sha)
+
+                    other_merge_parent = None
+                    for parent in merge_commit.parents:
+                        logging.info(f"Checking merge parent: {parent.hexsha[:8]}")
+                        if parent.hexsha == merge_base.hexsha:
+                            logging.info(f"merge parent is {ui.cyan(parent.hexsha[:8])}, skipping")
+                            continue
+                        if not commit_in_branch(repo, parent, against):
+                            logging.warning(f"merge parent is not in {against}, skipping")
+                            continue
+                        logging.info(f"Found other merge parent: {ui.cyan(parent.hexsha[:8])}")
+                        other_merge_parent = parent
+                        break
+                    if other_merge_parent:
+                        first_common_ancestor = repo.merge_base(other_merge_parent, merge_base)[0]
+                        # for gito remote (feature_branch vs origin/main)
+                        # the same merge base appears in first_common_ancestor again
+                        if first_common_ancestor.hexsha == merge_base.hexsha:
+                            if merge_base.parents:
+                                first_common_ancestor = repo.merge_base(
+                                    other_merge_parent, merge_base.parents[0]
+                                )[0]
+                            else:
+                                logging.error(
+                                    "merge_base has no parents, "
+                                    "using merge_base as first_common_ancestor"
+                                )
+                        logging.info(
+                            f"{what} will be compared to "
+                            f"first common ancestor of {what} and {against}: "
+                            f"{ui.cyan(first_common_ancestor.hexsha[:8])}"
+                        )
+                        against = first_common_ancestor.hexsha
+                    else:
+                        logging.error(f"Can't find other merge parent for {merge_sha}")
+                else:
+                    logging.warning(
+                        f"No merge‐commit found for {current_ref!r}→{against!r}; "
+                        "falling back to merge‐base diff"
+                    )
+            else:
+                # normal case: branch not yet merged
+                against = merge_base.hexsha
+                logging.info(
+                    f"Using merge base: {ui.cyan(merge_base.hexsha[:8])} ({merge_base.summary})"
+                )
+        except Exception as e:
+            logging.error(f"Error finding merge base: {e}")
     logging.info(
         f"Making diff: {ui.green(what or 'INDEX')} vs {ui.yellow(against)}"
     )
