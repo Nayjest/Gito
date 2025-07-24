@@ -159,7 +159,7 @@ def cmd_answer(
     ),
     aux_files: list[str] = typer.Option(
         default=None,
-        help="Auxilliary files that might be helpful"
+        help="Auxiliary files that might be helpful"
     )
 ):
     _what, _against = args_to_target(refs, what, against)
