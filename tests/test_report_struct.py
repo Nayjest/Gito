@@ -16,6 +16,7 @@ def test_report_plain_issues():
                     "severity": 1,
                     "confidence": 1,
                     "affected_lines": [],
+                    "non-existent-field": "should be ignored",
                 }
             ],
             "file2.py": [
@@ -77,9 +78,8 @@ def test_report_save_load(tmp_path):
     assert loaded_report.issues["file.py"][0].title == "Bug"
 
 
-def test_issue_affected_lines_init():
-    bootstrap()
-    D = {
+def get_issue_with_affected_lines():
+    return {
         "id": "x",
         "title": "T",
         "tags": [],
@@ -94,10 +94,23 @@ def test_issue_affected_lines_init():
             }
         ],
     }
-    issue = Issue(**D)
+
+
+def test_issue_affected_lines_init():
+    issue = Issue(**get_issue_with_affected_lines())
     line = issue.affected_lines[0]
     assert isinstance(line, Issue.AffectedCode)
     assert line.file == "X.py"
     assert line.proposal == "foo"
     assert line.start_line == 2
     assert line.syntax_hint == "python"
+
+
+def test_aff_lines_redundant_fields():
+    data = get_issue_with_affected_lines()
+    data["affected_lines"][0]["redundant_field"] = "redundant.py"
+    issue = Issue(**data)
+    line = issue.affected_lines[0]
+    assert isinstance(line, Issue.AffectedCode)
+    assert line.file == "X.py"
+    assert line.proposal == "foo"

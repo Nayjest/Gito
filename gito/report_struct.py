@@ -12,7 +12,7 @@ import textwrap
 
 from .constants import JSON_REPORT_FILE_NAME, HTML_TEXT_ICON, HTML_CR_COMMENT_MARKER
 from .project_config import ProjectConfig
-from .utils import syntax_hint, block_wrap_lr, max_line_len, remove_html_comments
+from .utils import syntax_hint, block_wrap_lr, max_line_len, remove_html_comments, filter_kwargs
 
 
 @dataclass
@@ -40,7 +40,7 @@ class Issue:
 
     def __post_init__(self):
         self.affected_lines = [
-            Issue.AffectedCode(**dict(file=self.file) | i)
+            Issue.AffectedCode(**filter_kwargs(Issue.AffectedCode, dict(file=self.file) | i))
             for i in self.affected_lines
         ]
 
@@ -63,7 +63,7 @@ class Report:
         MARKDOWN = "md"
         CLI = "cli"
 
-    issues: dict[str, list[Issue]] = field(default_factory=dict)
+    issues: dict[str, list[Issue | dict]] = field(default_factory=dict)
     summary: str = field(default="")
     number_of_processed_files: int = field(default=0)
     total_issues: int = field(init=False)
@@ -84,10 +84,10 @@ class Report:
         for file in self.issues.keys():
             self.issues[file] = [
                 Issue(
-                    **{
+                    **filter_kwargs(Issue, {
                         "id": (issue_id := issue_id + 1),
                         "file": file,
-                    } | issue
+                    } | issue)
                 )
                 for issue in self.issues[file]
             ]
