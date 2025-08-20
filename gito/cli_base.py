@@ -5,7 +5,9 @@ import tempfile
 import microcore as mc
 import typer
 from git import Repo
-from gito.utils import parse_refs_pair
+
+from .utils import parse_refs_pair
+from .env import Env
 
 
 def args_to_target(refs, what, against) -> tuple[str | None, str | None]:
@@ -81,10 +83,13 @@ def get_repo_context(url: str, branch: str):
                 f"Cloning [{mc.ui.green(url)}] to {mc.utils.file_link(temp_dir)} ..."
             )
             repo = Repo.clone_from(url, branch=branch, to_path=temp_dir)
+            prev_folder = Env.working_folder
+            Env.working_folder = temp_dir
             try:
                 yield repo, temp_dir
             finally:
                 repo.close()
+                Env.working_folder = prev_folder
     else:
         logging.info("get_repo_context: Using local repo...")
         repo = Repo(".")
