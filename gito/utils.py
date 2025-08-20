@@ -10,7 +10,7 @@ from typing import Optional
 import typer
 import git
 from git import Repo
-
+from .env import Env
 
 _EXT_TO_HINT: dict[str, str] = {
     # scripting & languages
@@ -194,10 +194,10 @@ def detect_github_env() -> dict:
         "github_ref": ref,
     }
     # Fallback for local usage: try to get from git
-    if not repo:
+    if not repo or repo == "octocat/Hello-World":
         git_repo = None
         try:
-            git_repo = Repo(".", search_parent_directories=True)
+            git_repo = Repo(Env.working_folder, search_parent_directories=True)
             origin = git_repo.remotes.origin.url
             # e.g. git@github.com:Nayjest/ai-code-review.git -> Nayjest/ai-code-review
             match = re.search(r"[:/]([\w\-]+)/([\w\-\.]+?)(\.git)?$", origin)

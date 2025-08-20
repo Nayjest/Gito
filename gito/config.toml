@@ -204,12 +204,14 @@ Summarize the code review in one sentence.
 --Issues Detected by You--
 {{ issues | tojson(indent=2) }}
 ---
+{% if awards -%}
 If the code changes include exceptional achievements, you may also present an award to the author in the summary text.
  - (!) Only give awards to initial codebase authors, NOT to reviewers.
  - (!) If you give an award, place the hidden <!-- award --> HTML comment on its own line immediately before the award text.
 --Available Awards--
 {{ awards }}
 ---
+{%- endif %}
 {% if pipeline_out.associated_issue and pipeline_out.associated_issue.title %}
 ----SUBTASK----
 Include one sentence about how the code changes address the requirements of the associated issue listed below.
