@@ -6,6 +6,7 @@ from pathlib import Path
 from functools import partial
 
 import microcore as mc
+from gito.constants import REFS_VALUE_ALL
 from gito.gh_api import gh_api
 from microcore import ui
 from git import Repo, Commit
@@ -115,6 +116,11 @@ def get_diff(
     pr: str | int = None
 ) -> PatchSet | list[PatchedFile]:
     repo = repo or Repo(".")
+    if what == REFS_VALUE_ALL:
+        what = get_base_branch(repo, pr=pr)
+        # Git's canonical empty tree hash
+        against = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+        use_merge_base = False
     if not against:
         # 'origin/main', 'origin/master', etc
         against = get_base_branch(repo, pr=pr)
@@ -331,9 +337,11 @@ def _prepare(
                 file_diff.path,
                 cfg.max_code_tokens
                 - mc.tokenizing.num_tokens_from_string(str(file_diff)),
-                use_local_files=review_subject_is_index(what)
+                use_local_files=review_subject_is_index(what) or what == REFS_VALUE_ALL
             )
-            if file_diff.target_file != DEV_NULL and not file_diff.is_added_file
+            if (
+                   file_diff.target_file != DEV_NULL and not file_diff.is_added_file
+               ) or what == REFS_VALUE_ALL
             else ""
         )
         for file_diff in diff
@@ -385,6 +393,7 @@ async def review(
     out_folder: str | os.PathLike | None = None,
     pr: str | int = None
 ):
+    reviewing_all = what == REFS_VALUE_ALL
     try:
         repo, cfg, diff, lines = _prepare(
             repo=repo,
@@ -401,8 +410,11 @@ async def review(
         [
             mc.prompt(
                 cfg.prompt,
-                input=file_diff,
-                file_lines=lines[file_diff.path],
+                input=(
+                    file_diff if not reviewing_all
+                    else str(file_diff.path) + ":\n" + lines[file_diff.path]
+                ),
+                file_lines=lines[file_diff.path] if not reviewing_all else None,
                 **cfg.prompt_vars,
             )
             for file_diff in diff

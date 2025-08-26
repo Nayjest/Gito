@@ -7,6 +7,7 @@ import textwrap
 import microcore as mc
 import typer
 from git import Repo
+from gito.constants import REFS_VALUE_ALL
 
 from .core import review, get_diff, filter_diff, answer
 from .cli_base import (
@@ -97,6 +98,7 @@ def cmd_review(
     filters: str = arg_filters(),
     merge_base: bool = typer.Option(default=True, help="Use merge base for comparison"),
     url: str = typer.Option("", "--url", help="Git repository URL"),
+    path: str = typer.Option("", "--path", help="Git repository path"),
     post_comment: bool = typer.Option(default=False, help="Post review comment to GitHub"),
     pr: int = typer.Option(
         default=None,
@@ -106,8 +108,17 @@ def cmd_review(
         in the github actions PR is resolved from the environment)
         """)
     ),
-    out: str = arg_out()
+    out: str = arg_out(),
+    all: bool = typer.Option(default=False, help="Review all codebase"),
 ):
+    if all:
+        if refs and refs != REFS_VALUE_ALL:
+            raise typer.BadParameter(
+                "The --all option overrides the refs argument. "
+                "Please remove the refs argument if you want to review all codebase."
+            )
+        refs = REFS_VALUE_ALL
+        merge_base = False
     _what, _against = args_to_target(refs, what, against)
     pr = pr or os.getenv("PR_NUMBER_FROM_WORKFLOW_DISPATCH")
     with get_repo_context(url, _what) as (repo, out_folder):
