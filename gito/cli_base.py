@@ -5,12 +5,15 @@ import tempfile
 import microcore as mc
 import typer
 from git import Repo
+from gito.constants import REFS_VALUE_ALL
 
 from .utils import parse_refs_pair
 from .env import Env
 
 
 def args_to_target(refs, what, against) -> tuple[str | None, str | None]:
+    if refs == REFS_VALUE_ALL:
+        return REFS_VALUE_ALL, None
     _what, _against = parse_refs_pair(refs)
     if _what:
         if what:
@@ -75,6 +78,8 @@ app = typer.Typer(pretty_exceptions_show_locals=False)
 
 @contextlib.contextmanager
 def get_repo_context(url: str, branch: str):
+    if branch == REFS_VALUE_ALL:
+        branch = None
     """Context manager for handling both local and remote repositories."""
     if url:
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -12,3 +12,4 @@ EXECUTABLE = "gito"
 TEXT_ICON_URL = 'https://raw.githubusercontent.com/Nayjest/Gito/main/press-kit/logo/gito-bot-1_64top.png'  # noqa: E501
 HTML_TEXT_ICON = f'<a href="https://github.com/Nayjest/Gito"><img src="{TEXT_ICON_URL}" align="left" width=64 height=50 title="Gito v{Env.gito_version}"/></a>'  # noqa: E501
 HTML_CR_COMMENT_MARKER = '<!-- GITO_COMMENT:CODE_REVIEW_REPORT -->'
+REFS_VALUE_ALL = '!all'

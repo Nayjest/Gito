@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "gito.bot"
-version = "3.2.2"
+version = "3.2.3"
 description = "AI code review tool that works with any language model provider. It detects issues in GitHub pull requests or local changes—instantly, reliably, and without vendor lock-in."
 authors = ["Nayjest <mail@vitaliy.in>"]
 readme = "README.md"
