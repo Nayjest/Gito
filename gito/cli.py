@@ -29,6 +29,7 @@ from .gh_api import resolve_gh_token
 # Import fix command to register it
 from .commands import fix, gh_react_to_comment, repl, deploy, version  # noqa
 from .commands.gh_post_review_comment import post_github_cr_comment
+from .commands.gitlab_post_review_comment import post_gitlab_cr_comment
 from .commands.linear_comment import linear_comment
 
 app_no_subcommand = typer.Typer(pretty_exceptions_show_locals=False)
