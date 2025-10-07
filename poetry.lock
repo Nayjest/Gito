@@ -2,24 +2,24 @@
 
 [[package]]
 name = "ai-microcore"
-version = "4.3.0"
+version = "4.4.2"
 description = "# Minimalistic Foundation for AI Applications"
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "ai_microcore-4.3.0-py3-none-any.whl", hash = "sha256:31e7252205de4cd76385f4e34c542db87473fb0b0aab8e7c8ca6e29241ce23d2"},
-    {file = "ai_microcore-4.3.0.tar.gz", hash = "sha256:9cda35abd40595ef6b5a47e8ded1fa1d7fca1737c4d38400ff8041897846798e"},
+    {file = "ai_microcore-4.4.2-py3-none-any.whl", hash = "sha256:5cc9c2ed00fd988415e971d8486303759262bf6f37e3180296d4a7aa70c40011"},
+    {file = "ai_microcore-4.4.2.tar.gz", hash = "sha256:83b911961c402bb5177e4701696d240b2acd0edb07e99258f781ea32d6dea376"},
 ]
 
 [package.dependencies]
 chardet = ">=5.2.0,<5.3.0"
 colorama = ">=0.4.6,<0.5.0"
 docstring_parser = ">=0.16.0,<0.17.0"
-fastmcp = ">=2.10.2,<2.11.0"
+fastmcp = ">=2.10.2,<3.0"
 httpx = ">=0.28.1,<0.29.0"
 Jinja2 = ">=3.1.2,<3.2.0"
-mcp = ">=1.10.1,<1.11.0"
+mcp = ">=1.10.1,<2.0"
 openai = ">=0.28.1,<2"
 python-dotenv = ">=1.1.0,<1.2.0"
 PyYAML = ">=6.0,<7.0"
@@ -3925,4 +3925,4 @@ cffi = ["cffi (>=1.11)"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "78b452676150e0639eeeb2d2bc25b94d339cb7284d2dfad9e4db6413f78bdd5b"
+content-hash = "2a7af49ba226748fdc7b23e6a921847024bebb29a201722bb5bc894c26d85c32"
