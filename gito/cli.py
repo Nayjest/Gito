@@ -238,7 +238,8 @@ def files(
             f"Changed files: "
             f"{mc.ui.green(_what or 'INDEX')} vs "
             f"{mc.ui.yellow(_against or repo.remotes.origin.refs.HEAD.reference.name)}"
-            f"{' filtered by ' + mc.ui.cyan(filters) if filters else ''}"
+            f"{' filtered by ' + mc.ui.cyan(filters) if filters else ''} --> "
+            f"{mc.ui.cyan(len(patch_set or []))} file(s)."
         )
 
         for patch in patch_set:
