@@ -203,7 +203,7 @@ def setup():
     mc.interactive_setup(HOME_ENV_PATH)
 
 
-@app.command(name="render", help="Render and display code review report.")
+@app.command(name="render", help="Render code review report for cli and display it.")
 @app.command(name="report", hidden=True)
 def render(
     format: str = typer.Argument(default=Report.Format.CLI),

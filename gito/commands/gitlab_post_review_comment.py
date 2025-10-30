@@ -10,6 +10,7 @@ from ..cli_base import app
 from ..constants import GITHUB_MD_REPORT_FILE_NAME, HTML_CR_COMMENT_MARKER
 from ..project_config import ProjectConfig
 
+
 def resolve_gl_token(token: str | None) -> Optional[str]:
     """Resolve GitLab access token from CLI flag or env var."""
     token = (token or "").strip()
