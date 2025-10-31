@@ -97,7 +97,7 @@ def get_base_branch(repo: Repo, pr: int | str = None):
     except AttributeError:
         try:
             logging.info(
-                "Checking if repo has 'main' or 'master' branchs to use as --against branch..."
+                "Checking if repo has 'main' or 'master' branches to use as --against branch..."
             )
             remote_refs = repo.remotes.origin.refs
             for branch_name in ['main', 'master']:
@@ -341,9 +341,7 @@ def _prepare(
                 - mc.tokenizing.num_tokens_from_string(str(file_diff)),
                 use_local_files=review_subject_is_index(what) or what == REFS_VALUE_ALL
             )
-            if (
-                   file_diff.target_file != DEV_NULL and not file_diff.is_added_file
-               ) or what == REFS_VALUE_ALL
+            if file_diff.target_file != DEV_NULL or what == REFS_VALUE_ALL
             else ""
         )
         for file_diff in diff
@@ -408,6 +406,10 @@ async def review(
     out_folder: str | os.PathLike | None = None,
     pr: str | int = None
 ):
+    """
+    Conducts a code review.
+    Prints the review report to the console and saves it to a file.
+    """
     reviewing_all = what == REFS_VALUE_ALL
     try:
         repo, cfg, diff, lines = _prepare(
@@ -421,15 +423,24 @@ async def review(
     except NoChangesInContextError:
         logging.error("No changes to review")
         return
+
+    def input_is_diff(file_diff: PatchedFile) -> bool:
+        """
+        In case of reviewing all changes, or added files,
+        we provide full file content as input.
+        Otherwise, we provide the diff and additional file lines separately.
+        """
+        return not reviewing_all and not file_diff.is_added_file
+
     responses = await mc.llm_parallel(
         [
             mc.prompt(
                 cfg.prompt,
                 input=(
-                    file_diff if not reviewing_all
+                    file_diff if input_is_diff(file_diff)
                     else str(file_diff.path) + ":\n" + lines[file_diff.path]
                 ),
-                file_lines=lines[file_diff.path] if not reviewing_all else None,
+                file_lines=lines[file_diff.path] if input_is_diff(file_diff) else None,
                 **cfg.prompt_vars,
             )
             for file_diff in diff
@@ -479,6 +490,10 @@ def answer(
     pr: str | int = None,
     aux_files: list[str] = None,
 ) -> str | None:
+    """
+    Answers a question about the code changes.
+    Returns the LLM response as a string.
+    """
     try:
         repo, config, diff, lines = _prepare(
             repo=repo,
@@ -508,7 +523,7 @@ def answer(
     if aux_files or config.aux_files:
         aux_files_dict = read_files(
             repo,
-            (aux_files or list()) + config.aux_files,
+            (aux_files or []) + config.aux_files,
             config.max_code_tokens // 2
         )
     else:
