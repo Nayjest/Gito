@@ -67,9 +67,9 @@ def post_gh_comment(
     if 200 <= resp.status_code < 300:
         logging.info(f"Posted review comment to #{pr_or_issue_number} in {gh_repository}")
         return True
-    else:
-        logging.error(f"Failed to post comment: {resp.status_code} {resp.reason}\n{resp.text}")
-        return False
+
+    logging.error(f"Failed to post comment: {resp.status_code} {resp.reason}\n{resp.text}")
+    return False
 
 
 def hide_gh_comment(

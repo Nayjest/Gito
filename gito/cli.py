@@ -202,8 +202,8 @@ def setup():
     mc.interactive_setup(HOME_ENV_PATH)
 
 
-@app.command(name="render", help="Render and display code review report.")
-@app.command(name="report", hidden=True)
+@app.command(name="report", help="Render and display code review report.")
+@app.command(name="render", hidden=True)
 def render(
     format: str = typer.Argument(default=Report.Format.CLI),
     source: str = typer.Option(
@@ -238,7 +238,8 @@ def files(
             f"Changed files: "
             f"{mc.ui.green(_what or 'INDEX')} vs "
             f"{mc.ui.yellow(_against or repo.remotes.origin.refs.HEAD.reference.name)}"
-            f"{' filtered by ' + mc.ui.cyan(filters) if filters else ''}"
+            f"{' filtered by ' + mc.ui.cyan(filters) if filters else ''} --> "
+            f"{mc.ui.cyan(len(patch_set or []))} file(s)."
         )
 
         for patch in patch_set:

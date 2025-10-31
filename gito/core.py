@@ -1,3 +1,6 @@
+"""
+Gito core business logic.
+"""
 import os
 import fnmatch
 import logging
@@ -6,8 +9,6 @@ from pathlib import Path
 from functools import partial
 
 import microcore as mc
-from gito.constants import REFS_VALUE_ALL
-from gito.gh_api import gh_api
 from microcore import ui
 from git import Repo, Commit
 from git.exc import GitCommandError
@@ -16,11 +17,12 @@ from unidiff.constants import DEV_NULL
 
 from .context import Context
 from .project_config import ProjectConfig
-from .report_struct import Report
-from .constants import JSON_REPORT_FILE_NAME
+from .report_struct import Report, RawIssue
+from .constants import JSON_REPORT_FILE_NAME, REFS_VALUE_ALL
 from .utils import make_streaming_function
 from .pipeline import Pipeline
 from .env import Env
+from .gh_api import gh_api
 
 
 def review_subject_is_index(what):
@@ -384,6 +386,19 @@ def provide_affected_code_blocks(issues: dict, repo: Repo):
                     i["affected_code"] = block
 
 
+def _llm_response_validator(parsed_response: list[dict]):
+    """
+    Validate that the LLM response is a list of dicts that can be converted to RawIssue.
+    """
+    if not isinstance(parsed_response, list):
+        raise ValueError("Response is not a list")
+    for item in parsed_response:
+        if not isinstance(item, dict):
+            raise ValueError("Response item is not a dict")
+        RawIssue(**item)
+    return True
+
+
 async def review(
     repo: Repo = None,
     what: str = None,
@@ -420,14 +435,15 @@ async def review(
             for file_diff in diff
         ],
         retries=cfg.retries,
-        parse_json=True,
+        parse_json={"validator": _llm_response_validator},
     )
     issues = {file.path: issues for file, issues in zip(diff, responses) if issues}
     provide_affected_code_blocks(issues, repo)
     exec(cfg.post_process, {"mc": mc, **locals()})
     out_folder = Path(out_folder or repo.working_tree_dir)
     out_folder.mkdir(parents=True, exist_ok=True)
-    report = Report(issues=issues, number_of_processed_files=len(diff))
+    report = Report(number_of_processed_files=len(diff))
+    report.register_issues(issues)
     ctx = Context(
         report=report,
         config=cfg,
@@ -496,7 +512,7 @@ def answer(
             config.max_code_tokens // 2
         )
     else:
-        aux_files_dict = dict()
+        aux_files_dict = {}
 
     if not prompt_file and config.answer_prompt.startswith("tpl:"):
         prompt_file = str(config.answer_prompt)[4:]

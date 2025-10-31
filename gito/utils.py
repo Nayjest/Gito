@@ -2,7 +2,7 @@ import logging
 import re
 import sys
 import os
-from dataclasses import fields
+from dataclasses import fields, is_dataclass
 from pathlib import Path
 import importlib.metadata
 from typing import Optional
@@ -254,6 +254,9 @@ def filter_kwargs(cls, kwargs, log_warnings=True):
     Returns:
         A dictionary containing only the fields that are defined in the dataclass.
     """
+    if not is_dataclass(cls):
+        raise TypeError(f"{cls.__name__} is not a dataclass or pydantic dataclass")
+
     cls_fields = {f.name for f in fields(cls)}
     filtered = {}
     for k, v in kwargs.items():
