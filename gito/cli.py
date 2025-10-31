@@ -7,7 +7,6 @@ import textwrap
 import microcore as mc
 import typer
 from git import Repo
-from gito.constants import REFS_VALUE_ALL
 
 from .core import review, get_diff, filter_diff, answer
 from .cli_base import (
@@ -21,16 +20,16 @@ from .cli_base import (
     get_repo_context,
 )
 from .report_struct import Report
-from .constants import HOME_ENV_PATH, GITHUB_MD_REPORT_FILE_NAME
+from .constants import HOME_ENV_PATH, GITHUB_MD_REPORT_FILE_NAME, REFS_VALUE_ALL
 from .bootstrap import bootstrap
 from .utils import no_subcommand, extract_gh_owner_repo, remove_html_comments
-from .gh_api import resolve_gh_token
+from .identify_git_provider import GitProvider, identify_git_provider
 
-# Import fix command to register it
-from .commands import fix, gh_react_to_comment, repl, deploy, version  # noqa
 from .commands.gh_post_review_comment import post_github_cr_comment
 from .commands.gitlab_post_review_comment import post_gitlab_cr_comment
 from .commands.linear_comment import linear_comment
+# Imported for registering commands
+from .commands import fix, gh_react_to_comment, repl, deploy, version  # noqa
 
 app_no_subcommand = typer.Typer(pretty_exceptions_show_locals=False)
 
@@ -104,9 +103,9 @@ def cmd_review(
     pr: int = typer.Option(
         default=None,
         help=textwrap.dedent("""\n
-        GitHub Pull Request number to post the comment to
+        GitHub Pull Request number or Gitlab Merge Request ID to post the comment to
         (for local usage together with --post-comment,
-        in the github actions PR is resolved from the environment)
+        in the github / gitlab actions PR is resolved from the environment)
         """)
     ),
     out: str = arg_out(),
@@ -122,7 +121,7 @@ def cmd_review(
         merge_base = False
     _what, _against = args_to_target(refs, what, against)
     pr = pr or os.getenv("PR_NUMBER_FROM_WORKFLOW_DISPATCH")
-    with get_repo_context(url, _what) as (repo, out_folder):
+    with (get_repo_context(url, _what) as (repo, out_folder)):
         asyncio.run(review(
             repo=repo,
             what=_what,
@@ -133,20 +132,31 @@ def cmd_review(
             pr=pr,
         ))
         if post_comment:
-            try:
-                owner, repo_name = extract_gh_owner_repo(repo)
-            except ValueError as e:
-                logging.error(
-                    "Error posting comment:\n"
-                    "Could not extract GitHub owner and repository name from the local repository."
+            provider = identify_git_provider(repo)
+            md_report_file = os.path.join(out or out_folder, GITHUB_MD_REPORT_FILE_NAME)
+            if provider == GitProvider.GITHUB:
+                try:
+                    owner, repo_name = extract_gh_owner_repo(repo)
+                except ValueError as e:
+                    logging.error(
+                        "Error posting comment:\n"
+                        "Could not extract GitHub owner and repository name "
+                        "from the local repository."
+                    )
+                    raise typer.Exit(code=1) from e
+                post_github_cr_comment(
+                    md_report_file=md_report_file,
+                    pr=pr,
+                    gh_repo=f"{owner}/{repo_name}",
                 )
-                raise typer.Exit(code=1) from e
-            post_github_cr_comment(
-                md_report_file=os.path.join(out or out_folder, GITHUB_MD_REPORT_FILE_NAME),
-                pr=pr,
-                gh_repo=f"{owner}/{repo_name}",
-                token=resolve_gh_token()
-            )
+            elif provider == GitProvider.GITLAB:
+                post_gitlab_cr_comment(md_report_file=md_report_file, merge_request_iid=pr)
+            else:
+                msg = "Posting comments is only supported for GitHub and GitLab repositories."
+                if not provider:
+                    msg = f"Could not identify the Git provider for the current repository. {msg}"
+                logging.error(msg)
+                raise typer.Exit(code=1)
 
 
 @app.command(name="ask", help="Answer questions about the target codebase changes.")

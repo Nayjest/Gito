@@ -1,3 +1,6 @@
+"""
+Posting code review comments to GitLab Merge Requests.
+"""
 import logging
 import os
 from time import sleep
@@ -31,7 +34,8 @@ def post_gl_comment(
     base_url: Optional[str] = None,
 ) -> bool:
     """Create a note on a GitLab Merge Request."""
-    url = f"{_gl_base_url(base_url)}/api/v4/projects/{project_id}/merge_requests/{merge_request_iid}/notes"
+    base_url = _gl_base_url(base_url)
+    url = f"{base_url}/api/v4/projects/{project_id}/merge_requests/{merge_request_iid}/notes"
     headers = {"PRIVATE-TOKEN": token}
     resp = requests.post(url, headers=headers, json={"body": body}, timeout=30)
     if resp.status_code != 201:
@@ -85,6 +89,7 @@ def update_gl_mr_note(
     new_body: str,
     base_url: Optional[str] = None,
 ) -> bool:
+    """Update a GitLab MR note with new body content."""
     url = (
         f"{_gl_base_url(base_url)}/api/v4/projects/{project_id}/merge_requests/"
         f"{merge_request_iid}/notes/{note_id}"
@@ -101,10 +106,6 @@ def update_gl_mr_note(
         return False
     return True
 
-
-# ------------------------------
-# Collapsing previous CR comments
-# ------------------------------
 
 def collapse_gl_outdated_cr_comments(
     project_id: str,
@@ -157,10 +158,6 @@ def collapse_gl_outdated_cr_comments(
     logging.info("All outdated comments collapsed successfully.")
 
 
-# ------------------------------
-# Typer command
-# ------------------------------
-
 @app.command(name="gitlab-comment", help="Leave a GitLab MR comment with the review.")
 def post_gitlab_cr_comment(
     md_report_file: str = typer.Option(default=None),
@@ -179,7 +176,12 @@ def post_gitlab_cr_comment(
     Leaves a comment with the review on the current GitLab merge request.
 
     Examples:
-      gito gitlab-comment --token $GITLAB_ACCESS_TOKEN --project-id $CI_PROJECT_ID --merge-request-iid $CI_MERGE_REQUEST_IID
+      ```bash
+      gito gitlab-comment \
+        --token $GITLAB_ACCESS_TOKEN \
+        --project-id $CI_PROJECT_ID \
+        --merge-request-iid $CI_MERGE_REQUEST_IID
+      ```
     """
     file = md_report_file or GITHUB_MD_REPORT_FILE_NAME
     if not os.path.exists(file):
