@@ -94,7 +94,7 @@ class Report:
             for issue in issues
         ]
 
-    def register_issues(self, issues: dict[str,list[RawIssue | dict]]):
+    def register_issues(self, issues: dict[str, list[RawIssue | dict]]):
         for file, file_issues in issues.items():
             for issue in file_issues:
                 self.register_issue(file, issue)

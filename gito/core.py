@@ -22,6 +22,7 @@ from .constants import JSON_REPORT_FILE_NAME, REFS_VALUE_ALL
 from .utils import make_streaming_function
 from .pipeline import Pipeline
 from .env import Env
+from .gh_api import gh_api
 
 
 def review_subject_is_index(what):

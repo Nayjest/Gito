@@ -1,5 +1,4 @@
 import pytest
-import json
 from gito.report_struct import RawIssue
 from gito.core import _llm_response_validator
 
@@ -28,7 +27,7 @@ def test_raw_issue():
     assert _llm_response_validator(raw) is True
     assert issue1.tags == []
     assert issue1.affected_lines == []
-    del raw[0]["title"] # required field
+    del raw[0]["title"]  # required field
     # raises
     with pytest.raises(Exception):
         issue1 = RawIssue(**raw[0])

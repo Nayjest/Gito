@@ -25,7 +25,7 @@ def test_report_plain_issues():
                 "tags": ["bug"],
                 "severity": 2,
                 "confidence": 1,
-                "affected_lines": [{"start_line":11}],
+                "affected_lines": [{"start_line": 11}],
             }
         ],
     }
@@ -160,6 +160,7 @@ def test_aff_lines_redundant_fields():
     assert isinstance(line, Issue.AffectedCode)
     assert line.file == "X.py"
     assert line.proposal == "foo"
+
 
 def test_from_raw_issue():
     data = get_issue_with_affected_lines()
