@@ -97,7 +97,7 @@ def get_base_branch(repo: Repo, pr: int | str = None):
     except AttributeError:
         try:
             logging.info(
-                "Checking if repo has 'main' or 'master' branchs to use as --against branch..."
+                "Checking if repo has 'main' or 'master' branches to use as --against branch..."
             )
             remote_refs = repo.remotes.origin.refs
             for branch_name in ['main', 'master']:
