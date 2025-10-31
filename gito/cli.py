@@ -202,8 +202,8 @@ def setup():
     mc.interactive_setup(HOME_ENV_PATH)
 
 
-@app.command(name="render", help="Render and display code review report.")
-@app.command(name="report", hidden=True)
+@app.command(name="report", help="Render and display code review report.")
+@app.command(name="render", hidden=True)
 def render(
     format: str = typer.Argument(default=Report.Format.CLI),
     source: str = typer.Option(
