@@ -241,7 +241,10 @@ def filter_diff(
     """
     Filter the diff files by the given fnmatch filters.
     """
-    assert isinstance(filters, (list, str))
+    if not isinstance(filters, (list, str)):
+        raise ValueError(
+            "filter_diff: filters must be a list of strings or a comma-separated string"
+        )
     if not isinstance(filters, list):
         filters = [f.strip() for f in filters.split(",") if f.strip()]
     if not filters:

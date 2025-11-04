@@ -24,6 +24,10 @@ test:
 	pytest --log-cli-level=INFO
 tests: test
 
+# Generate Coverage Report
+coverage:
+	pytest --cov=gito --cov-report=xml
+
 cli-reference:
 	PYTHONUTF8=1 typer gito.cli utils docs --name gito --title="Gito CLI Reference" --output documentation/command_line_reference.md
 cli-ref: cli-reference
