@@ -1,3 +1,6 @@
 aux_files=[
     'documentation/command_line_reference.md'
 ]
+[prompt_vars]
+# Disable awards
+awards = ""
