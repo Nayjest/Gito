@@ -52,7 +52,7 @@ class Issue(RawIssue):
         if is_dataclass(raw_issue):
             raw_issue = asdict(raw_issue)
         params = filter_kwargs(Issue, raw_issue | {"file": file, "id": issue_id})
-        for i, obj in enumerate(params["affected_lines"]):
+        for i, obj in enumerate(params.get("affected_lines") or []):
             d = obj if isinstance(obj, dict) else asdict(obj)
             params["affected_lines"][i] = Issue.AffectedCode(
                 **filter_kwargs(Issue.AffectedCode, {"file": file} | d)
