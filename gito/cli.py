@@ -171,6 +171,11 @@ def cmd_answer(
     aux_files: list[str] = typer.Option(
         default=None,
         help="Auxiliary files that might be helpful"
+    ),
+    save_to: str = typer.Option(
+        help="Save answer to file",
+        default=None,
+        show_default=False
     )
 ):
     _what, _against = args_to_target(refs, what, against)
@@ -194,6 +199,11 @@ def cmd_answer(
     if post_to == 'linear':
         logging.info("Posting answer to Linear...")
         linear_comment(remove_html_comments(out))
+    if save_to:
+        with open(save_to, "w", encoding="utf-8") as f:
+            f.write(out)
+        logging.info(f"Answer saved to {mc.utils.file_link(save_to)}")
+
     return out
 
 
