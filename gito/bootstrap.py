@@ -13,6 +13,7 @@ from .env import Env
 
 
 def setup_logging(log_level: int = logging.INFO):
+    """Setup custom CLI logging format with colored output."""
     class CustomFormatter(logging.Formatter):
         def format(self, record):
             dt = datetime.fromtimestamp(record.created).strftime("%Y-%m-%d %H:%M:%S")
