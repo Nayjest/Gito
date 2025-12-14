@@ -2,14 +2,14 @@
 
 [[package]]
 name = "ai-microcore"
-version = "4.4.6"
+version = "4.5.0"
 description = "# Minimalistic Foundation for AI Applications"
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "ai_microcore-4.4.6-py3-none-any.whl", hash = "sha256:f4533075ef5d8c6cb13072b41b4c5aac27d993810d4f0db4131b9f89a0f8fe6e"},
-    {file = "ai_microcore-4.4.6.tar.gz", hash = "sha256:c46ae90532af2c47fb760c99b7ece5cb4f8a208a1421e6b1f787f0a7ddad025b"},
+    {file = "ai_microcore-4.5.0-py3-none-any.whl", hash = "sha256:950d01921446b176d753cf5ce200f14eeaa8ee4bad29d715c7a38d0cb75395b0"},
+    {file = "ai_microcore-4.5.0.tar.gz", hash = "sha256:6798c3070aa950ea3901b320091f884b82a9152bdeb7fee2a2b93f84c1a89c85"},
 ]
 
 [package.dependencies]
@@ -1205,7 +1205,7 @@ google-api-core = {version = ">=1.34.1,<2.0.dev0 || >=2.11.dev0,<3.0.0dev", extr
 google-auth = ">=2.14.1,<2.24.0 || >2.24.0,<2.25.0 || >2.25.0,<3.0.0dev"
 proto-plus = [
     {version = ">=1.25.0,<2.0.0dev", markers = "python_version >= \"3.13\""},
-    {version = ">=1.22.3,<2.0.0dev", markers = "python_version < \"3.13\""},
+    {version = ">=1.22.3,<2.0.0dev"},
 ]
 protobuf = ">=3.20.2,<4.21.0 || >4.21.0,<4.21.1 || >4.21.1,<4.21.2 || >4.21.2,<4.21.3 || >4.21.3,<4.21.4 || >4.21.4,<4.21.5 || >4.21.5,<6.0.0dev"
 
@@ -1244,7 +1244,7 @@ description = "Google API client core library"
 optional = false
 python-versions = ">=3.7"
 groups = ["main"]
-markers = "python_version <= \"3.13\""
+markers = "python_version < \"3.14\""
 files = [
     {file = "google_api_core-2.28.1-py3-none-any.whl", hash = "sha256:4021b0f8ceb77a6fb4de6fde4502cecab45062e66ff4f2895169e0b35bc9466c"},
     {file = "google_api_core-2.28.1.tar.gz", hash = "sha256:2b405df02d68e68ce0fbc138559e6036559e685159d148ae5861013dc201baf8"},
@@ -1257,7 +1257,7 @@ grpcio = {version = ">=1.49.1,<2.0.0", optional = true, markers = "python_versio
 grpcio-status = {version = ">=1.49.1,<2.0.0", optional = true, markers = "python_version >= \"3.11\" and extra == \"grpc\""}
 proto-plus = [
     {version = ">=1.25.0,<2.0.0", markers = "python_version >= \"3.13\""},
-    {version = ">=1.22.3,<2.0.0"},
+    {version = ">=1.22.3,<2.0.0", markers = "python_version < \"3.13\""},
 ]
 protobuf = ">=3.19.5,<3.20.0 || >3.20.0,<3.20.1 || >3.20.1,<4.21.0 || >4.21.0,<4.21.1 || >4.21.1,<4.21.2 || >4.21.2,<4.21.3 || >4.21.3,<4.21.4 || >4.21.4,<4.21.5 || >4.21.5,<7.0.0"
 requests = ">=2.18.0,<3.0.0"
@@ -4612,4 +4612,4 @@ cffi = ["cffi (>=1.17,<2.0) ; platform_python_implementation != \"PyPy\" and pyt
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "8563da1ec9a3d6cb8cae362273ce7a5838c7ebfcd5d92e99be35ddd9724ac02c"
+content-hash = "e84948d8cb1653092c625809c0ef068fe9897bbbb23a41a3ddf45c5c90182a85"
