@@ -236,12 +236,21 @@ def get_diff(
 
 
 def filter_diff(
-    patch_set: PatchSet | Iterable[PatchedFile], filters: str | list[str]
+    patch_set: PatchSet | Iterable[PatchedFile],
+    filters: str | list[str],
+    exclude: bool = False,
 ) -> PatchSet | Iterable[PatchedFile]:
     """
     Filter the diff files by the given fnmatch filters.
+    Args:
+        patch_set (PatchSet | Iterable[PatchedFile]): The diff to filter.
+        filters (str | list[str]): The fnmatch patterns to filter by.
+        exclude (bool): If True, inverse logic (exclude files matching the filters).
+    Returns:
+        PatchSet | Iterable[PatchedFile]: The filtered diff.
     """
-    assert isinstance(filters, (list, str))
+    if not isinstance(filters, (list, str)):
+        raise ValueError("Filters must be a string or a list of strings")
     if not isinstance(filters, list):
         filters = [f.strip() for f in filters.split(",") if f.strip()]
     if not filters:
@@ -249,7 +258,10 @@ def filter_diff(
     files = [
         file
         for file in patch_set
-        if any(fnmatch.fnmatch(file.path, pattern) for pattern in filters)
+        if (
+            not any(fnmatch.fnmatch(file.path, pattern) for pattern in filters) if exclude
+            else any(fnmatch.fnmatch(file.path, pattern) for pattern in filters)
+        )
     ]
     return files
 
@@ -330,6 +342,8 @@ def _prepare(
         repo=repo, what=what, against=against, use_merge_base=use_merge_base, pr=pr,
     )
     diff = filter_diff(diff, filters)
+    if cfg.exclude_files:
+        diff = filter_diff(diff, cfg.exclude_files, exclude=True)
     if not diff:
         raise NoChangesInContextError()
     lines = {

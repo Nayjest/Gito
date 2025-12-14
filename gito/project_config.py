@@ -33,6 +33,10 @@ class ProjectConfig:
     when referenced in code review comments.
     """
     aux_files: list[str] = field(default_factory=list)
+    exclude_files: list[str] = field(default_factory=list)
+    """
+    List of file patterns to exclude from analysis.
+    """
     pipeline_steps: dict[str, dict | PipelineStep] = field(default_factory=dict)
     collapse_previous_code_review_comments: bool = field(default=True)
     """
