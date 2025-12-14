@@ -73,6 +73,15 @@ class Issue(RawIssue):
 
 
 @dataclass
+class ProcessingWarning:
+    """
+    Warning generated during code review of files
+    """
+    message: str = field()
+    file: str | None = field(default=None)
+
+
+@dataclass
 class Report:
     class Format(StrEnum):
         MARKDOWN = "md"
@@ -85,6 +94,7 @@ class Report:
     created_at: str = field(default_factory=lambda: datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
     model: str = field(default_factory=lambda: mc.config().MODEL)
     pipeline_out: dict = field(default_factory=dict)
+    processing_warnings: list[ProcessingWarning] = field(default_factory=list)
 
     @property
     def plain_issues(self):

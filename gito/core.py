@@ -17,7 +17,7 @@ from unidiff.constants import DEV_NULL
 
 from .context import Context
 from .project_config import ProjectConfig
-from .report_struct import Report, RawIssue
+from .report_struct import ProcessingWarning, Report, RawIssue
 from .constants import JSON_REPORT_FILE_NAME, REFS_VALUE_ALL
 from .utils import make_streaming_function
 from .pipeline import Pipeline
@@ -447,13 +447,37 @@ async def review(
         ],
         retries=cfg.retries,
         parse_json={"validator": _llm_response_validator},
+        allow_failures=True,
     )
+    processing_warnings = []
+    for i, (res_or_error, file) in enumerate(zip(responses, diff)):
+        if isinstance(res_or_error, Exception):
+            if isinstance(res_or_error, mc.LLMContextLengthExceededError):
+                message = f'File "{file.path}" was skipped due to large size: {str(res_or_error)}.'
+            else:
+                message = (
+                    f"File {file.path} was skipped due to error: "
+                    f"[{type(res_or_error).__name__}] {res_or_error}"
+                )
+                if not message.endswith('.'):
+                    message += '.'
+            processing_warnings.append(
+                ProcessingWarning(
+                    message=message,
+                    file=file.path,
+                )
+            )
+            responses[i] = []
+
     issues = {file.path: issues for file, issues in zip(diff, responses) if issues}
     provide_affected_code_blocks(issues, repo)
     exec(cfg.post_process, {"mc": mc, **locals()})
     out_folder = Path(out_folder or repo.working_tree_dir)
     out_folder.mkdir(parents=True, exist_ok=True)
-    report = Report(number_of_processed_files=len(diff))
+    report = Report(
+        number_of_processed_files=len(diff),
+        processing_warnings=processing_warnings,
+    )
     report.register_issues(issues)
     ctx = Context(
         report=report,
