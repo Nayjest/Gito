@@ -25,6 +25,7 @@ from .constants import HOME_ENV_PATH, GITHUB_MD_REPORT_FILE_NAME
 from .bootstrap import bootstrap
 from .utils import no_subcommand, extract_gh_owner_repo, remove_html_comments
 from .gh_api import resolve_gh_token
+from .project_config import ProjectConfig
 
 # Import fix command to register it
 from .commands import fix, gh_react_to_comment, repl, deploy, version  # noqa
@@ -244,6 +245,9 @@ def files(
     try:
         patch_set = get_diff(repo=repo, what=_what, against=_against, use_merge_base=merge_base)
         patch_set = filter_diff(patch_set, filters)
+        cfg = ProjectConfig.load_for_repo(repo)
+        if cfg.exclude_files:
+            patch_set = filter_diff(patch_set, cfg.exclude_files, exclude=True)
         print(
             f"Changed files: "
             f"{mc.ui.green(_what or 'INDEX')} vs "
