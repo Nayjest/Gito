@@ -17,7 +17,7 @@ from unidiff.constants import DEV_NULL
 
 from .context import Context
 from .project_config import ProjectConfig
-from .report_struct import Report, RawIssue
+from .report_struct import ProcessingWarning, Report, RawIssue
 from .constants import JSON_REPORT_FILE_NAME, REFS_VALUE_ALL
 from .utils import make_streaming_function
 from .pipeline import Pipeline
@@ -97,7 +97,7 @@ def get_base_branch(repo: Repo, pr: int | str = None):
     except AttributeError:
         try:
             logging.info(
-                "Checking if repo has 'main' or 'master' branchs to use as --against branch..."
+                "Checking if repo has 'main' or 'master' branches to use as --against branch..."
             )
             remote_refs = repo.remotes.origin.refs
             for branch_name in ['main', 'master']:
@@ -236,12 +236,21 @@ def get_diff(
 
 
 def filter_diff(
-    patch_set: PatchSet | Iterable[PatchedFile], filters: str | list[str]
+    patch_set: PatchSet | Iterable[PatchedFile],
+    filters: str | list[str],
+    exclude: bool = False,
 ) -> PatchSet | Iterable[PatchedFile]:
     """
     Filter the diff files by the given fnmatch filters.
+    Args:
+        patch_set (PatchSet | Iterable[PatchedFile]): The diff to filter.
+        filters (str | list[str]): The fnmatch patterns to filter by.
+        exclude (bool): If True, inverse logic (exclude files matching the filters).
+    Returns:
+        PatchSet | Iterable[PatchedFile]: The filtered diff.
     """
-    assert isinstance(filters, (list, str))
+    if not isinstance(filters, (list, str)):
+        raise ValueError("Filters must be a string or a list of strings")
     if not isinstance(filters, list):
         filters = [f.strip() for f in filters.split(",") if f.strip()]
     if not filters:
@@ -249,7 +258,10 @@ def filter_diff(
     files = [
         file
         for file in patch_set
-        if any(fnmatch.fnmatch(file.path, pattern) for pattern in filters)
+        if (
+            not any(fnmatch.fnmatch(file.path, pattern) for pattern in filters) if exclude
+            else any(fnmatch.fnmatch(file.path, pattern) for pattern in filters)
+        )
     ]
     return files
 
@@ -330,6 +342,8 @@ def _prepare(
         repo=repo, what=what, against=against, use_merge_base=use_merge_base, pr=pr,
     )
     diff = filter_diff(diff, filters)
+    if cfg.exclude_files:
+        diff = filter_diff(diff, cfg.exclude_files, exclude=True)
     if not diff:
         raise NoChangesInContextError()
     lines = {
@@ -341,9 +355,7 @@ def _prepare(
                 - mc.tokenizing.num_tokens_from_string(str(file_diff)),
                 use_local_files=review_subject_is_index(what) or what == REFS_VALUE_ALL
             )
-            if (
-                   file_diff.target_file != DEV_NULL and not file_diff.is_added_file
-               ) or what == REFS_VALUE_ALL
+            if file_diff.target_file != DEV_NULL or what == REFS_VALUE_ALL
             else ""
         )
         for file_diff in diff
@@ -408,6 +420,10 @@ async def review(
     out_folder: str | os.PathLike | None = None,
     pr: str | int = None
 ):
+    """
+    Conducts a code review.
+    Prints the review report to the console and saves it to a file.
+    """
     reviewing_all = what == REFS_VALUE_ALL
     try:
         repo, cfg, diff, lines = _prepare(
@@ -421,28 +437,61 @@ async def review(
     except NoChangesInContextError:
         logging.error("No changes to review")
         return
+
+    def input_is_diff(file_diff: PatchedFile) -> bool:
+        """
+        In case of reviewing all changes, or added files,
+        we provide full file content as input.
+        Otherwise, we provide the diff and additional file lines separately.
+        """
+        return not reviewing_all and not file_diff.is_added_file
+
     responses = await mc.llm_parallel(
         [
             mc.prompt(
                 cfg.prompt,
                 input=(
-                    file_diff if not reviewing_all
+                    file_diff if input_is_diff(file_diff)
                     else str(file_diff.path) + ":\n" + lines[file_diff.path]
                 ),
-                file_lines=lines[file_diff.path] if not reviewing_all else None,
+                file_lines=lines[file_diff.path] if input_is_diff(file_diff) else None,
                 **cfg.prompt_vars,
             )
             for file_diff in diff
         ],
         retries=cfg.retries,
         parse_json={"validator": _llm_response_validator},
+        allow_failures=True,
     )
+    processing_warnings = []
+    for i, (res_or_error, file) in enumerate(zip(responses, diff)):
+        if isinstance(res_or_error, Exception):
+            if isinstance(res_or_error, mc.LLMContextLengthExceededError):
+                message = f'File "{file.path}" was skipped due to large size: {str(res_or_error)}.'
+            else:
+                message = (
+                    f"File {file.path} was skipped due to error: "
+                    f"[{type(res_or_error).__name__}] {res_or_error}"
+                )
+                if not message.endswith('.'):
+                    message += '.'
+            processing_warnings.append(
+                ProcessingWarning(
+                    message=message,
+                    file=file.path,
+                )
+            )
+            responses[i] = []
+
     issues = {file.path: issues for file, issues in zip(diff, responses) if issues}
     provide_affected_code_blocks(issues, repo)
     exec(cfg.post_process, {"mc": mc, **locals()})
     out_folder = Path(out_folder or repo.working_tree_dir)
     out_folder.mkdir(parents=True, exist_ok=True)
-    report = Report(number_of_processed_files=len(diff))
+    report = Report(
+        number_of_processed_files=len(diff),
+        processing_warnings=processing_warnings,
+    )
     report.register_issues(issues)
     ctx = Context(
         report=report,
@@ -479,6 +528,10 @@ def answer(
     pr: str | int = None,
     aux_files: list[str] = None,
 ) -> str | None:
+    """
+    Answers a question about the code changes.
+    Returns the LLM response as a string.
+    """
     try:
         repo, config, diff, lines = _prepare(
             repo=repo,
@@ -508,7 +561,7 @@ def answer(
     if aux_files or config.aux_files:
         aux_files_dict = read_files(
             repo,
-            (aux_files or list()) + config.aux_files,
+            (aux_files or []) + config.aux_files,
             config.max_code_tokens // 2
         )
     else:

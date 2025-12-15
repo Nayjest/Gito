@@ -13,6 +13,7 @@ from .env import Env
 
 
 def setup_logging(log_level: int = logging.INFO):
+    """Setup custom CLI logging format with colored output."""
     class CustomFormatter(logging.Formatter):
         def format(self, record):
             dt = datetime.fromtimestamp(record.created).strftime("%Y-%m-%d %H:%M:%S")
@@ -23,7 +24,11 @@ def setup_logging(log_level: int = logging.INFO):
             if record.levelno >= logging.ERROR:
                 message = mc.ui.red(message)
                 level_name = mc.ui.red(level_name)
-            return f"{dt} {level_name}: {message}"
+
+            formatted_message = f"{dt} {level_name}: {message}"
+            if record.exc_info:
+                formatted_message += "\n" + self.formatException(record.exc_info)
+            return formatted_message
 
     handler = logging.StreamHandler()
     handler.setFormatter(CustomFormatter())

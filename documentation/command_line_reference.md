@@ -37,8 +37,8 @@ $ gito [OPTIONS] COMMAND [ARGS]...
 * `answer`
 * `ask`: Answer questions about the target codebase...
 * `setup`: Configure LLM for local usage interactively.
-* `report`
-* `render`: Render and display code review report.
+* `render`
+* `report`: Render and display code review report.
 * `files`: List files in the changeset.
 
 ## `gito fix`
@@ -210,11 +210,13 @@ $ gito run [OPTIONS] [REFS]
 e.g. &#x27;src/**/*.py&#x27;, may be comma-separated
 * `--merge-base / --no-merge-base`: Use merge base for comparison  [default: merge-base]
 * `--url TEXT`: Git repository URL
+* `--path TEXT`: Git repository path
 * `--post-comment / --no-post-comment`: Post review comment to GitHub  [default: no-post-comment]
 * `--pr INTEGER`: GitHub Pull Request number to post the comment to
 (for local usage together with --post-comment,
 in the github actions PR is resolved from the environment)
 * `-o, --out, --output TEXT`: Output folder for the code review report
+* `--all / --no-all`: Review all codebase  [default: no-all]
 * `--help`: Show this message and exit.
 
 ## `gito review`
@@ -239,11 +241,13 @@ $ gito review [OPTIONS] [REFS]
 e.g. &#x27;src/**/*.py&#x27;, may be comma-separated
 * `--merge-base / --no-merge-base`: Use merge base for comparison  [default: merge-base]
 * `--url TEXT`: Git repository URL
+* `--path TEXT`: Git repository path
 * `--post-comment / --no-post-comment`: Post review comment to GitHub  [default: no-post-comment]
 * `--pr INTEGER`: GitHub Pull Request number to post the comment to
 (for local usage together with --post-comment,
 in the github actions PR is resolved from the environment)
 * `-o, --out, --output TEXT`: Output folder for the code review report
+* `--all / --no-all`: Review all codebase  [default: no-all]
 * `--help`: Show this message and exit.
 
 ## `gito talk`
@@ -340,12 +344,12 @@ $ gito setup [OPTIONS]
 
 * `--help`: Show this message and exit.
 
-## `gito report`
+## `gito render`
 
 **Usage**:
 
 ```console
-$ gito report [OPTIONS] [FORMAT]
+$ gito render [OPTIONS] [FORMAT]
 ```
 
 **Arguments**:
@@ -357,14 +361,14 @@ $ gito report [OPTIONS] [FORMAT]
 * `--src, --source TEXT`: Source file (json) to load the report from
 * `--help`: Show this message and exit.
 
-## `gito render`
+## `gito report`
 
 Render and display code review report.
 
 **Usage**:
 
 ```console
-$ gito render [OPTIONS] [FORMAT]
+$ gito report [OPTIONS] [FORMAT]
 ```
 
 **Arguments**:

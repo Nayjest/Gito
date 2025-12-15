@@ -37,6 +37,12 @@ report_template_md = """
     {%- endfor -%}
     {{ "\n" }}
 {%- endfor -%}
+{%- if report.processing_warnings -%}
+    {{- "\n\n" }}## Processing Warnings
+    {%- for warning in report.processing_warnings -%}
+        {{- "\n" }}  - {{ warning.message -}}
+    {%- endfor -%}
+{%- endif -%}
 {{- HTML_CR_COMMENT_MARKER -}}
 """
 report_template_cli = """
@@ -109,6 +115,13 @@ report_template_cli = """
     {%- endfor -%}
     {{ "\n" }}
 {%- endfor -%}
+{%- if report.processing_warnings -%}
+    {{- "\n" }}
+    {{- "\n" }}{{ Style.BRIGHT }}⚠️ PROCESSING WARNINGS{{ Style.RESET_ALL -}}
+    {%- for warning in report.processing_warnings -%}
+        {{- "\n" }}  {{ Fore.YELLOW }}- {{ warning.message }}{{ Style.RESET_ALL -}}
+    {%- endfor -%}
+{%- endif -%}
 """
 retries = 3
 prompt = """
@@ -184,7 +197,7 @@ Confidence scale:
 - 1 — Highest, 100% confidence that code requires changes in any context
 - 2 — Very High
 - 3 — High
-- 4 — Medium - Should not be reported
+- 4 — Medium, Should not be reported
 
 (!) - If no issues found according to the criteria, respond with empty list: []
 """

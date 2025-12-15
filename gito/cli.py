@@ -24,6 +24,7 @@ from .constants import HOME_ENV_PATH, GITHUB_MD_REPORT_FILE_NAME, REFS_VALUE_ALL
 from .bootstrap import bootstrap
 from .utils import no_subcommand, extract_gh_owner_repo, remove_html_comments
 from .identify_git_provider import GitProvider, identify_git_provider
+from .project_config import ProjectConfig
 
 from .commands.gh_post_review_comment import post_github_cr_comment
 from .commands.gitlab_post_review_comment import post_gitlab_cr_comment
@@ -182,6 +183,11 @@ def cmd_answer(
     aux_files: list[str] = typer.Option(
         default=None,
         help="Auxiliary files that might be helpful"
+    ),
+    save_to: str = typer.Option(
+        help="Save answer to file",
+        default=None,
+        show_default=False
     )
 ):
     _what, _against = args_to_target(refs, what, against)
@@ -205,6 +211,11 @@ def cmd_answer(
     if post_to == 'linear':
         logging.info("Posting answer to Linear...")
         linear_comment(remove_html_comments(out))
+    if save_to:
+        with open(save_to, "w", encoding="utf-8") as f:
+            f.write(out)
+        logging.info(f"Answer saved to {mc.utils.file_link(save_to)}")
+
     return out
 
 
@@ -213,7 +224,7 @@ def setup():
     mc.interactive_setup(HOME_ENV_PATH)
 
 
-@app.command(name="report", help="Render code review report for CLI and display it.")
+@app.command(name="report", help="Render and display code review report.")
 @app.command(name="render", hidden=True)
 def render(
     format: str = typer.Argument(default=Report.Format.CLI),
@@ -245,6 +256,9 @@ def files(
     try:
         patch_set = get_diff(repo=repo, what=_what, against=_against, use_merge_base=merge_base)
         patch_set = filter_diff(patch_set, filters)
+        cfg = ProjectConfig.load_for_repo(repo)
+        if cfg.exclude_files:
+            patch_set = filter_diff(patch_set, cfg.exclude_files, exclude=True)
         print(
             f"Changed files: "
             f"{mc.ui.green(_what or 'INDEX')} vs "

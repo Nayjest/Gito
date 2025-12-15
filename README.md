@@ -70,7 +70,7 @@ jobs:
       uses: actions/setup-python@v5
       with: { python-version: "3.13" }
     - name: Install AI Code Review tool
-      run: pip install gito.bot~=3.0
+      run: pip install gito.bot~=3.4
     - name: Run AI code analysis
       env:
         LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
@@ -101,15 +101,15 @@ See [GitHub Setup Guide](https://github.com/Nayjest/Gito/blob/main/documentation
 
 **Prerequisites:** [Python](https://www.python.org/downloads/) 3.11 / 3.12 / 3.13  
 
-**Step1:** Install [gito.bot](https://github.com/Nayjest/Gito) using [pip](https://en.wikipedia.org/wiki/Pip_(package_manager)).
+**Step 1:** Install [gito.bot](https://github.com/Nayjest/Gito) using [pip](https://en.wikipedia.org/wiki/Pip_(package_manager)).
 ```bash
 pip install gito.bot
 ```
 
 > **Troubleshooting:**  
-> pip may be also available via cli as `pip3` depending on your Python installation.
+> pip may also be available via cli as `pip3` depending on your Python installation.
 
-**Step2:** Perform initial setup
+**Step 2:** Perform initial setup
 
 The following command will perform one-time setup using an interactive wizard.
 You will be prompted to enter LLM configuration details (API type, API key, etc).
@@ -120,15 +120,15 @@ gito setup
 ```
 
 > **Troubleshooting:**  
-> On some systems, `gito` command may not became available immediately after installation.  
+> On some systems, `gito` command may not become available immediately after installation.  
 > Try restarting your terminal or running `python -m gito` instead.
 
 
 #### Perform your first AI code review locally
 
-**Step1:** Navigate to your repository root directory.  
-**Step2:** Switch to the branch you want to review.  
-**Step3:** Run following command
+**Step 1:** Navigate to your repository root directory.  
+**Step 2:** Switch to the branch you want to review.  
+**Step 3:** Run following command
 ```bash
 gito review
 ```
@@ -202,4 +202,4 @@ See [CONTRIBUTING.md](https://github.com/Nayjest/Gito/blob/main/CONTRIBUTING.md)
 
 Licensed under the [MIT License](https://github.com/Nayjest/Gito/blob/main/LICENSE).
 
-© 2025 [Vitalii Stepanenko](mailto:mail@vitaliy.in)
+© 2025–2026 [Vitalii Stepanenko](mailto:mail@vitaliy.in)
