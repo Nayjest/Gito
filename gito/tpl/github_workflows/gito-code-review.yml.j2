@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions: { contents: read, pull-requests: write } # 'write' for leaving the summary comment
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with: { fetch-depth: 0 }
 
     {%- include("github_workflows/components/installs.j2") %}
@@ -25,7 +25,7 @@ jobs:
         gito --verbose review
         gito github-comment{% endraw %}
 
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v6
       with:
         name: gito-code-review-results
         path: |
