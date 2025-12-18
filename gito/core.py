@@ -384,18 +384,39 @@ def get_affected_code_block(repo: Repo, file: str, start_line: int, end_line: in
     return None
 
 
-def provide_affected_code_blocks(issues: dict, repo: Repo):
+def provide_affected_code_blocks(
+    issues: dict,
+    repo: Repo,
+    processing_warnings: list = None
+):
+    """
+    For each issue, fetch the affected code text block
+    and add it to the issue data.
+    """
     for file, file_issues in issues.items():
         for issue in file_issues:
-            for i in issue.get("affected_lines", []):
-                file_name = i.get("file", issue.get("file", file))
-                if block := get_affected_code_block(
-                    repo,
-                    file_name,
-                    i.get("start_line"),
-                    i.get("end_line")
-                ):
-                    i["affected_code"] = block
+            try:
+                for i in issue.get("affected_lines", []):
+                    file_name = i.get("file", issue.get("file", file))
+                    if block := get_affected_code_block(
+                        repo,
+                        file_name,
+                        i.get("start_line"),
+                        i.get("end_line")
+                    ):
+                        i["affected_code"] = block
+            except Exception as e:
+                logging.exception(e)
+                if processing_warnings is None:
+                    continue
+                processing_warnings.append(
+                    ProcessingWarning(
+                        message=(
+                            f"Error fetching affected code blocks for file {file}: {e}"
+                        ),
+                        file=file,
+                    )
+                )
 
 
 def _llm_response_validator(parsed_response: list[dict]):
@@ -463,7 +484,7 @@ async def review(
         parse_json={"validator": _llm_response_validator},
         allow_failures=True,
     )
-    processing_warnings = []
+    processing_warnings: list[ProcessingWarning] = []
     for i, (res_or_error, file) in enumerate(zip(responses, diff)):
         if isinstance(res_or_error, Exception):
             if isinstance(res_or_error, mc.LLMContextLengthExceededError):
@@ -484,7 +505,7 @@ async def review(
             responses[i] = []
 
     issues = {file.path: issues for file, issues in zip(diff, responses) if issues}
-    provide_affected_code_blocks(issues, repo)
+    provide_affected_code_blocks(issues, repo, processing_warnings)
     exec(cfg.post_process, {"mc": mc, **locals()})
     out_folder = Path(out_folder or repo.working_tree_dir)
     out_folder.mkdir(parents=True, exist_ok=True)
