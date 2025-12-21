@@ -1,9 +1,16 @@
 # :class: gito.project_config.ProjectConfig
 
+# This is default project configuration file bundled within gito.bot distribution.
+# You can override any settings here by creating a .gito/config.toml file in your
+# project root directory.
+
+
 # Defines the keyword or mention tag that triggers bot actions when referenced in code review comments.
 # list of strings, case-insensitive
 mention_triggers = ["gito", "bot", "ai", "/fix"]
+# Collapse previous code review comments in the GitHub PR before posting new ones
 collapse_previous_code_review_comments = true
+# Code review report template in Markdown format, used for GitHub PR comments.
 report_template_md = """
 <h2>{{ HTML_TEXT_ICON }}I've Reviewed the Code</h2>
 
@@ -45,6 +52,7 @@ report_template_md = """
 {%- endif -%}
 {{- HTML_CR_COMMENT_MARKER -}}
 """
+# Code review report template used for CLI output
 report_template_cli = """
 {{ Back.BLUE }}  +  +  +  ---==<<[ CODE REVIEW{{Style.NORMAL}} ]>>==---  +  +  +  {{Style.RESET_ALL}}
 {% if report.total_issues > 0 -%}
@@ -123,7 +131,9 @@ report_template_cli = """
     {%- endfor -%}
 {%- endif -%}
 """
+# Number of retries for LLM requests in case of failures
 retries = 3
+# Code review prompt template
 prompt = """
 {{ self_id }}
 ----TASK----
@@ -145,7 +155,7 @@ Review the provided code diff carefully and identify *only* highly confident iss
 - Do **not** report vague, theoretical, or overly generic advice.
 - Do **not** report anything with medium or lower confidence.
 - Typographical errors have highest severity.
-{{ requirements -}}
+{{ requirements -}}{#- see prompt_vars.requirements in the .gito/config.toml -#}
 {{ json_requirements }}
 
 Respond with a valid JSON array of issues following this schema:
@@ -259,13 +269,13 @@ If there are concerns about how thoroughly the code covers the requirements and 
 answer_github_comments = true
 answer_prompt = "tpl:answer.j2"
 aux_files = []
-[pipeline_steps.jira]
+[pipeline_steps.jira] # Jira integration step, fetches associated issue details for the review context.
 call="gito.pipeline_steps.jira.fetch_associated_issue"
 envs=["local","gh-action"]
-[pipeline_steps.linear]
+[pipeline_steps.linear] # Linear integration step, fetches associated issue details for the review context.
 call="gito.pipeline_steps.linear.fetch_associated_issue"
 envs=["local","gh-action"]
-[prompt_vars]
+[prompt_vars] # Additional variables to pass to prompts.
 self_id = """
 You are a subsystem of an AI-powered software platform, specifically tasked with performing expert code reviews.
 Act as a senior, highly experienced software engineer.
@@ -441,8 +451,10 @@ decorators add depth and texture, and observer masterfully completes the composi
 The Gang of Four gives a standing ovation from the stalls."
 ```
 """
+# Used in review prompt template
 requirements = """
-- (!) Never report issues related to software versions, model names, or similar details that you believe have not yet been released—you cannot reliably determine this.
+- Treat language issues as critical defects: Unclear or incorrect English that may cause misunderstanding must be flagged, not ignored.
+- Enforce consistency: Terminology, tense, and naming patterns must be consistent across the codebase.
 """
 summary_requirements = ""
 answering_instructions = """
