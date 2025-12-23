@@ -52,6 +52,12 @@ class ProjectConfig:
 
     @staticmethod
     def _read_bundled_defaults() -> dict:
+        """
+        Read the bundled default project configuration,
+        typically located at <root>/gito/config.toml in the gito.bot distribution.
+        Returns:
+            dict: The default project configuration.
+        """
         with open(PROJECT_CONFIG_BUNDLED_DEFAULTS_FILE, "rb") as f:
             config = tomllib.load(f)
         return config
@@ -62,6 +68,18 @@ class ProjectConfig:
 
     @staticmethod
     def load(config_path: str | Path | None = None) -> "ProjectConfig":
+        """
+        Load the project configuration from the specified path.
+        If no path is provided, it defaults to the standard project config file path
+        (<current_project>/.gito/config.toml).
+        If the file exists, it merges the project-specific
+        configuration with the bundled defaults.
+        If not found, it uses only the defaults.
+        Args:
+            config_path (str | Path | None): Alternative path to the project configuration file.
+        Returns:
+            ProjectConfig: The loaded project configuration instance.
+        """
         config = ProjectConfig._read_bundled_defaults()
         github_env = detect_github_env()
         config["prompt_vars"] |= github_env | dict(github_env=github_env)
