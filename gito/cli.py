@@ -18,6 +18,7 @@ from .cli_base import (
     arg_filters,
     arg_out,
     arg_against,
+    arg_all,
     get_repo_context,
 )
 from .report_struct import Report
@@ -89,6 +90,23 @@ def cli(
         bootstrap(verbosity)
 
 
+def _consider_arg_all(all: bool, refs: str, merge_base: bool) -> tuple[str, bool]:
+    """
+    Handle the --all option logic for commands.
+    Returns:
+        Updated (refs, merge_base) tuple.
+    """
+    if all:
+        if refs and refs != REFS_VALUE_ALL:
+            raise typer.BadParameter(
+                "The --all option overrides the refs argument. "
+                "Please remove the refs argument if you want to review all codebase."
+            )
+        refs = REFS_VALUE_ALL
+        merge_base = False
+    return refs, merge_base
+
+
 @app_no_subcommand.command(name="review", help="Perform code review")
 @app.command(name="review", help="Perform a code review of the target codebase changes.")
 @app.command(name="run", hidden=True)
@@ -110,16 +128,9 @@ def cmd_review(
         """)
     ),
     out: str = arg_out(),
-    all: bool = typer.Option(default=False, help="Review all codebase"),
+    all: bool = arg_all(),
 ):
-    if all:
-        if refs and refs != REFS_VALUE_ALL:
-            raise typer.BadParameter(
-                "The --all option overrides the refs argument. "
-                "Please remove the refs argument if you want to review all codebase."
-            )
-        refs = REFS_VALUE_ALL
-        merge_base = False
+    refs, merge_base = _consider_arg_all(all, refs, merge_base)
     _what, _against = args_to_target(refs, what, against)
     pr = pr or os.getenv("PR_NUMBER_FROM_WORKFLOW_DISPATCH")
     with get_repo_context(url, _what) as (repo, out_folder):
@@ -151,7 +162,6 @@ def cmd_review(
 
 @app.command(name="ask", help="Answer questions about the target codebase changes.")
 @app.command(name="answer", hidden=True)
-@app.command(name="talk", hidden=True)
 def cmd_answer(
     question: str = typer.Argument(help="Question to ask about the codebase changes"),
     refs: str = arg_refs(),
@@ -174,11 +184,13 @@ def cmd_answer(
         help="Auxiliary files that might be helpful"
     ),
     save_to: str = typer.Option(
-        help="Save answer to file",
+        help="Write the answer to the target file",
         default=None,
         show_default=False
-    )
+    ),
+    all: bool = arg_all(),
 ):
+    refs, merge_base = _consider_arg_all(all, refs, merge_base)
     _what, _against = args_to_target(refs, what, against)
     pr = pr or os.getenv("PR_NUMBER_FROM_WORKFLOW_DISPATCH")
     if str(question).startswith("tpl:"):

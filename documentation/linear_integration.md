@@ -1,7 +1,6 @@
-
 # <a href="https://github.com/Nayjest/Gito"><img src="https://raw.githubusercontent.com/Nayjest/Gito/main/press-kit/logo/gito-bot-1_64top.png" align="left" width=64 height=50 title="Gito: AI Code Reviewer"></a>Linear Integration
 
-Gito can automatically **detect the Linear issue associated with your branch** (e.g., `ENG-123`) 
+Gito can automatically **detect the [Linear](https://linear.app/) issue associated with your branch** (e.g., `ENG-123`) 
 and use it as extra context during code review and question answering.
 
 It can also **post answers back to Linear as comments**.
