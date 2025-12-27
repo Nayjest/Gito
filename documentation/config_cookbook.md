@@ -38,7 +38,7 @@ All language model settings are configured via OS environment variables or `.env
 
 This file is used for local setups and applies across all projects unless overridden.
 
-In the CI workflows you typically can define OS environment variables in the workflow file itself. For passing API keys secure, use GitHub / GitLab secrets functionality within the workflow.
+In the CI workflows you typically can define OS environment variables in the workflow file itself. For passing API keys securely, use GitHub / GitLab secrets functionality within the workflow.
 
 For the full list of supported configuration options, see:
 - ai-microcore configuration guide:  
