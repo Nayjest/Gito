@@ -19,7 +19,11 @@ Get consistent, thorough code reviews in seconds—no waiting for human availabi
   - [1. Review Pull Requests via GitHub Actions](#1-review-pull-requests-via-github-actions)
   - [2. Running Code Analysis Locally](#2-running-code-analysis-locally)
 - [Configuration](#-configuration)
-- [Documentation](#-documentation)
+- [Guides & Reference](#-guides--reference)
+  - [Command Line Reference ↗](https://github.com/Nayjest/Gito/blob/main/documentation/command_line_reference.md)
+  - [Configuration Cookbook ↗](https://github.com/Nayjest/Gito/blob/main/documentation/config_cookbook.md)
+  - [GitHub Setup Guide ↗](https://github.com/Nayjest/Gito/blob/main/documentation/github_setup.md)
+  - [Troubleshooting ↗](https://github.com/Nayjest/Gito/blob/main/documentation/troubleshooting.md)
 - [Development Setup](#-development-setup)
 - [Contributing](#-contributing)
 - [License](#-license)
@@ -163,13 +167,16 @@ See default configuration [here](https://github.com/Nayjest/Gito/blob/main/gito/
 
 More details can be found in [📖 Configuration Cookbook](https://github.com/Nayjest/Gito/blob/main/documentation/config_cookbook.md)
 
-## 📚 Documentation
+## 📚 Guides & Reference
+
+For more detailed information, check out these articles:
 
 - [Command Line Reference](https://github.com/Nayjest/Gito/blob/main/documentation/command_line_reference.md)
 - [Configuration Cookbook](https://github.com/Nayjest/Gito/blob/main/documentation/config_cookbook.md)
 - [GitHub Setup Guide](https://github.com/Nayjest/Gito/blob/main/documentation/github_setup.md)
 - [Troubleshooting](https://github.com/Nayjest/Gito/blob/main/documentation/troubleshooting.md)
 
+Or browse all documentation in the [`/documentation`](https://github.com/Nayjest/Gito/tree/main/documentation) directory.
 
 ## 💻 Development Setup
 
