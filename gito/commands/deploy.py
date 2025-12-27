@@ -46,8 +46,8 @@ def deploy(
 
     api_types = [ApiType.ANTHROPIC, ApiType.OPEN_AI, ApiType.GOOGLE_AI_STUDIO]
     default_models = {
-        ApiType.ANTHROPIC: "claude-sonnet-4-20250514",
-        ApiType.OPEN_AI: "gpt-4.1",
+        ApiType.ANTHROPIC: "claude-sonnet-4-5",
+        ApiType.OPEN_AI: "gpt-5.2",
         ApiType.GOOGLE_AI_STUDIO: "gemini-2.5-pro",
     }
     secret_names = {

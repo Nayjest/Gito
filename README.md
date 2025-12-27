@@ -19,7 +19,15 @@ Get consistent, thorough code reviews in seconds—no waiting for human availabi
   - [1. Review Pull Requests via GitHub Actions](#1-review-pull-requests-via-github-actions)
   - [2. Running Code Analysis Locally](#2-running-code-analysis-locally)
 - [Configuration](#-configuration)
-- [Documentation](#-documentation)
+- [Guides & Reference](#-guides--reference)
+  - [Command Line Reference](https://github.com/Nayjest/Gito/blob/main/documentation/command_line_reference.md) ↗
+  - [Configuration Cookbook](https://github.com/Nayjest/Gito/blob/main/documentation/config_cookbook.md) ↗
+  - [GitHub Setup Guide](https://github.com/Nayjest/Gito/blob/main/documentation/github_setup.md) ↗
+  - Integrations
+    - [Linear Integration](https://github.com/Nayjest/Gito/blob/main/documentation/linear_integration.md) ↗ 
+    - [Atlassian Jira Integration](https://github.com/Nayjest/Gito/blob/main/documentation/jira_integration.md) ↗
+  - [Troubleshooting](https://github.com/Nayjest/Gito/blob/main/documentation/troubleshooting.md) ↗
+  - [Documentation generation with Gito](https://github.com/Nayjest/Gito/blob/main/documentation/documentation_generation.md) ↗
 - [Development Setup](#-development-setup)
 - [Contributing](#-contributing)
 - [License](#-license)
@@ -64,24 +72,24 @@ jobs:
     runs-on: ubuntu-latest
     permissions: { contents: read, pull-requests: write } # 'write' for leaving the summary comment
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with: { fetch-depth: 0 }
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with: { python-version: "3.13" }
     - name: Install AI Code Review tool
-      run: pip install gito.bot~=3.4
+      run: pip install gito.bot~=3.5
     - name: Run AI code analysis
       env:
         LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
         LLM_API_TYPE: openai
-        MODEL: "gpt-4.1"
+        MODEL: "gpt-5.2"
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         PR_NUMBER_FROM_WORKFLOW_DISPATCH: ${{ github.event.inputs.pr_number }}
       run: |
         gito --verbose review
         gito github-comment --token ${{ secrets.GITHUB_TOKEN }}
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v6
       with:
         name: ai-code-review-results
         path: |
@@ -163,13 +171,20 @@ See default configuration [here](https://github.com/Nayjest/Gito/blob/main/gito/
 
 More details can be found in [📖 Configuration Cookbook](https://github.com/Nayjest/Gito/blob/main/documentation/config_cookbook.md)
 
-## 📚 Documentation
+## 📚 Guides & Reference
+
+For more detailed information, check out these articles:
 
 - [Command Line Reference](https://github.com/Nayjest/Gito/blob/main/documentation/command_line_reference.md)
 - [Configuration Cookbook](https://github.com/Nayjest/Gito/blob/main/documentation/config_cookbook.md)
 - [GitHub Setup Guide](https://github.com/Nayjest/Gito/blob/main/documentation/github_setup.md)
+- Integrations
+  - [Linear Integration](https://github.com/Nayjest/Gito/blob/main/documentation/linear_integration.md)
+  - [Atlassian Jira Integration](https://github.com/Nayjest/Gito/blob/main/documentation/jira_integration.md)
+- [Documentation generation with Gito](https://github.com/Nayjest/Gito/blob/main/documentation/documentation_generation.md)
 - [Troubleshooting](https://github.com/Nayjest/Gito/blob/main/documentation/troubleshooting.md)
 
+Or browse all documentation in the [`/documentation`](https://github.com/Nayjest/Gito/tree/main/documentation) directory.
 
 ## 💻 Development Setup
 

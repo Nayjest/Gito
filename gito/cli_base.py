@@ -73,6 +73,10 @@ def arg_against() -> typer.Option:
     )
 
 
+def arg_all() -> typer.Option:
+    return typer.Option(default=False, help="Review whole codebase")
+
+
 app = typer.Typer(pretty_exceptions_show_locals=False)
 
 
