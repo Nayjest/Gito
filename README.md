@@ -20,10 +20,12 @@ Get consistent, thorough code reviews in seconds—no waiting for human availabi
   - [2. Running Code Analysis Locally](#2-running-code-analysis-locally)
 - [Configuration](#-configuration)
 - [Guides & Reference](#-guides--reference)
-  - [Command Line Reference ↗](https://github.com/Nayjest/Gito/blob/main/documentation/command_line_reference.md)
-  - [Configuration Cookbook ↗](https://github.com/Nayjest/Gito/blob/main/documentation/config_cookbook.md)
-  - [GitHub Setup Guide ↗](https://github.com/Nayjest/Gito/blob/main/documentation/github_setup.md)
-  - [Troubleshooting ↗](https://github.com/Nayjest/Gito/blob/main/documentation/troubleshooting.md)
+  - [Command Line Reference](https://github.com/Nayjest/Gito/blob/main/documentation/command_line_reference.md) ↗
+  - [Configuration Cookbook](https://github.com/Nayjest/Gito/blob/main/documentation/config_cookbook.md) ↗
+  - [GitHub Setup Guide](https://github.com/Nayjest/Gito/blob/main/documentation/github_setup.md) ↗
+  - Integrations
+    - [Linear Integration](https://github.com/Nayjest/Gito/blob/main/documentation/linear_integration.md) ↗ 
+  - [Troubleshooting](https://github.com/Nayjest/Gito/blob/main/documentation/troubleshooting.md) ↗
 - [Development Setup](#-development-setup)
 - [Contributing](#-contributing)
 - [License](#-license)
@@ -174,6 +176,8 @@ For more detailed information, check out these articles:
 - [Command Line Reference](https://github.com/Nayjest/Gito/blob/main/documentation/command_line_reference.md)
 - [Configuration Cookbook](https://github.com/Nayjest/Gito/blob/main/documentation/config_cookbook.md)
 - [GitHub Setup Guide](https://github.com/Nayjest/Gito/blob/main/documentation/github_setup.md)
+- Integrations
+  - [Linear Integration](https://github.com/Nayjest/Gito/blob/main/documentation/linear_integration.md)
 - [Troubleshooting](https://github.com/Nayjest/Gito/blob/main/documentation/troubleshooting.md)
 
 Or browse all documentation in the [`/documentation`](https://github.com/Nayjest/Gito/tree/main/documentation) directory.
