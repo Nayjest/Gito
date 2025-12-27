@@ -1,4 +1,4 @@
-# Documentation generation with Gito (using `gito ask`)
+# <a href="https://github.com/Nayjest/Gito"><img src="https://raw.githubusercontent.com/Nayjest/Gito/main/press-kit/logo/gito-bot-1_64top.png" align="left" width=64 height=50 title="Gito: AI Code Reviewer"></a>Documentation generation with Gito (using `gito ask`)
 
 Gito isn’t only for AI code reviews—it can also generate **project documentation** directly from your repository context.  
 The workhorse for that is the `gito ask` command, which can read your code changes (or the whole repo)

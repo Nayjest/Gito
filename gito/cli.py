@@ -162,7 +162,6 @@ def cmd_review(
 
 @app.command(name="ask", help="Answer questions about the target codebase changes.")
 @app.command(name="answer", hidden=True)
-@app.command(name="talk", hidden=True)
 def cmd_answer(
     question: str = typer.Argument(help="Question to ask about the codebase changes"),
     refs: str = arg_refs(),
@@ -185,7 +184,7 @@ def cmd_answer(
         help="Auxiliary files that might be helpful"
     ),
     save_to: str = typer.Option(
-        help="Save answer to file",
+        help="Write the answer to the target file",
         default=None,
         show_default=False
     ),

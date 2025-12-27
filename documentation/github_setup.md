@@ -1,4 +1,4 @@
-# GitHub Setup Guide: Integrating Gito with Your Repository
+# <a href="https://github.com/Nayjest/Gito"><img src="https://raw.githubusercontent.com/Nayjest/Gito/main/press-kit/logo/gito-bot-1_64top.png" align="left" width=64 height=50 title="Gito: AI Code Reviewer"></a>GitHub Setup Guide: Integrating Gito with Your Repository
 
 Automate code review for all Pull Requests using AI.  
 This step-by-step guide shows how to connect [Gito](https://pypi.org/project/gito.bot/) to a GitHub repository for **continuous, automated PR reviews**.
@@ -124,7 +124,7 @@ Whenever a PR is opened or updated, you'll see an **AI-generated code review com
 
 Example:
 
-![Workflow Diagnostics](img.png)
+![Workflow Diagnostics](assets/github_setup_screenshot1.png)
 
 ---
 

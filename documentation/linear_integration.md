@@ -1,4 +1,3 @@
-
 # <a href="https://github.com/Nayjest/Gito"><img src="https://raw.githubusercontent.com/Nayjest/Gito/main/press-kit/logo/gito-bot-1_64top.png" align="left" width=64 height=50 title="Gito: AI Code Reviewer"></a>Linear Integration
 
 Gito can automatically **detect the [Linear](https://linear.app/) issue associated with your branch** (e.g., `ENG-123`) 

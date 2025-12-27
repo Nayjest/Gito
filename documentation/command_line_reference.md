@@ -1,4 +1,4 @@
-# Gito CLI Reference
+# <a href="https://github.com/Nayjest/Gito"><img src="https://raw.githubusercontent.com/Nayjest/Gito/main/press-kit/logo/gito-bot-1_64top.png" align="left" width=64 height=50 title="Gito: AI Code Reviewer"></a>Gito CLI Reference
 
 Gito is an open-source AI code reviewer that works with any language model provider.
 It detects issues in GitHub pull requests or local codebase changes—instantly, reliably, and without vendor lock-in.
@@ -33,7 +33,6 @@ $ gito [OPTIONS] COMMAND [ARGS]...
 * `linear-comment`: Post a comment with specified text to the...
 * `run`
 * `review`: Perform a code review of the target...
-* `talk`
 * `answer`
 * `ask`: Answer questions about the target codebase...
 * `setup`: Configure LLM for local usage interactively.
@@ -216,7 +215,7 @@ e.g. &#x27;src/**/*.py&#x27;, may be comma-separated
 (for local usage together with --post-comment,
 in the github actions PR is resolved from the environment)
 * `-o, --out, --output TEXT`: Output folder for the code review report
-* `--all / --no-all`: Review all codebase  [default: no-all]
+* `--all / --no-all`: Review whole codebase  [default: no-all]
 * `--help`: Show this message and exit.
 
 ## `gito review`
@@ -247,33 +246,7 @@ e.g. &#x27;src/**/*.py&#x27;, may be comma-separated
 (for local usage together with --post-comment,
 in the github actions PR is resolved from the environment)
 * `-o, --out, --output TEXT`: Output folder for the code review report
-* `--all / --no-all`: Review all codebase  [default: no-all]
-* `--help`: Show this message and exit.
-
-## `gito talk`
-
-**Usage**:
-
-```console
-$ gito talk [OPTIONS] QUESTION [REFS]
-```
-
-**Arguments**:
-
-* `QUESTION`: Question to ask about the codebase changes  [required]
-* `[REFS]`: Git refs to review, .. (e.g., &#x27;HEAD..HEAD~1&#x27;). If omitted, the current index (including added but not committed files) will be compared to the repository’s main branch.
-
-**Options**:
-
-* `-w, --what TEXT`: Git ref to review
-* `-vs, --against, --vs TEXT`: Git ref to compare against
-* `-f, --filter, --filters TEXT`: filter reviewed files by glob / fnmatch pattern(s),
-e.g. &#x27;src/**/*.py&#x27;, may be comma-separated
-* `--merge-base / --no-merge-base`: Use merge base for comparison  [default: merge-base]
-* `--use-pipeline / --no-use-pipeline`: [default: use-pipeline]
-* `--post-to TEXT`: Post answer to ... Supported values: linear
-* `--pr INTEGER`: GitHub Pull Request number
-* `--aux-files TEXT`: Auxiliary files that might be helpful
+* `--all / --no-all`: Review whole codebase  [default: no-all]
 * `--help`: Show this message and exit.
 
 ## `gito answer`
@@ -300,6 +273,8 @@ e.g. &#x27;src/**/*.py&#x27;, may be comma-separated
 * `--post-to TEXT`: Post answer to ... Supported values: linear
 * `--pr INTEGER`: GitHub Pull Request number
 * `--aux-files TEXT`: Auxiliary files that might be helpful
+* `--save-to TEXT`: Write the answer to the target file
+* `--all / --no-all`: Review whole codebase  [default: no-all]
 * `--help`: Show this message and exit.
 
 ## `gito ask`
@@ -328,6 +303,8 @@ e.g. &#x27;src/**/*.py&#x27;, may be comma-separated
 * `--post-to TEXT`: Post answer to ... Supported values: linear
 * `--pr INTEGER`: GitHub Pull Request number
 * `--aux-files TEXT`: Auxiliary files that might be helpful
+* `--save-to TEXT`: Write the answer to the target file
+* `--all / --no-all`: Review whole codebase  [default: no-all]
 * `--help`: Show this message and exit.
 
 ## `gito setup`
