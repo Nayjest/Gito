@@ -25,7 +25,9 @@ Get consistent, thorough code reviews in seconds—no waiting for human availabi
   - [GitHub Setup Guide](https://github.com/Nayjest/Gito/blob/main/documentation/github_setup.md) ↗
   - Integrations
     - [Linear Integration](https://github.com/Nayjest/Gito/blob/main/documentation/linear_integration.md) ↗ 
+    - [Atlassian Jira Integration](https://github.com/Nayjest/Gito/blob/main/documentation/jira_integration.md) ↗
   - [Troubleshooting](https://github.com/Nayjest/Gito/blob/main/documentation/troubleshooting.md) ↗
+  - [Documentation generation with Gito](https://github.com/Nayjest/Gito/blob/main/documentation/documentation_generation.md) ↗
 - [Development Setup](#-development-setup)
 - [Contributing](#-contributing)
 - [License](#-license)
@@ -76,7 +78,7 @@ jobs:
       uses: actions/setup-python@v6
       with: { python-version: "3.13" }
     - name: Install AI Code Review tool
-      run: pip install gito.bot~=3.4
+      run: pip install gito.bot~=3.5
     - name: Run AI code analysis
       env:
         LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
@@ -178,6 +180,8 @@ For more detailed information, check out these articles:
 - [GitHub Setup Guide](https://github.com/Nayjest/Gito/blob/main/documentation/github_setup.md)
 - Integrations
   - [Linear Integration](https://github.com/Nayjest/Gito/blob/main/documentation/linear_integration.md)
+  - [Atlassian Jira Integration](https://github.com/Nayjest/Gito/blob/main/documentation/jira_integration.md)
+- [Documentation generation with Gito](https://github.com/Nayjest/Gito/blob/main/documentation/documentation_generation.md)
 - [Troubleshooting](https://github.com/Nayjest/Gito/blob/main/documentation/troubleshooting.md)
 
 Or browse all documentation in the [`/documentation`](https://github.com/Nayjest/Gito/tree/main/documentation) directory.
