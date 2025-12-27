@@ -24,7 +24,7 @@ summary_requirements = """
 """
 ```
 
-## Where I can see all available configuration options?
+## Where can I see all available configuration options?
 Check **bundled configuration defaults** here:  
 https://github.com/Nayjest/Gito/blob/main/gito/config.toml
 
