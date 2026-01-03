@@ -32,7 +32,7 @@ Get consistent, thorough code reviews in seconds—no waiting for human availabi
 - [Contributing](#-contributing)
 - [License](#-license)
 
-## ✨ Why Gito?
+## ✨ Why Gito?<a id="-why-gito"></a>
 
 - [⚡] **Lightning Fast:** Get detailed code reviews in seconds, not days — powered by parallelized LLM processing  
 - [🔧] **Vendor Agnostic:** Works with any language model provider (OpenAI, Anthropic, Google, local models, etc.)  
@@ -42,7 +42,7 @@ Get consistent, thorough code reviews in seconds—no waiting for human availabi
 - [🚀] **Easy Integration:** Automatically reviews pull requests via GitHub Actions and posts results as PR comments  
 - [🎛️] **Infinitely Flexible:** Adapt to any project's standards—configure review rules, severity levels, and focus areas, build custom workflows 
 
-## 🎯 Perfect For
+## 🎯 Perfect For<a id="-perfect-for"></a>
 
 - Solo developers who want expert-level code review without the wait
 - Teams looking to catch issues before human review
@@ -51,12 +51,11 @@ Get consistent, thorough code reviews in seconds—no waiting for human availabi
 
 ✨ See [code review in action](https://github.com/Nayjest/Gito/pull/99) ✨
 
-## 🚀 Quickstart
+## 🚀 Quickstart<a id="-quickstart"></a>
 
-### 1. Review Pull Requests via GitHub Actions
+### 1. Review Pull Requests via GitHub Actions<a id="1-review-pull-requests-via-github-actions"></a>
 
 Create a `.github/workflows/gito-code-review.yml` file:
-
 ```yaml
 name: "Gito: AI Code Review"
 on:
@@ -103,7 +102,7 @@ jobs:
 PRs to your repository will now receive AI code reviews automatically. ✨  
 See [GitHub Setup Guide](https://github.com/Nayjest/Gito/blob/main/documentation/github_setup.md) for more details.
 
-### 2. Running Code Analysis Locally
+### 2. Running Code Analysis Locally<a id="2-running-code-analysis-locally"></a>
 
 #### Initial Local Setup
 
@@ -122,7 +121,6 @@ pip install gito.bot
 The following command will perform one-time setup using an interactive wizard.
 You will be prompted to enter LLM configuration details (API type, API key, etc).
 Configuration will be saved to `~/.gito/.env`.
-
 ```bash
 gito setup
 ```
@@ -146,7 +144,6 @@ gito review
 > See `gito --help` for more options.
 
 **Reviewing remote repository**
-
 ```bash
 gito remote git@github.com:owner/repo.git <FEATURE_BRANCH>..<MAIN_BRANCH>
 ```
@@ -155,7 +152,7 @@ Use interactive help for details:
 gito remote --help
 ```
 
-## 🔧 Configuration
+## 🔧 Configuration<a id="-configuration"></a>
 
 Change behavior via `.gito/config.toml`:
 
@@ -171,7 +168,7 @@ See default configuration [here](https://github.com/Nayjest/Gito/blob/main/gito/
 
 More details can be found in [📖 Configuration Cookbook](https://github.com/Nayjest/Gito/blob/main/documentation/config_cookbook.md)
 
-## 📚 Guides & Reference
+## 📚 Guides & Reference<a id="-guides--reference"></a>
 
 For more detailed information, check out these articles:
 
@@ -186,34 +183,31 @@ For more detailed information, check out these articles:
 
 Or browse all documentation in the [`/documentation`](https://github.com/Nayjest/Gito/tree/main/documentation) directory.
 
-## 💻 Development Setup
+## 💻 Development Setup<a id="-development-setup"></a>
 
 Install dependencies:
-
 ```bash
 make install
 ```
 
 Format code and check style:
-
 ```bash
 make black
 make cs
 ```
 
 Run tests:
-
 ```bash
 pytest
 ```
 
-## 🤝 Contributing
+## 🤝 Contributing<a id="-contributing"></a>
 
 **Looking for a specific feature or having trouble?**  
 Contributions are welcome! ❤️  
 See [CONTRIBUTING.md](https://github.com/Nayjest/Gito/blob/main/CONTRIBUTING.md) for details.
 
-## 📝 License
+## 📝 License<a id="-license"></a>
 
 Licensed under the [MIT License](https://github.com/Nayjest/Gito/blob/main/LICENSE).
 
