@@ -27,6 +27,11 @@ jobs:
     - name: Install Inno Setup
       run: |
         choco install innosetup -y
+        $isccPath = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+        if (-not (Test-Path $isccPath)) {
+          Write-Error "Inno Setup not found at expected path: $isccPath. Verify that Chocolatey installed Inno Setup correctly."
+          Exit 1
+        }
       shell: pwsh
     
     - name: Build installer
