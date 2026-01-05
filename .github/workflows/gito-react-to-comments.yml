@@ -11,6 +11,7 @@ permissions:
   # read: to download the code review artifact
   # write: to trigger other actions
   actions: write
+  workflows: write  # for pushing code changes to workflow files made by `gito fix NUM`
 
 jobs:
   process-comment:
