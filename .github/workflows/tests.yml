@@ -5,6 +5,8 @@ on:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
+  pull_request_target:  # to allow testing from forks
+    branches: [ "main" ]
   workflow_call:  # for triggering from pypi-release.yml
     secrets:
       LLM_API_KEY:
@@ -15,9 +17,25 @@ permissions:
 
 jobs:
   build:
-    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    # Skip:
+    # - [skip ci] in commit message
+    # - Duplicate runs (both events fire for PRs, we pick one):
+    #   - Fork PRs: use 'pull_request_target' (not 'pull_request')
+    #     to access secrets via environment approval
+    #   - Internal PRs: use 'pull_request' (not 'pull_request_target')
+    #     to test workflow changes from PR branch
+    if: |
+      !contains(github.event.head_commit.message, '[skip ci]')
+      && !(
+        github.event_name == 'pull_request'
+        && github.event.pull_request.head.repo.full_name != github.repository
+      )
+      && !(
+        github.event_name == 'pull_request_target'
+        && github.event.pull_request.head.repo.full_name == github.repository
+      )
     runs-on: ubuntu-latest
-    environment: ${{ github.event.pull_request.head.repo.full_name != github.repository && 'fork-pr' || '' }}
+    environment: ${{ github.event_name == 'pull_request_target' && 'fork-pr' || '' }}
     strategy:
       fail-fast: false
       matrix:
