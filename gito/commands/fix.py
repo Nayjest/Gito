@@ -145,6 +145,10 @@ def commit_changes(
     commit_message: str = "fix by AI",
     push: bool = True
 ) -> None:
+    """
+    Commit and optionally push changes to the remote repository.
+    Raises typer.Exit on failure.
+    """
     if opened_repo := not repo:
         repo = git.Repo(".")
     for i in files:
@@ -152,7 +156,15 @@ def commit_changes(
     repo.index.commit(commit_message)
     if push:
         origin = repo.remotes.origin
-        origin.push()
+        push_results = origin.push()
+        for push_info in push_results:
+            if push_info.flags & (
+                git.PushInfo.ERROR
+                | git.PushInfo.REJECTED
+                | git.PushInfo.REMOTE_REJECTED
+            ):
+                logging.error(f"Push failed: {push_info.summary}")
+                raise typer.Exit(code=1)
         logging.info(f"Changes pushed to {origin.name}")
     else:
         logging.info("Changes committed but not pushed to remote")
