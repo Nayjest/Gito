@@ -47,7 +47,7 @@ jobs:
       env:
         LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
         LLM_API_TYPE: openai
-        MODEL: "gpt-5.2"
+        MODEL: "gpt-4.1"
       run: |
         pytest --cov=gito --cov-report=xml
     - name: Generate coverage badge

@@ -36,7 +36,7 @@ jobs:
     
     - name: Build installer
       run: |
-        ISCC.exe installer.iss
+        & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
       shell: pwsh
     
     - name: Generate checksum
