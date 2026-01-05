@@ -43,10 +43,11 @@ jobs:
 
     steps:
     - uses: actions/checkout@v6
+      with:
+        ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || '' }}
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v6
       with:
-        ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || '' }}
         python-version: ${{ matrix.python-version }}
     - name: Install dependencies
       run: |
