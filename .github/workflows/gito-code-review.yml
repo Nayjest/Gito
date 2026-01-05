@@ -67,6 +67,8 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         gito --verbose review
+        # alternative way to capture PR base
+        # gito --verbose review ${{ github.event_name == 'pull_request' && github.event.pull_request.base.ref && format(' --against="origin/{0}"', github.event.pull_request.base.ref) || '' }}
         gito github-comment
 
     - uses: actions/upload-artifact@v6
