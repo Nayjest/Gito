@@ -3,8 +3,6 @@ name: Tests
 on:
   push:
     branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
   pull_request_target:  # to allow testing from forks
     branches: [ "main" ]
   workflow_call:  # for triggering from pypi-release.yml
@@ -17,25 +15,8 @@ permissions:
 
 jobs:
   build:
-    # Skip:
-    # - [skip ci] in commit message
-    # - Duplicate runs (both events fire for PRs, we pick one):
-    #   - Fork PRs: use 'pull_request_target' (not 'pull_request')
-    #     to access secrets via environment approval
-    #   - Internal PRs: use 'pull_request' (not 'pull_request_target')
-    #     to test workflow changes from PR branch
-    if: |
-      !contains(github.event.head_commit.message, '[skip ci]')
-      && !(
-        github.event_name == 'pull_request'
-        && github.event.pull_request.head.repo.full_name != github.repository
-      )
-      && !(
-        github.event_name == 'pull_request_target'
-        && github.event.pull_request.head.repo.full_name == github.repository
-      )
+    if: !contains(github.event.head_commit.message, '[skip ci]')
     runs-on: ubuntu-latest
-    environment: ${{ github.event_name == 'pull_request_target' && 'fork-pr' || '' }}
     strategy:
       fail-fast: false
       matrix:
@@ -44,12 +25,13 @@ jobs:
     steps:
     - uses: actions/checkout@v6
       with:
-        # For 'pull_request_target' events, checkout the PR head SHA to test actual changes from forks.
+        # Checkout PR head to process actual changes (including forks).
         #
-        # ⚠️ SECURITY WARNING: This exposes repository secrets to code from the fork. To mitigate risks:
-        #   1. Ensure the 'fork-pr' environment has manual approval required
-        #   2. Review the PR diff for malicious code (e.g., secret exfiltration, workflow tampering)
-        ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || '' }}
+        # ⚠️ SECURITY: This exposes secrets to fork code. Mitigate by:
+        #   1. Requiring approval for running fork pull request workflows from all external contributors
+        #      (Settings → Actions → General → Approval for running fork pull request workflows from contributors)
+        #   2. Reviewing PRs for secret exfiltration and other malicious code before approving workflow runs.
+        ref: ${{ github.event.pull_request.head.sha }}
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v6
       with:
@@ -76,12 +58,12 @@ jobs:
       run: |
         pytest --cov=gito --cov-report=xml
     - name: Generate coverage badge
-      if: matrix.python-version == '3.13' && (github.event_name == 'push' || github.event_name == 'pull_request')
+      if: matrix.python-version == '3.13' && (github.event_name == 'push' || github.event_name == 'pull_request_target')
       uses: tj-actions/coverage-badge-py@v2
       with:
         output: 'coverage.svg'
     - name: Commit coverage badge
-      if: matrix.python-version == '3.13' && (github.event_name == 'push' || github.event_name == 'pull_request')
+      if: matrix.python-version == '3.13' && (github.event_name == 'push' || github.event_name == 'pull_request_target')
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
