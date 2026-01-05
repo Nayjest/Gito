@@ -67,10 +67,21 @@ jobs:
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
-        git fetch origin
-        git checkout ${{ github.head_ref || github.ref_name }} --
+        # For PRs from the same repo, head_ref is the branch name.
+        # For pushes, ref_name is the branch name.
+        BRANCH_NAME="${{ github.head_ref || github.ref_name }}"
+        
+        # Determine current branch name if not explicitly available
+        if [ -z "$BRANCH_NAME" ]; then
+          BRANCH_NAME=$(git rev-parse --abbrev-ref HEAD)
+        fi
+        
+        echo "Target branch: $BRANCH_NAME"
+        
+        git fetch origin "$BRANCH_NAME"
+        git checkout "$BRANCH_NAME"
         git add coverage.svg
         git commit -m "Update coverage badge [skip ci]" || echo "No changes to commit"
-        git push
+        git push origin "$BRANCH_NAME"
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
