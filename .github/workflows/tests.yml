@@ -31,7 +31,7 @@ jobs:
         #   1. Requiring approval for running fork pull request workflows from all external contributors
         #      (Settings → Actions → General → Approval for running fork pull request workflows from contributors)
         #   2. Reviewing PRs for secret exfiltration and other malicious code before approving workflow runs.
-        ref: ${{ github.event.pull_request.head.sha }}
+        ref: ${{ github.event.pull_request.head.sha || github.ref }}
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v6
       with:
