@@ -17,7 +17,6 @@ jobs:
   build:
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
     runs-on: ubuntu-latest
-    environment: ${{ github.event.pull_request && github.event.pull_request.head.repo.full_name != github.repository && 'fork-pr' || '' }}
     strategy:
       fail-fast: false
       matrix:
