@@ -63,7 +63,7 @@ jobs:
       with:
         output: 'coverage.svg'
     - name: Commit coverage badge
-      if: matrix.python-version == '3.13' && (github.event_name == 'push' || github.event_name == 'pull_request_target')
+      if: matrix.python-version == '3.13' && github.event_name == 'push'
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
