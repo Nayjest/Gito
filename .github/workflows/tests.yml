@@ -58,12 +58,24 @@ jobs:
       run: |
         pytest --cov=gito --cov-report=xml
     - name: Generate coverage badge
-      if: matrix.python-version == '3.13' && (github.event_name == 'push' || github.event_name == 'pull_request_target')
+      if: |
+        matrix.python-version == '3.13' && (
+          github.event_name == 'push' ||
+          (github.event_name == 'pull_request_target'
+            && github.event.pull_request.head.repo.full_name == github.repository
+          )
+        )
       uses: tj-actions/coverage-badge-py@v2
       with:
         output: 'coverage.svg'
     - name: Commit coverage badge
-      if: matrix.python-version == '3.13' && (github.event_name == 'push' || github.event_name == 'pull_request_target')
+      if: |
+        matrix.python-version == '3.13' && (
+          github.event_name == 'push' ||
+          (github.event_name == 'pull_request_target'
+            && github.event.pull_request.head.repo.full_name == github.repository
+          )
+        )
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
