@@ -26,7 +26,6 @@ jobs:
         echo "$(poetry env info --path)/bin" >> $GITHUB_PATH
 
     - name: Run AI code review
-      if: ${{ secrets.ANTHROPIC_API_KEY != '' }}
       env:
         # OpenAI Setup:
         # LLM_API_TYPE: openai
@@ -43,6 +42,10 @@ jobs:
         PR_NUMBER_FROM_WORKFLOW_DISPATCH: ${{ github.event.inputs.pr_number }}
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
+        if [ -z "$LLM_API_KEY" ]; then
+          echo "No API key found. Skipping review."
+          exit 0
+        fi
         gito --verbose review
         # alternative way to capture PR base
         # gito --verbose review ${{ github.event_name == 'pull_request' && github.event.pull_request.base.ref && format(' --against="origin/{0}"', github.event.pull_request.base.ref) || '' }}
