@@ -2,6 +2,8 @@ name: "Gito: AI Code Reviewer"
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+  pull_request_target:
+    types: [opened, synchronize, reopened]
   workflow_dispatch:
     inputs:
       pr_number:
@@ -9,11 +11,33 @@ on:
         required: true
 jobs:
   review:
+    # Skip duplicate runs (both events fire for PRs, we pick one):
+    # - Fork PRs: use 'pull_request_target' (not 'pull_request')
+    #   to access secrets via environment approval
+    # - Internal PRs: use 'pull_request' (not 'pull_request_target')
+    #   to test workflow changes from PR branch
+    if: |
+      !(
+        github.event_name == 'pull_request'
+        && github.event.pull_request.head.repo.full_name != github.repository
+      )
+      && !(
+        github.event_name == 'pull_request_target'
+        && github.event.pull_request.head.repo.full_name == github.repository
+      )
     runs-on: ubuntu-latest
-    permissions: { contents: read, pull-requests: write } # 'write' for leaving the summary comment
+    environment: ${{ github.event_name == 'pull_request_target' && 'fork-pr' || '' }}
+    permissions: { contents: read, pull-requests: write }
     steps:
     - uses: actions/checkout@v6
-      with: { fetch-depth: 0 }
+      with:
+        fetch-depth: 0
+        # For 'pull_request_target' events, checkout the PR head SHA to test actual changes from forks.
+        #
+        # ⚠️ SECURITY WARNING: This exposes repository secrets to code from the fork. To mitigate risks:
+        #   1. Ensure the 'fork-pr' environment has manual approval required
+        #   2. Review the PR diff for malicious code (e.g., secret exfiltration, workflow tampering)
+        ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || '' }}
 
     - name: Set up Python
       uses: actions/setup-python@v6
