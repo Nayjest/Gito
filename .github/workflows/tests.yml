@@ -44,6 +44,11 @@ jobs:
     steps:
     - uses: actions/checkout@v6
       with:
+        # For 'pull_request_target' events, checkout the PR head SHA to test actual changes from forks.
+        #
+        # ⚠️ SECURITY WARNING: This exposes repository secrets to code from the fork. To mitigate risks:
+        #   1. Ensure the 'fork-pr' environment has manual approval required
+        #   2. Review the PR diff for malicious code (e.g., secret exfiltration, workflow tampering)
         ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || '' }}
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v6
