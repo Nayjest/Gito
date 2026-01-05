@@ -28,6 +28,7 @@ Get consistent, thorough code reviews in seconds—no waiting for human availabi
     - [Atlassian Jira Integration](https://github.com/Nayjest/Gito/blob/main/documentation/jira_integration.md) ↗
   - [Troubleshooting](https://github.com/Nayjest/Gito/blob/main/documentation/troubleshooting.md) ↗
   - [Documentation generation with Gito](https://github.com/Nayjest/Gito/blob/main/documentation/documentation_generation.md) ↗
+- [Known Limitations](#-known-limitations)
 - [Development Setup](#-development-setup)
 - [Contributing](#-contributing)
 - [License](#-license)
@@ -176,7 +177,7 @@ Change behavior via `.gito/config.toml`:
 You can override the default config by placing `.gito/config.toml` in your repo root.
 
 
-See default configuration [here](https://github.com/Nayjest/Gito/blob/main/gito/config.toml).
+For all available options and their defaults, see the bundled [config.toml](https://github.com/Nayjest/Gito/blob/main/gito/config.toml).
 
 More details can be found in [📖 Configuration Cookbook](https://github.com/Nayjest/Gito/blob/main/documentation/config_cookbook.md)
 
@@ -195,7 +196,22 @@ For more detailed information, check out these articles:
 
 Or browse all documentation in the [`/documentation`](https://github.com/Nayjest/Gito/tree/main/documentation) directory.
 
+## 🚧 Known Limitations<a id="-known-limitations"></a>
+
+Gito cannot modify files inside `.github/workflows` when reacting to GitHub PR comments (e.g., "Gito fix issue 2").  
+This is a GitHub security restriction that prevents workflows from modifying other workflow files using the default `GITHUB_TOKEN`.
+
+While using a Personal Access Token (PAT) with the `workflow` scope would bypass this limitation, it is not recommended as a workaround.
+PATs have broader permissions, longer lifespans, and are tied to individual user accounts, making them less secure than the default `GITHUB_TOKEN` for CI/CD pipelines.
+
+
 ## 💻 Development Setup<a id="-development-setup"></a>
+
+Cloning the repository:
+```bash
+git clone https://github.com/Nayjest/Gito.git
+cd Gito
+```
 
 Install dependencies:
 ```bash

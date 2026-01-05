@@ -1,6 +1,6 @@
 name: "Gito: AI Code Reviewer"
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, synchronize, reopened]
   workflow_dispatch:
     inputs:
@@ -13,7 +13,15 @@ jobs:
     permissions: { contents: read, pull-requests: write } # 'write' for leaving the summary comment
     steps:
     - uses: actions/checkout@v6
-      with: { fetch-depth: 0 }
+      with:
+        fetch-depth: 0
+        # Checkout PR head to process actual changes (including forks).
+        #
+        # ⚠️ SECURITY: This exposes secrets to fork code. Mitigate by:
+        #   1. Requiring approval for running fork pull request workflows from all external contributors
+        #      (Settings → Actions → General → Approval for running fork pull request workflows from contributors)
+        #   2. Reviewing PRs for secret exfiltration and other malicious code before approving workflow runs.
+        ref: ${{ github.event.pull_request.head.sha }}
 
     - name: Set up Python
       uses: actions/setup-python@v6
@@ -39,7 +47,7 @@ jobs:
         JIRA_USER: ${{ secrets.JIRA_USER }}
         LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
         GITO_DEBUG: "1"
-        PR_NUMBER_FROM_WORKFLOW_DISPATCH: ${{ github.event.inputs.pr_number }}
+        PR_NUMBER_FROM_WORKFLOW_DISPATCH: ${{ github.event.inputs.pr_number || github.event.pull_request.number }}
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         if [ -z "$LLM_API_KEY" ]; then
