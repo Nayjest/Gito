@@ -62,7 +62,7 @@ begin
     if Pos(';' + Uppercase(Path) + ';', ';' + Uppercase(Paths) + ';') > 0 then exit;
 
     { Append string to the end of the path variable }
-    Paths := Paths + ';'+ Path +';';
+    Paths := Paths + ';'+ Path;
 
     { Overwrite (or create if missing) path environment variable }
     if RegWriteStringValue(HKEY_LOCAL_MACHINE, EnvironmentKey, 'Path', Paths)
@@ -84,7 +84,7 @@ begin
     if P = 0 then exit;
 
     { Update path variable }
-    Delete(Paths, P, Length(Path) + 1);
+    Delete(Paths, P - 1, Length(Path) + 1);
 
     { Overwrite path environment variable }
     if RegWriteStringValue(HKEY_LOCAL_MACHINE, EnvironmentKey, 'Path', Paths)
