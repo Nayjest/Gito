@@ -63,7 +63,7 @@ jobs:
         JIRA_USER: ${{ secrets.JIRA_USER }}
         LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
         GITO_DEBUG: "1"
-        PR_NUMBER_FROM_WORKFLOW_DISPATCH: ${{ github.event.inputs.pr_number }}
+        PR_NUMBER_FROM_WORKFLOW_DISPATCH: ${{ github.event.inputs.pr_number || github.event.pull_request.number }}
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         gito --verbose review
