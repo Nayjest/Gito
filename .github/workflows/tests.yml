@@ -5,6 +5,8 @@ on:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
+  pull_request_target:  # to allow testing from forks
+    branches: [ "main" ]
   workflow_call:  # for triggering from pypi-release.yml
     secrets:
       LLM_API_KEY:
@@ -15,18 +17,41 @@ permissions:
 
 jobs:
   build:
-    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    # Skip:
+    # - [skip ci] in commit message
+    # - Duplicate runs (both events fire for PRs, we pick one):
+    #   - Fork PRs: use 'pull_request_target' (not 'pull_request')
+    #     to access secrets via environment approval
+    #   - Internal PRs: use 'pull_request' (not 'pull_request_target')
+    #     to test workflow changes from PR branch
+    if: |
+      !contains(github.event.head_commit.message, '[skip ci]')
+      && !(
+        github.event_name == 'pull_request'
+        && github.event.pull_request.head.repo.full_name != github.repository
+      )
+      && !(
+        github.event_name == 'pull_request_target'
+        && github.event.pull_request.head.repo.full_name == github.repository
+      )
     runs-on: ubuntu-latest
-    environment: ${{ github.event.pull_request.head.repo.full_name != github.repository && 'fork-pr' || '' }}
+    environment: ${{ github.event_name == 'pull_request_target' && 'fork-pr' || '' }}
     strategy:
       fail-fast: false
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v6
+      with:
+        # For 'pull_request_target' events, checkout the PR head SHA to test actual changes from forks.
+        #
+        # ⚠️ SECURITY WARNING: This exposes repository secrets to code from the fork. To mitigate risks:
+        #   1. Ensure the 'fork-pr' environment has manual approval required
+        #   2. Review the PR diff for malicious code (e.g., secret exfiltration, workflow tampering)
+        ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || '' }}
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v3
+      uses: actions/setup-python@v6
       with:
         python-version: ${{ matrix.python-version }}
     - name: Install dependencies
@@ -39,7 +64,7 @@ jobs:
       env:
         LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
         LLM_API_TYPE: openai
-        MODEL: "gpt-4.1"
+        MODEL: "gpt-5.2"
       run: |
         pytest
     - name: Test with pytest +coverage
