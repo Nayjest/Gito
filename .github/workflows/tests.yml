@@ -73,7 +73,8 @@ jobs:
         
         # Determine current branch name if not explicitly available
         if [ -z "$BRANCH_NAME" ]; then
-          BRANCH_NAME=$(git rev-parse --abbrev-ref HEAD)
+          echo "Error: Could not determine branch name"
+          exit 1
         fi
         
         echo "Target branch: $BRANCH_NAME"
