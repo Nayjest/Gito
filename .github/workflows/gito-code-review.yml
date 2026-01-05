@@ -26,6 +26,7 @@ jobs:
         echo "$(poetry env info --path)/bin" >> $GITHUB_PATH
 
     - name: Run AI code review
+      if: ${{ secrets.ANTHROPIC_API_KEY != '' }}
       env:
         # OpenAI Setup:
         # LLM_API_TYPE: openai
