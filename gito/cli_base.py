@@ -1,3 +1,4 @@
+"""Common CLI arguments and utilities for Gito commands."""
 import contextlib
 import logging
 import tempfile
@@ -82,9 +83,9 @@ app = typer.Typer(pretty_exceptions_show_locals=False)
 
 @contextlib.contextmanager
 def get_repo_context(url: str, branch: str):
+    """Context manager for handling both local and remote repositories."""
     if branch == REFS_VALUE_ALL:
         branch = None
-    """Context manager for handling both local and remote repositories."""
     if url:
         with tempfile.TemporaryDirectory() as temp_dir:
             logging.info(
