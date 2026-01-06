@@ -1,14 +1,14 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 a = Analysis(
-    ['gito_runner.py'],
+    ['gito/__main__.py'],
     pathex=[],
     binaries=[],
     datas=[
         ('gito/config.toml', 'gito'),
         ('gito/tpl', 'gito/tpl'),
     ],
-    hiddenimports=[],
+    hiddenimports=['gito.cli'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
