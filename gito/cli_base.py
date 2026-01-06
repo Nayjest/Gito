@@ -6,8 +6,8 @@ import tempfile
 import microcore as mc
 import typer
 from git import Repo, InvalidGitRepositoryError
-from gito.constants import REFS_VALUE_ALL
 
+from .constants import REFS_VALUE_ALL
 from .utils import parse_refs_pair
 from .env import Env
 
