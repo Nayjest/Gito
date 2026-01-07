@@ -82,8 +82,14 @@ app = typer.Typer(pretty_exceptions_show_locals=False)
 
 
 @contextlib.contextmanager
-def get_repo_context(url: str, branch: str):
-    """Context manager for handling both local and remote repositories."""
+def get_repo_context(url: str | None, branch: str | None) -> tuple[Repo, str]:
+    """
+    Context manager for handling both local and remote repositories.
+    Yields a tuple of (Repo object, path to the repository)
+    Args:
+        url (str): URL of the remote repository. If empty, uses the local repository.
+        branch (str): Branch to checkout when cloning the remote repository.
+    """
     if branch == REFS_VALUE_ALL:
         branch = None
     if url:

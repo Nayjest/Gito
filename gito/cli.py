@@ -6,9 +6,8 @@ import textwrap
 
 import microcore as mc
 import typer
-from git import Repo
-from gito.constants import REFS_VALUE_ALL
 
+from .constants import REFS_VALUE_ALL
 from .core import review, get_diff, filter_diff, answer
 from .cli_base import (
     app,
@@ -253,8 +252,7 @@ def files(
     diff: bool = typer.Option(default=False, help="Show diff content")
 ):
     _what, _against = args_to_target(refs, what, against)
-    repo = Repo(".")
-    try:
+    with get_repo_context(url=None, branch=_what) as (repo, out_folder):
         patch_set = get_diff(repo=repo, what=_what, against=_against, use_merge_base=merge_base)
         patch_set = filter_diff(patch_set, filters)
         cfg = ProjectConfig.load_for_repo(repo)
@@ -278,5 +276,3 @@ def files(
             print(f"- {color(patch.path)}")
             if diff:
                 print(mc.ui.gray(textwrap.indent(str(patch), "  ")))
-    finally:
-        repo.close()
