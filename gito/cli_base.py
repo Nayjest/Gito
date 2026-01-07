@@ -1,12 +1,13 @@
+"""Common CLI arguments and utilities for Gito commands."""
 import contextlib
 import logging
 import tempfile
 
 import microcore as mc
 import typer
-from git import Repo
-from gito.constants import REFS_VALUE_ALL
+from git import Repo, InvalidGitRepositoryError
 
+from .constants import REFS_VALUE_ALL
 from .utils import parse_refs_pair
 from .env import Env
 
@@ -82,9 +83,9 @@ app = typer.Typer(pretty_exceptions_show_locals=False)
 
 @contextlib.contextmanager
 def get_repo_context(url: str, branch: str):
+    """Context manager for handling both local and remote repositories."""
     if branch == REFS_VALUE_ALL:
         branch = None
-    """Context manager for handling both local and remote repositories."""
     if url:
         with tempfile.TemporaryDirectory() as temp_dir:
             logging.info(
@@ -101,7 +102,10 @@ def get_repo_context(url: str, branch: str):
                 Env.working_folder = prev_folder
     else:
         logging.info("get_repo_context: Using local repo...")
-        repo = Repo(".")
+        try:
+            repo = Repo(".")
+        except InvalidGitRepositoryError:
+            raise typer.BadParameter("Current folder is not a git repository.")
         try:
             yield repo, "."
         finally:
