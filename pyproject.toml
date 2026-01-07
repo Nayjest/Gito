@@ -7,18 +7,53 @@ readme = "README.md"
 license = "MIT"
 homepage = "https://github.com/Nayjest/Gito"
 repository = "https://github.com/Nayjest/Gito"
-keywords = ["static code analysis", "code review", "code quality", "ai", "coding", "assistant", "llm", "github", "automation", "devops", "developer tools", "github actions", "workflows", "git"]
+documentation = "https://github.com/Nayjest/Gito#readme"
+keywords = [
+    "static code analysis",
+    "code review",
+    "code quality",
+    "ai",
+    "coding",
+    "assistant",
+    "llm",
+    "github",
+    "automation",
+    "devops",
+    "developer tools",
+    "github actions",
+    "workflows",
+    "github-actions",
+    "git",
+    "pull-request",
+    "jira",
+    "linear",
+    "gitlab",
+    "ci-cd",
+    "static analysis",
+]
 classifiers = [
     "Environment :: Console",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
+    "Intended Audience :: System Administrators",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Software Development",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Software Development :: Testing",
+    "Topic :: Software Development :: Version Control :: Git",
+    "Topic :: Software Development :: Bug Tracking",
+    "Operating System :: OS Independent",
+    "Development Status :: 5 - Production/Stable",
+    "License :: OSI Approved :: MIT License",
 ]
 packages = [
     { include = "gito" }
 ]
-
+[tool.poetry.urls]
+"Bug Tracker" = "https://github.com/Nayjest/Gito/issues"
 [tool.poetry.dependencies]
 python = "^3.11"
 ai-microcore = "~4"
