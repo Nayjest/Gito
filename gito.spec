@@ -8,7 +8,7 @@ a = Analysis(
         ('gito/config.toml', 'gito'),
         ('gito/tpl', 'gito/tpl'),
     ],
-    hiddenimports=['gito.cli'],
+    hiddenimports=['tiktoken_ext.openai_public', 'tiktoken_ext'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
