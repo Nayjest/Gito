@@ -78,7 +78,7 @@ jobs:
       uses: actions/setup-python@v6
       with: { python-version: "3.13" }
     - name: Install AI Code Review tool
-      run: pip install gito.bot~=3.5
+      run: pip install gito.bot~=3.6
     - name: Run AI code analysis
       env:
         LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
@@ -111,6 +111,8 @@ See [GitHub Setup Guide](https://github.com/Nayjest/Gito/blob/main/documentation
 - [Python](https://www.python.org/downloads/) 3.11 / 3.12 / 3.13  
 - [Git](https://git-scm.com)
 
+#### Option A: Install via pip (recommended)
+
 **Step 1:** Install [gito.bot](https://github.com/Nayjest/Gito) using [pip](https://en.wikipedia.org/wiki/Pip_(package_manager)).
 ```bash
 pip install gito.bot
@@ -118,6 +120,16 @@ pip install gito.bot
 
 > **Troubleshooting:**  
 > pip may also be available via cli as `pip3` depending on your Python installation.
+
+#### Option B: Windows Standalone Installer
+
+Download the latest Windows installer from [Releases](https://github.com/Nayjest/Gito/releases).
+
+The installer includes:
+- Standalone executable (no Python required)
+- Automatic PATH configuration
+- Start Menu shortcuts
+- Easy uninstallation
 
 **Step 2:** Perform initial setup
 
