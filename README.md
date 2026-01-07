@@ -135,7 +135,7 @@ gito setup
 
 **Step 1:** Navigate to your repository root directory.  
 **Step 2:** Switch to the branch you want to review.  
-**Step 3:** Run following command
+**Step 3:** Run the following command:
 ```bash
 gito review
 ```
