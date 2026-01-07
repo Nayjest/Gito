@@ -82,7 +82,10 @@ app = typer.Typer(pretty_exceptions_show_locals=False)
 
 
 @contextlib.contextmanager
-def get_repo_context(url: str | None, branch: str | None) -> tuple[Repo, str]:
+def get_repo_context(
+    url: str | None,
+    branch: str | None
+) -> contextlib.AbstractContextManager[tuple[Repo, str]]:
     """
     Context manager for handling both local and remote repositories.
     Yields a tuple of (Repo object, path to the repository)
