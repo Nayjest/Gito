@@ -107,7 +107,9 @@ See [GitHub Setup Guide](https://github.com/Nayjest/Gito/blob/main/documentation
 
 #### Initial Local Setup
 
-**Prerequisites:** [Python](https://www.python.org/downloads/) 3.11 / 3.12 / 3.13  
+**Prerequisites:** 
+- [Python](https://www.python.org/downloads/) 3.11 / 3.12 / 3.13  
+- [Git](https://git-scm.com)
 
 **Step 1:** Install [gito.bot](https://github.com/Nayjest/Gito) using [pip](https://en.wikipedia.org/wiki/Pip_(package_manager)).
 ```bash
