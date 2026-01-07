@@ -266,7 +266,7 @@ PATs have broader permissions, longer lifespans, and are tied to individual user
 ## 💻 Development Setup<a id="-development-setup"></a>
 
 Cloning the repository:
-```bash
+Project settings follow a layered override model:
 git clone https://github.com/Nayjest/Gito.git
 cd Gito
 ```
