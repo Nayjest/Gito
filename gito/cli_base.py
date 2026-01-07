@@ -2,7 +2,7 @@
 import contextlib
 import logging
 import tempfile
-from typing import AsyncIterator
+from typing import Iterator
 
 import microcore as mc
 import typer
@@ -86,7 +86,7 @@ app = typer.Typer(pretty_exceptions_show_locals=False)
 def get_repo_context(
     url: str | None,
     branch: str | None
-) -> AsyncIterator[tuple[Repo, str]]:
+) -> Iterator[tuple[Repo, str]]:
     """
     Context manager for handling both local and remote repositories.
     Yields a tuple of (Repo object, path to the repository)
