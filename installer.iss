@@ -1,6 +1,6 @@
 #define MyAppName "Gito AI Code Reviewer"
 ; NOTE: Keep version in sync with pyproject.toml
-#define MyAppVersion "3.5.0"
+#define MyAppVersion "3.6.0"
 #define MyAppPublisher "Vitalii Stepanenko"
 #define MyAppURL "https://github.com/Nayjest/Gito"
 #define MyAppExeName "gito.exe"
