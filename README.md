@@ -198,7 +198,7 @@ Gito supports per-repository customization through a `.gito/config.toml` file pl
 
 #### Configuration Inheritance Model
 
-Project settings follows a layered override model:
+Project settings follow a layered override model:
 
 **Bundled Defaults** ([config.toml](https://github.com/Nayjest/Gito/blob/main/gito/config.toml)) → **Project Config** (`<your-repo>/.gito/config.toml`)
 
@@ -266,7 +266,7 @@ PATs have broader permissions, longer lifespans, and are tied to individual user
 ## 💻 Development Setup<a id="-development-setup"></a>
 
 Cloning the repository:
-Project settings follow a layered override model:
+```bash
 git clone https://github.com/Nayjest/Gito.git
 cd Gito
 ```
