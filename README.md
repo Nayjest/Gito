@@ -107,7 +107,9 @@ See [GitHub Setup Guide](https://github.com/Nayjest/Gito/blob/main/documentation
 
 #### Initial Local Setup
 
-**Prerequisites:** [Python](https://www.python.org/downloads/) 3.11 / 3.12 / 3.13  
+**Prerequisites:** 
+- [Python](https://www.python.org/downloads/) 3.11 / 3.12 / 3.13  
+- [Git](https://git-scm.com)
 
 #### Option A: Install via pip (recommended)
 
@@ -147,7 +149,7 @@ gito setup
 
 **Step 1:** Navigate to your repository root directory.  
 **Step 2:** Switch to the branch you want to review.  
-**Step 3:** Run following command
+**Step 3:** Run the following command:
 ```bash
 gito review
 ```
@@ -167,19 +169,87 @@ gito remote --help
 
 ## 🔧 Configuration<a id="-configuration"></a>
 
-Change behavior via `.gito/config.toml`:
+Gito uses a two-layer configuration model:
 
-- Prompt templates, filtering and post-processing using Python code snippets
-- Tagging, severity, and confidence settings
-- Custom AI awards for developer brilliance
-- Output customization
+| Scope | Location | Purpose |
+|-------|----------|---------|
+| **Environment** | `~/.gito/.env` or OS environment variables | LLM provider, model, API keys, concurrency |
+| **Project** | `<repo>/.gito/config.toml` | Review behavior, prompts, templates, integrations |
 
-You can override the default config by placing `.gito/config.toml` in your repo root.
+> **Note:** Environment configuration defines external resources and credentials — it's machine-specific and never committed to version control. Project configuration defines review behavior and can be shared across your team.
+
+### Environment Configuration
+
+Environment settings control LLM inference, API Keys and apply system-wide.
+
+Gito uses [ai-microcore](https://github.com/Nayjest/ai-microcore) for vendor-agnostic LLM access. All settings are configured via OS environment variables or `.env` files.
+
+**Default location:** `~/.gito/.env`  
+*(Created automatically via `gito setup`)*
+
+#### Example
+```bash
+# ~/.gito/.env
+LLM_API_TYPE=openai
+LLM_API_KEY=sk-...
+LLM_API_BASE=https://api.openai.com/v1/
+MODEL=gpt-5.2
+MAX_CONCURRENT_TASKS=20
+```
+
+For all supported options, see the [ai-microcore configuration guide](https://github.com/Nayjest/ai-microcore?tab=readme-ov-file#%EF%B8%8F-configuring).
+
+#### CI/CD Environments
+
+In CI workflows, configure LLM settings via workflow environment variables. Use your platform's secrets management (GitHub Secrets, GitLab CI Variables) for API keys.
 
 
-For all available options and their defaults, see the bundled [config.toml](https://github.com/Nayjest/Gito/blob/main/gito/config.toml).
+### Project Configuration
 
-More details can be found in [📖 Configuration Cookbook](https://github.com/Nayjest/Gito/blob/main/documentation/config_cookbook.md)
+Gito supports per-repository customization through a `.gito/config.toml` file placed at the root of your project. This allows you to tailor code review behavior to your specific codebase, coding standards, and workflow requirements.
+
+#### Configuration Inheritance Model
+
+Project settings follow a layered override model:
+
+**Bundled Defaults** ([config.toml](https://github.com/Nayjest/Gito/blob/main/gito/config.toml)) → **Project Config** (`<your-repo>/.gito/config.toml`)
+
+Any values defined in your project's `.gito/config.toml` are merged on top of the built-in defaults. You only need to specify the settings you want to change—everything else falls back to sensible defaults.
+
+#### Common Customizations
+
+- **Review prompts** — Tailor AI instructions, review criteria, and quality thresholds
+- **Output templates** — Customize report format for GitHub comments and CLI
+- **Post-processing** — Python snippets to filter or transform detected issues
+- **Bot behavior** — Mention triggers, retries, comment handling
+- **Pipeline integrations** — Jira, Linear, etc.
+
+Explore the bundled [config.toml](https://github.com/Nayjest/Gito/blob/main/gito/config.toml) for the complete list of available options.
+
+#### Example
+```toml
+# .gito/config.toml
+mention_triggers = ["gito", "/check"]
+collapse_previous_code_review_comments = true
+
+# Files to provide as context
+aux_files = [
+    'documentation/command_line_reference.md'
+]
+
+exclude_files = [
+    'poetry.lock',
+]
+
+[prompt_vars]
+# Custom instructions injected into the system prompts
+awards = ""  # Disable awards
+requirements = """
+- All public functions must have docstrings.
+"""
+```
+
+For detailed guidance, see the [📖 Configuration Cookbook](https://github.com/Nayjest/Gito/blob/main/documentation/config_cookbook.md).
 
 ## 📚 Guides & Reference<a id="-guides--reference"></a>
 

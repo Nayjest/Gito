@@ -71,7 +71,9 @@ def bootstrap(verbosity: int = 1):
             mc.logging.LoggingConfig.STRIP_REQUEST_LINES = [300, 15]
 
     except mc.LLMConfigError as e:
-        msg = str(e)
+        msg = str(e).strip()
+        if not msg.endswith((".", "!", "?")):
+            msg += "."
         if is_running_in_github_action():
             ref = os.getenv("GITHUB_WORKFLOW_REF", "")
             if ref:
