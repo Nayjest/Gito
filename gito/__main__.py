@@ -1,6 +1,6 @@
 """Allow running the package with `python -m gito`."""
-# package name is required here,
-# otherwise windows build made by pyinstaller fails.
+# Use an absolute import (package-qualified) here; otherwise, the Windows build
+# produced by PyInstaller fails.
 from gito.entrypoint import main
 
 if __name__ == "__main__":
