@@ -15,6 +15,7 @@ Get consistent, thorough code reviews in seconds—no waiting for human availabi
 ## 📋 Table of Contents
 - [Why Gito?](#-why-gito)
 - [Perfect For](#-perfect-for)
+- [Security & Privacy](#-security--privacy)
 - [Quickstart](#-quickstart)
   - [1. Review Pull Requests via GitHub Actions](#1-review-pull-requests-via-github-actions)
   - [2. Running Code Analysis Locally](#2-running-code-analysis-locally)
@@ -35,8 +36,9 @@ Get consistent, thorough code reviews in seconds—no waiting for human availabi
 
 ## ✨ Why Gito?<a id="-why-gito"></a>
 
-- [⚡] **Lightning Fast:** Get detailed code reviews in seconds, not days — powered by parallelized LLM processing  
-- [🔧] **Vendor Agnostic:** Works with any language model provider (OpenAI, Anthropic, Google, local models, etc.)  
+- [⚡] **Lightning Fast:** Get detailed code reviews in seconds, not days—powered by parallelized LLM processing
+- [🔧] **Vendor Agnostic:** Works with any language model provider (OpenAI, Anthropic, Google, local models, etc.)
+- [🔒] **Private & Secure:** Your code goes directly to your chosen LLM inference provider or local model—no intermediary servers.
 - [🌐] **Universal:** Supports all major programming languages and frameworks  
 - [🔍] **Comprehensive Analysis:** Detect issues across security, performance, maintainability, best practices, and much more  
 - [📈] **Consistent Quality:** Never tired, never biased—consistent review quality every time  
@@ -51,6 +53,18 @@ Get consistent, thorough code reviews in seconds—no waiting for human availabi
 - CI/CD pipelines requiring automated quality gates
 
 ✨ See [code review in action](https://github.com/Nayjest/Gito/pull/99) ✨
+
+## 🔒 Security & Privacy<a id="-security--privacy"></a>
+
+Gito keeps your source code private by design:
+it is designed as a **stateless, client-side tool** with a strict zero-retention policy.
+
+- **No middleman:** Source code is transmitted directly from your environment (CI/CD runner or local machine)
+  to your explicitly configured LLM provider.
+  If you use a local model, your code never leaves your network.
+  We never see your code.
+- **No data collection:** Your code isn't stored, logged, or retained by Gito.
+- **Fully auditable:** 100% open source. Verify every line yourself.
 
 ## 🚀 Quickstart<a id="-quickstart"></a>
 
