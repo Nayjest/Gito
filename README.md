@@ -70,7 +70,7 @@ it is designed as a **stateless, client-side tool** with a strict zero-retention
 
 ### 1. Review Pull Requests via GitHub Actions<a id="1-review-pull-requests-via-github-actions"></a>
 
-Create a `.github/workflows/gito-code-review.yml` file with following content:
+Create a `.github/workflows/gito-code-review.yml` file with the following content:
 ```yaml
 name: "Gito: AI Code Review"
 on:
