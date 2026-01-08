@@ -8,7 +8,7 @@ from pathlib import Path
 import microcore as mc
 
 from .utils import is_running_in_github_action
-from .constants import HOME_ENV_PATH, EXECUTABLE, PROJECT_GITO_FOLDER
+from .constants import HOME_ENV_PATH, EXECUTABLE, PROJECT_GITO_FOLDER, DEFAULT_MAX_CONCURRENT_TASKS
 from .env import Env
 
 
@@ -65,6 +65,8 @@ def bootstrap(verbosity: int = 1):
                 Path(__file__).parent / "tpl"
             ],
         )
+        if mc.config().MAX_CONCURRENT_TASKS is None:
+            mc.config().MAX_CONCURRENT_TASKS = DEFAULT_MAX_CONCURRENT_TASKS
         if verbosity > 1:
             mc.logging.LoggingConfig.STRIP_REQUEST_LINES = None
         else:
