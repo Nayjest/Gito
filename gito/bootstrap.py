@@ -65,7 +65,7 @@ def bootstrap(verbosity: int = 1):
                 Path(__file__).parent / "tpl"
             ],
         )
-        if not mc.config().MAX_CONCURRENT_TASKS:
+        if mc.config().MAX_CONCURRENT_TASKS is None:
             mc.config().MAX_CONCURRENT_TASKS = DEFAULT_MAX_CONCURRENT_TASKS
         if verbosity > 1:
             mc.logging.LoggingConfig.STRIP_REQUEST_LINES = None
