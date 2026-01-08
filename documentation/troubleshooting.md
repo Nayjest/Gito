@@ -50,7 +50,7 @@ MODEL=gpt-5.2
 MAX_CONCURRENT_TASKS=20
 ```
 
-For more details, refer to the [microcore configuration reference](https://ai-microcore.github.io/api-reference/microcore/configuration.html#Config.MAX_CONCURRENT_TASKS) for more details.
+For more details, refer to the [microcore configuration reference](https://ai-microcore.github.io/api-reference/microcore/configuration.html#Config.MAX_CONCURRENT_TASKS).
 
 
 ## Getting Help
