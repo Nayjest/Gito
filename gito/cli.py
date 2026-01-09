@@ -7,7 +7,6 @@ import textwrap
 import microcore as mc
 import typer
 
-from .constants import REFS_VALUE_ALL
 from .core import review, get_diff, filter_diff, answer
 from .cli_base import (
     app,
@@ -21,7 +20,7 @@ from .cli_base import (
     get_repo_context,
 )
 from .report_struct import Report
-from .constants import HOME_ENV_PATH, GITHUB_MD_REPORT_FILE_NAME
+from .constants import HOME_ENV_PATH, GITHUB_MD_REPORT_FILE_NAME, REFS_VALUE_ALL
 from .bootstrap import bootstrap
 from .utils import no_subcommand, extract_gh_owner_repo, remove_html_comments
 from .gh_api import resolve_gh_token
