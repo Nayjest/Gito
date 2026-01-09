@@ -343,6 +343,7 @@ class NoChangesInContextError(Exception):
     Exception raised when there are no changes in the context to review or answer questions.
     """
 
+
 def get_target_diff(
     repo: Repo,
     config: ProjectConfig,
@@ -368,6 +369,7 @@ def get_target_diff(
     if not diff:
         raise NoChangesInContextError()
     return diff
+
 
 def get_target_lines(
     repo: Repo,

@@ -9,8 +9,6 @@ import typer
 
 from .core import (
     review,
-    get_diff,
-    filter_diff,
     answer,
     get_target_diff,
     get_base_branch,
@@ -256,8 +254,10 @@ def files(
     against: str = arg_against(),
     filters: str = arg_filters(),
     merge_base: bool = typer.Option(default=True, help="Use merge base for comparison"),
-    diff: bool = typer.Option(default=False, help="Show diff content")
+    diff: bool = typer.Option(default=False, help="Show diff content"),
+    all: bool = arg_all(),
 ):
+    refs, merge_base = _consider_arg_all(all, refs, merge_base)
     _what, _against = args_to_target(refs, what, against)
     with get_repo_context(url=None, branch=_what) as (repo, out_folder):
         cfg = ProjectConfig.load_for_repo(repo)
