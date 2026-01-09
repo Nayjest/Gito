@@ -92,7 +92,7 @@ class Report:
     number_of_processed_files: int = field(default=0)
     total_issues: int = field(init=False)
     created_at: str = field(default_factory=lambda: datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-    model: str = field(default_factory=lambda: mc.config().MODEL)
+    model: str = field(default_factory=lambda: mc.config().MODEL or "")
     pipeline_out: dict = field(default_factory=dict)
     processing_warnings: list[ProcessingWarning] = field(default_factory=list)
 

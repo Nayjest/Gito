@@ -1,27 +1,62 @@
 [tool.poetry]
 name = "gito.bot"
-version = "3.5.0"
+version = "3.6.0"
 description = "AI code review tool that works with any language model provider. It detects issues in GitHub pull requests or local changes—instantly, reliably, and without vendor lock-in."
 authors = ["Nayjest <mail@vitaliy.in>"]
 readme = "README.md"
 license = "MIT"
 homepage = "https://github.com/Nayjest/Gito"
 repository = "https://github.com/Nayjest/Gito"
-keywords = ["static code analysis", "code review", "code quality", "ai", "coding", "assistant", "llm", "github", "automation", "devops", "developer tools", "github actions", "workflows", "git"]
+documentation = "https://github.com/Nayjest/Gito#readme"
+keywords = [
+    "static code analysis",
+    "code review",
+    "code quality",
+    "ai",
+    "coding",
+    "assistant",
+    "llm",
+    "github",
+    "automation",
+    "devops",
+    "developer tools",
+    "github actions",
+    "workflows",
+    "github-actions",
+    "git",
+    "pull-request",
+    "jira",
+    "linear",
+    "gitlab",
+    "ci-cd",
+    "static analysis",
+]
 classifiers = [
     "Environment :: Console",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
+    "Intended Audience :: System Administrators",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Software Development",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Software Development :: Testing",
+    "Topic :: Software Development :: Version Control :: Git",
+    "Topic :: Software Development :: Bug Tracking",
+    "Operating System :: OS Independent",
+    "Development Status :: 5 - Production/Stable",
+    "License :: OSI Approved :: MIT License",
 ]
 packages = [
     { include = "gito" }
 ]
-
+[tool.poetry.urls]
+"Bug Tracker" = "https://github.com/Nayjest/Gito/issues"
 [tool.poetry.dependencies]
 python = "^3.11"
-ai-microcore = "~4.5"
+ai-microcore = "~4"
 GitPython = "^3.1.44"
 unidiff = "^0.7.5"
 google-generativeai = "^0.8.5"
@@ -51,7 +86,7 @@ requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
-gito = "gito.cli:main"
+gito = "gito.entrypoint:main"
 
 [tool.pytest.ini_options]
 minversion = "6.0"
