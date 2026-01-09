@@ -278,7 +278,23 @@ def read_file(repo: Repo, file: str, use_local_files: bool = False) -> str:
     return repo.tree()[file].data_stream.read().decode('utf-8')
 
 
-def file_lines(repo: Repo, file: str, max_tokens: int = None, use_local_files: bool = False) -> str:
+def file_lines(
+    repo: Repo,
+    file: str,
+    max_tokens: int = None,
+    use_local_files: bool = False
+) -> str:
+    """
+    Read file content and return it with line numbers.
+    If max_tokens is specified, trims the content to fit within the token limit.
+    Args:
+        repo (Repo): The git repository.
+        file (str): The file path to read.
+        max_tokens (int, optional): Maximum number of tokens to return. Defaults to None.
+        use_local_files (bool): Whether to read from local working directory first.
+    Returns:
+        str: The file content with line numbers.
+    """
     text = read_file(repo=repo, file=file, use_local_files=use_local_files)
     lines = [f"{i + 1}: {line}\n" for i, line in enumerate(text.splitlines())]
     if max_tokens:
@@ -324,8 +340,62 @@ def make_cr_summary(ctx: Context, **kwargs) -> str:
 
 class NoChangesInContextError(Exception):
     """
-    Exception raised when there are no changes in the context to review /answer questions.
+    Exception raised when there are no changes in the context to review or answer questions.
     """
+
+
+def get_target_diff(
+    repo: Repo,
+    config: ProjectConfig,
+    what: str = None,
+    against: str = None,
+    filters: str | list[str] = "",
+    use_merge_base: bool = True,
+    pr: str | int = None,
+) -> PatchSet | Iterable[PatchedFile]:
+    """
+    Get the target diff for review or answering questions.
+    Applies filtering based on the provided filters and project configuration.
+    Raises NoChangesInContextError if no changes are found after filtering.
+    Returns:
+        PatchSet | Iterable[PatchedFile]: The filtered diff.
+    """
+    diff = get_diff(
+        repo=repo, what=what, against=against, use_merge_base=use_merge_base, pr=pr,
+    )
+    diff = filter_diff(diff, filters)
+    if config.exclude_files:
+        diff = filter_diff(diff, config.exclude_files, exclude=True)
+    if not diff:
+        raise NoChangesInContextError()
+    return diff
+
+
+def get_target_lines(
+    repo: Repo,
+    config: ProjectConfig,
+    diff: PatchSet | Iterable[PatchedFile],
+    what: str = None,
+) -> dict[str, str]:
+    """
+    Get the lines of code for each file in the diff.
+    Returns a dictionary mapping file paths to their respective lines of code.
+    """
+    lines = {
+        file_diff.path: (
+            file_lines(
+                repo,
+                file_diff.path,
+                config.max_code_tokens
+                - mc.tokenizing.num_tokens_from_string(str(file_diff)),
+                use_local_files=review_subject_is_index(what) or what == REFS_VALUE_ALL
+            )
+            if file_diff.target_file != DEV_NULL or what == REFS_VALUE_ALL
+            else ""
+        )
+        for file_diff in diff
+    }
+    return lines
 
 
 def _prepare(
@@ -338,28 +408,16 @@ def _prepare(
 ):
     repo = repo or Repo(".")
     cfg = ProjectConfig.load_for_repo(repo)
-    diff = get_diff(
-        repo=repo, what=what, against=against, use_merge_base=use_merge_base, pr=pr,
+    diff = get_target_diff(
+        repo=repo,
+        config=cfg,
+        what=what,
+        against=against,
+        filters=filters,
+        use_merge_base=use_merge_base,
+        pr=pr,
     )
-    diff = filter_diff(diff, filters)
-    if cfg.exclude_files:
-        diff = filter_diff(diff, cfg.exclude_files, exclude=True)
-    if not diff:
-        raise NoChangesInContextError()
-    lines = {
-        file_diff.path: (
-            file_lines(
-                repo,
-                file_diff.path,
-                cfg.max_code_tokens
-                - mc.tokenizing.num_tokens_from_string(str(file_diff)),
-                use_local_files=review_subject_is_index(what) or what == REFS_VALUE_ALL
-            )
-            if file_diff.target_file != DEV_NULL or what == REFS_VALUE_ALL
-            else ""
-        )
-        for file_diff in diff
-    }
+    lines = get_target_lines(repo=repo, config=cfg, diff=diff, what=what)
     return repo, cfg, diff, lines
 
 

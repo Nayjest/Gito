@@ -7,7 +7,13 @@ import textwrap
 import microcore as mc
 import typer
 
-from .core import review, get_diff, filter_diff, answer
+from .core import (
+    review,
+    answer,
+    get_target_diff,
+    get_base_branch,
+    NoChangesInContextError,
+)
 from .cli_base import (
     app,
     args_to_target,
@@ -248,21 +254,32 @@ def files(
     against: str = arg_against(),
     filters: str = arg_filters(),
     merge_base: bool = typer.Option(default=True, help="Use merge base for comparison"),
-    diff: bool = typer.Option(default=False, help="Show diff content")
+    diff: bool = typer.Option(default=False, help="Show diff content"),
+    all: bool = arg_all(),
 ):
+    refs, merge_base = _consider_arg_all(all, refs, merge_base)
     _what, _against = args_to_target(refs, what, against)
     with get_repo_context(url=None, branch=_what) as (repo, out_folder):
-        patch_set = get_diff(repo=repo, what=_what, against=_against, use_merge_base=merge_base)
-        patch_set = filter_diff(patch_set, filters)
         cfg = ProjectConfig.load_for_repo(repo)
-        if cfg.exclude_files:
-            patch_set = filter_diff(patch_set, cfg.exclude_files, exclude=True)
+        try:
+            patch_set = get_target_diff(
+                repo=repo,
+                config=cfg,
+                what=_what,
+                against=_against,
+                filters=filters,
+                use_merge_base=merge_base,
+                pr=None,
+            )
+        except NoChangesInContextError:
+            patch_set = []
+
         print(
             f"Changed files: "
             f"{mc.ui.green(_what or 'INDEX')} vs "
-            f"{mc.ui.yellow(_against or repo.remotes.origin.refs.HEAD.reference.name)}"
+            f"{mc.ui.yellow(_against or get_base_branch(repo))}"
             f"{' filtered by ' + mc.ui.cyan(filters) if filters else ''} --> "
-            f"{mc.ui.cyan(len(patch_set or []))} file(s)."
+            f"{mc.ui.cyan(len(patch_set))} file(s)."
         )
 
         for patch in patch_set:
