@@ -15,6 +15,7 @@ Get consistent, thorough code reviews in seconds—no waiting for human availabi
 ## 📋 Table of Contents
 - [Why Gito?](#-why-gito)
 - [Perfect For](#-perfect-for)
+- [Supported Platforms & Integrations](#-supported-platforms--integrations)
 - [Security & Privacy](#-security--privacy)
 - [Quickstart](#-quickstart)
   - [1. Review Pull Requests via GitHub Actions](#1-review-pull-requests-via-github-actions)
@@ -38,11 +39,11 @@ Get consistent, thorough code reviews in seconds—no waiting for human availabi
 
 - [⚡] **Lightning Fast:** Get detailed code reviews in seconds, not days—powered by parallelized LLM processing
 - [🔧] **Vendor Agnostic:** Works with any language model provider (OpenAI, Anthropic, Google, local models, etc.)
-- [🔒] **Private & Secure:** Your code goes directly to your chosen LLM inference provider or local model—no intermediary servers.
+- [🔒] **Private & Secure:** Your code goes directly to your chosen LLM inference provider or local model—no intermediary servers
 - [🌐] **Universal:** Supports all major programming languages and frameworks  
 - [🔍] **Comprehensive Analysis:** Detect issues across security, performance, maintainability, best practices, and much more  
 - [📈] **Consistent Quality:** Never tired, never biased—consistent review quality every time  
-- [🚀] **Easy Integration:** Automatically reviews pull requests via GitHub Actions and posts results as PR comments  
+- [🚀] **Easy Integration:** Automatically reviews pull requests via CI/CD workflows (GitHub actions, etc), posts results as PR comments, reacts to maintainer comments
 - [🎛️] **Infinitely Flexible:** Adapt to any project's standards—configure review rules, severity levels, and focus areas, build custom workflows 
 
 ## 🎯 Perfect For<a id="-perfect-for"></a>
@@ -53,6 +54,37 @@ Get consistent, thorough code reviews in seconds—no waiting for human availabi
 - CI/CD pipelines requiring automated quality gates
 
 ✨ See [code review in action](https://github.com/Nayjest/Gito/pull/99) ✨
+
+## 🌐 Supported Platforms & Integrations<a id="-supported-platforms--integrations"></a>
+
+### 🧩 Git Platforms
+| Platform  | Status               |
+|-----------|----------------------|
+| GitHub    | ✅ Supported         |
+| GitLab    | 🧪 Supported (Beta)  |
+| Bitbucket | 🛠️ Planned           |
+
+> ℹ️ Gito ships ready-to-use CI/CD workflows for these platforms, 
+> with full support for triggering actions via PR comments, automatic review posting, and PR lifecycle integration.  
+> 
+> Not on this list? Gito works anywhere—via custom CI/CD pipelines or directly from the CLI.
+### 🤖 LLM Providers / Runtimes
+| Provider / Runtime                                                                              | Status        |
+|-------------------------------------------------------------------------------------------------|---------------|
+| OpenAI API                                                                                      | ✅ Supported  |
+| Anthropic API                                                                                      | ✅ Supported  |
+| Google API                                                                                       | ✅ Supported  |
+| Local LLM Services<br/>`Ollama, LM Studio, vLLM, etc.`                                          | ✅ Supported  |
+| Embedded Inference<br/>`PyTorch / Transformers`                                                 | ✅ Supported  |
+| Any OpenAI-compatible API<br>`Mistral, xAI, Azure, Amazon Bedrock, OpenRouter, Fireworks, etc.` | ✅ Supported  |
+
+### 🗂️ Issue Trackers
+| Tool   | Status        | Documentation |
+|--------|---------------|---------------|
+| Jira   | ✅ Supported  | [Atlassian Jira Integration](https://github.com/Nayjest/Gito/blob/main/documentation/jira_integration.md) ↗ |
+| Linear | ✅ Supported  | [Linear Integration](https://github.com/Nayjest/Gito/blob/main/documentation/linear_integration.md) ↗ |
+
+> 🚀 More platforms and integrations are coming — Gito is built to grow with your stack.
 
 ## 🔒 Security & Privacy<a id="-security--privacy"></a>
 
