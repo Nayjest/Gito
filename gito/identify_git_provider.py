@@ -40,7 +40,11 @@ def identify_git_provider_from_remotes(repo_or_urls: Repo | list[str]) -> GitPro
         GitProvider.BITBUCKET: ["bitbucket"],
     }
     if isinstance(repo_or_urls, Repo):
-        remotes = [extract_base_url(i) for i in repo_or_urls.remotes.origin.urls]
+        try:
+            remote_urls: list[str] = repo_or_urls.remotes.origin.urls or []
+        except AttributeError:
+            remote_urls = []
+        remotes = [extract_base_url(i) for i in remote_urls]
     else:
         remotes = repo_or_urls
     for provider, url_parts in known_urls.items():
