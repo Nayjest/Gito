@@ -233,10 +233,33 @@ def _configure_llm(api_type: str | ApiType | None) -> tuple[ApiType, str, str]:
     Returns:
         tuple[ApiType, str, str]: (api_type, secret_name, default_model
     """
-    api_types = [ApiType.ANTHROPIC, ApiType.OPEN_AI, ApiType.GOOGLE_AI_STUDIO]
+    api_types = {
+        ApiType.ANTHROPIC: "Anthropic",
+        ApiType.OPEN_AI: "OpenAI",
+        ApiType.GOOGLE_AI_STUDIO: "Google",
+    }
+    model_proposals = {
+        ApiType.ANTHROPIC: {
+            "claude-opus-4-5": f"Claude Opus 4.5 {ui.dim}(most capable)",
+            "claude-sonnet-4-5": f"Claude Sonnet 4.5 {ui.dim}(balanced)",
+            "claude-haiku-4-5": f"Claude Haiku 4.5 {ui.dim}(cheapest but less capable)",
+        },
+        ApiType.OPEN_AI: {
+            "gpt-5.2": f"GPT-5.2 {ui.dim} (recommended)",
+            "gpt-5.1": "GPT-5.1",
+            "gpt-5": "GPT-5",
+            "gpt-5-mini": "GPT-5 Mini",
+        },
+        ApiType.GOOGLE_AI_STUDIO: {
+            "gemini-2.5-pro": f"Gemini 2.5 Pro",
+            "gemini-2.5-flash": "Gemini 2.5 Flash",
+            "gemini-3-pro-preview": f"Gemini 3 Pro Preview {ui.dim}(rate limited)",
+            "gemini-3-flash-preview": f"Gemini 3 Flash Preview {ui.dim}(rate limited)",
+        }
+    }
     if not api_type:
         api_type = mc.ui.ask_choose(
-            "Choose your LLM API type",
+            "Which language model API should Gito use?",
             api_types,
         )
     elif api_type not in api_types:
@@ -245,11 +268,19 @@ def _configure_llm(api_type: str | ApiType | None) -> tuple[ApiType, str, str]:
     secret_names = {
         ApiType.ANTHROPIC: "ANTHROPIC_API_KEY",
         ApiType.OPEN_AI: "OPENAI_API_KEY",
-        ApiType.GOOGLE_AI_STUDIO: "GOOGLE_AI_API_KEY",
+        ApiType.GOOGLE_AI_STUDIO: "GOOGLE_API_KEY",
     }
     default_models = {
         ApiType.ANTHROPIC: "claude-sonnet-4-5",
         ApiType.OPEN_AI: "gpt-5.2",
         ApiType.GOOGLE_AI_STUDIO: "gemini-2.5-pro",
     }
-    return api_type, secret_names[api_type], default_models[api_type]
+    model = default_models[api_type]
+    if api_type in model_proposals:
+        model = mc.ui.ask_choose(
+            f"Select a model",
+            model_proposals[api_type],
+            default=default_models[api_type],
+        )
+
+    return api_type, secret_names[api_type], model

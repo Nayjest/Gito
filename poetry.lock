@@ -2,14 +2,14 @@
 
 [[package]]
 name = "ai-microcore"
-version = "4.6.1"
+version = "4.6.3"
 description = "# Minimalistic Foundation for AI Applications"
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "ai_microcore-4.6.1-py3-none-any.whl", hash = "sha256:938e8a9fc55e9e9a20d4a65adab5628728a510597715c2bf60acfb137c8bd4c8"},
-    {file = "ai_microcore-4.6.1.tar.gz", hash = "sha256:0a0f2a32c9131a08e01dd850b4aa47fb70c13feaff08279a19449fc64b63cb1e"},
+    {file = "ai_microcore-4.6.3-py3-none-any.whl", hash = "sha256:8fea587f292597f7e33ac5bd9375ea78d470c6121ae87bfef01652d7617d6daf"},
+    {file = "ai_microcore-4.6.3.tar.gz", hash = "sha256:93131cf6d33f2a7f2556d57b9a58e4f02713b4a7861e1d84dbb6d4b7271be4f5"},
 ]
 
 [package.dependencies]
@@ -4198,14 +4198,14 @@ telegram = ["requests"]
 
 [[package]]
 name = "trove-classifiers"
-version = "2025.12.1.14"
+version = "2026.1.12.15"
 description = "Canonical source for classifiers on PyPI (pypi.org)."
 optional = false
 python-versions = "*"
 groups = ["dev"]
 files = [
-    {file = "trove_classifiers-2025.12.1.14-py3-none-any.whl", hash = "sha256:a8206978ede95937b9959c3aff3eb258bbf7b07dff391ddd4ea7e61f316635ab"},
-    {file = "trove_classifiers-2025.12.1.14.tar.gz", hash = "sha256:a74f0400524fc83620a9be74a07074b5cbe7594fd4d97fd4c2bfde625fdc1633"},
+    {file = "trove_classifiers-2026.1.12.15-py3-none-any.whl", hash = "sha256:8832dfbc226fc4df986666b9cb3a018818b1498aeb79f5f66a31a918b47a98f1"},
+    {file = "trove_classifiers-2026.1.12.15.tar.gz", hash = "sha256:832a7e89ccc43b64b89f8f9d9150c069ebcd17d2dc68279bc00bb53f2a9ae112"},
 ]
 
 [[package]]
@@ -4727,4 +4727,4 @@ cffi = ["cffi (>=1.17,<2.0) ; platform_python_implementation != \"PyPy\" and pyt
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "05cd9f2bf257bc0a106e8131c91f17233eb52d834b10b39aa18a876e84f5b0ae"
+content-hash = "9b1919dcbc5a1211e28238c22da16aabd5007b4f4618836cdc716b08ea690d19"
