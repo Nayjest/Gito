@@ -1,5 +1,5 @@
 """
-Utilitis specific to Python general functionality.
+Utilities specific to Python general functionality.
 """
 import logging
 from dataclasses import fields, is_dataclass

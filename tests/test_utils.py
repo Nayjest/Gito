@@ -33,6 +33,17 @@ def test_no_subcommand():
         # Test with invalid subcommand
         sys.argv = ["script.py", "invalid-cmd"]
         assert no_subcommand(app) is True
+
+        app.registered_commands.append(
+            typer.models.CommandInfo()
+        )
+        app.command(name="cmd2", hidden=True)(lambda: None)
+        sys.argv = ["script.py"]
+        assert no_subcommand(app) is True
+        sys.argv = ["python", "-m", "gito", "--verbose"]
+        assert no_subcommand(app) is True
+        sys.argv = ["c:\\Gito\\gito\\__main__.py", "--verbose", "cmd2"]
+        assert no_subcommand(app) is False
     finally:
         sys.argv = original_argv
 

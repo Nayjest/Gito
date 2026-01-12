@@ -16,7 +16,7 @@ from ..identify_git_provider import identify_git_provider, GitProvider
 from ..utils.package_metadata import version
 from ..utils.github import get_gh_create_pr_link, get_gh_secrets_link
 from ..utils.gitlab import get_gitlab_create_mr_link, get_gitlab_secrets_link
-from ..utils.git import  get_cwd_repo_or_fail
+from ..utils.git import get_cwd_repo_or_fail
 
 
 GIT_PROVIDER_WORKFLOWS = {

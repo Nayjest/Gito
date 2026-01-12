@@ -25,7 +25,10 @@ def extract_gitlab_owner_repo(repo: git.Repo) -> tuple[str, str]:
         repo_path = remote_url.replace('https://gitlab.com/', '').replace('.git', '')
     else:
         raise ValueError("Unsupported remote URL format")
-    owner, repo_name = repo_path.split('/')
+    parts = repo_path.rsplit('/', 1)
+    if len(parts) != 2:
+        raise ValueError("Unsupported gitlab repository path format")
+    owner, repo_name = parts
     return owner, repo_name
 
 

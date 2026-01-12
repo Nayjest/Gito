@@ -1,3 +1,3 @@
 """
-Various generl-purpose utility functions.
+Various general-purpose utility functions.
 """
