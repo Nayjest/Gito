@@ -227,11 +227,11 @@ def get_gitlab_create_mr_link(repo: Repo, branch: str) -> Optional[str]:
 
 def get_gitlab_secrets_link(repo: Repo) -> Optional[str]:
     """
-    Return a GitHub URL to manage secrets.
+    Return a GitLab URL to manage secrets.
     """
     try:
         owner, repo_name = extract_gh_owner_repo(repo)
-        return f"https://gitlab.com/{owner}/{repo}/-/settings/ci_cd#js-cicd-variables-settings"
+        return f"https://gitlab.com/{owner}/{repo_name}/-/settings/ci_cd#js-cicd-variables-settings"
     except ValueError:
         return None
 

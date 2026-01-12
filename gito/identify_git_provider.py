@@ -81,7 +81,7 @@ def extract_base_url(git_url: str) -> str:
 
 def identify_git_provider_from_files(repo: Repo) -> GitProvider | None:
     """
-    Identify the Git provider based on CI environment variables.
+    Identify the Git provider based on provider-specific files in the repository.
     """
     git_provider_specific_files = {
         GitProvider.GITHUB: [".github"],
