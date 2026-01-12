@@ -13,7 +13,10 @@ from pydantic.dataclasses import dataclass
 
 from .constants import JSON_REPORT_FILE_NAME, HTML_TEXT_ICON, HTML_CR_COMMENT_MARKER
 from .project_config import ProjectConfig
-from .utils import syntax_hint, block_wrap_lr, max_line_len, remove_html_comments, filter_kwargs
+from .utils.string import block_wrap_lr, max_line_len
+from .utils.html import remove_html_comments
+from .utils.python import filter_kwargs
+from .utils.markdown import syntax_hint
 
 
 @dataclass

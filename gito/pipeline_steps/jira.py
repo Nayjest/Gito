@@ -7,7 +7,22 @@ from jira import JIRA, JIRAError
 from gito.issue_trackers import IssueTrackerIssue, resolve_issue_key
 
 
-def fetch_issue(issue_key, jira_url, username, api_token) -> IssueTrackerIssue | None:
+def fetch_issue(
+    issue_key: str,
+    jira_url: str,
+    username: str,
+    api_token: str
+) -> IssueTrackerIssue | None:
+    """
+    Fetch a Jira issue by its key.
+    Args:
+        issue_key (str): The key of the Jira issue to fetch.
+        jira_url (str): The base URL of the Jira instance.
+        username (str): The Jira username for authentication.
+        api_token (str): The Jira API token for authentication.
+    Returns:
+        IssueTrackerIssue | None: The fetched issue or None if not found/error.
+    """
     try:
         jira = JIRA(jira_url, basic_auth=(username, api_token))
         issue = jira.issue(issue_key)

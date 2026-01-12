@@ -19,7 +19,7 @@ from .context import Context
 from .project_config import ProjectConfig
 from .report_struct import ProcessingWarning, Report, RawIssue
 from .constants import JSON_REPORT_FILE_NAME, REFS_VALUE_ALL
-from .utils import make_streaming_function
+from .utils.cli import make_streaming_function
 from .pipeline import Pipeline
 from .env import Env
 from .gh_api import gh_api

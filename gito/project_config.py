@@ -4,12 +4,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import microcore as mc
-from gito.utils import detect_github_env
 from microcore import ui
 from git import Repo
 
 from .constants import PROJECT_CONFIG_BUNDLED_DEFAULTS_FILE, PROJECT_CONFIG_FILE_PATH
 from .pipeline import PipelineStep
+from .utils.github import detect_github_env
 
 
 @dataclass
