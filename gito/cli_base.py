@@ -13,6 +13,9 @@ from .utils import parse_refs_pair
 from .env import Env
 
 
+app = typer.Typer(pretty_exceptions_show_locals=False)
+
+
 def args_to_target(refs, what, against) -> tuple[str | None, str | None]:
     if refs == REFS_VALUE_ALL:
         return REFS_VALUE_ALL, None
@@ -77,9 +80,6 @@ def arg_against() -> typer.Option:
 
 def arg_all() -> typer.Option:
     return typer.Option(default=False, help="Review whole codebase")
-
-
-app = typer.Typer(pretty_exceptions_show_locals=False)
 
 
 @contextlib.contextmanager

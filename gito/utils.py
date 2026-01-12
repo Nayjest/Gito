@@ -153,7 +153,10 @@ def extract_gh_owner_repo(repo: git.Repo) -> tuple[str, str]:
     Returns:
         tuple[str, str]: A tuple containing the owner and repository name.
     """
-    remote_url = repo.remotes.origin.url
+    try:
+        remote_url = repo.remotes.origin.url
+    except Exception as e:
+        raise ValueError("Could not get remote URL from the repository.") from e
     if remote_url.startswith('git@github.com:'):
         # SSH format: git@github.com:owner/repo.git
         repo_path = remote_url.split(':')[1].replace('.git', '')
@@ -164,6 +167,73 @@ def extract_gh_owner_repo(repo: git.Repo) -> tuple[str, str]:
         raise ValueError("Unsupported remote URL format")
     owner, repo_name = repo_path.split('/')
     return owner, repo_name
+
+
+def get_gh_create_pr_link(repo: Repo, branch: str) -> Optional[str]:
+    """
+    Return a GitHub URL to create a pull request for the given branch.
+    """
+    try:
+        owner, repo_name = extract_gh_owner_repo(repo)
+        return f"https://github.com/{owner}/{repo_name}/compare/{to_branch}?expand=1"
+    except ValueError:
+        return None
+
+
+def get_gh_secrets_link(repo: Repo) -> Optional[str]:
+    """
+    Return a GitHub URL to manage secrets.
+    """
+    try:
+        owner, repo_name = extract_gh_owner_repo(repo)
+        return f"https://github.com/{owner}/{repo_name}/settings/secrets/actions"
+    except ValueError:
+        return None
+
+
+def extract_gitlab_owner_repo(repo: git.Repo) -> tuple[str, str]:
+    """
+    Extracts the GitLab owner and repository name.
+
+    Returns:
+        tuple[str, str]: A tuple containing the owner and repository name.
+    """
+    try:
+        remote_url = repo.remotes.origin.url
+    except Exception as e:
+        raise ValueError("Could not get remote URL from the repository.") from e
+    if remote_url.startswith('git@gitlab.com:'):
+        # SSH format: git@github.com:owner/repo.git
+        repo_path = remote_url.split(':')[1].replace('.git', '')
+    elif remote_url.startswith('https://gitlab.com/'):
+        # HTTPS format: https://github.com/owner/repo.git
+        repo_path = remote_url.replace('https://gitlab.com/', '').replace('.git', '')
+    else:
+        raise ValueError("Unsupported remote URL format")
+    owner, repo_name = repo_path.split('/')
+    return owner, repo_name
+
+
+def get_gitlab_create_mr_link(repo: Repo, branch: str) -> Optional[str]:
+    """
+    Return a GitLab URL to create a merge request for the given branch.
+    """
+    try:
+        owner, repo_name = extract_gh_owner_repo(repo)
+        return f"https://github.com/{owner}/{repo_name}/-/compare?from=main&to={to_branch}?expand=1"
+    except ValueError:
+        return None
+
+
+def get_gitlab_secrets_link(repo: Repo) -> Optional[str]:
+    """
+    Return a GitHub URL to manage secrets.
+    """
+    try:
+        owner, repo_name = extract_gh_owner_repo(repo)
+        return f"https://gitlab.com/{owner}/{repo}/-/settings/ci_cd#js-cicd-variables-settings"
+    except ValueError:
+        return None
 
 
 def detect_github_env() -> dict:

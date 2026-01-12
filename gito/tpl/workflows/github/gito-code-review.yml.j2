@@ -15,11 +15,11 @@ jobs:
     - uses: actions/checkout@v6
       with: { fetch-depth: 0 }
 
-    {%- include("github_workflows/components/installs.j2") %}
+    {%- include("workflows/github/components/installs.j2") %}
 
     - name: Run AI code review
       env:
-        {%- include("github_workflows/components/env-vars.j2") %}
+        {%- include("workflows/github/components/env-vars.j2") %}
         PR_NUMBER_FROM_WORKFLOW_DISPATCH: {% raw %}${{ github.event.inputs.pr_number }}{% endraw %}
       run: |{% raw %}
         gito --verbose review

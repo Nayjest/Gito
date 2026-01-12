@@ -10,9 +10,11 @@ from git import Repo
 
 
 class GitProvider(StrEnum):
-    GITHUB = "github"
-    GITLAB = "gitlab"
-    BITBUCKET = "bitbucket"
+    GITHUB = "GitHub"
+    GITLAB = "GitLab"
+    BITBUCKET = "Bitbucket"
+    GITEA = "Gitea"
+    AZURE_DEVOPS = "Azure DevOps"
 
 
 def identify_git_provider_by_ci_env() -> GitProvider | None:
@@ -38,6 +40,8 @@ def identify_git_provider_from_remotes(repo_or_urls: Repo | list[str]) -> GitPro
         GitProvider.GITHUB: ["github.com"],
         GitProvider.GITLAB: ["gitlab"],
         GitProvider.BITBUCKET: ["bitbucket"],
+        GitProvider.GITEA: ["gitea", "forgejo", "codeberg.org"],  # not tested yet
+        GitProvider.AZURE_DEVOPS: ["dev.azure.com", "visualstudio.com"],  # not tested yet
     }
     if isinstance(repo_or_urls, Repo):
         try:
@@ -82,6 +86,8 @@ def identify_git_provider_from_files(repo: Repo) -> GitProvider | None:
     git_provider_specific_files = {
         GitProvider.GITHUB: [".github"],
         GitProvider.GITLAB: [".gitlab", ".gitlab-ci.yml"],
+        GitProvider.GITEA: [".gitea"],  # not tested yet
+        GitProvider.AZURE_DEVOPS: ["azure-pipelines.yml", ".azure-pipelines"],  # not tested yet
     }
     path = Path(repo.working_tree_dir)
     for provider, files in git_provider_specific_files.items():

@@ -1,0 +1,17 @@
+# GitLab CI configuration for running Gito AI code reviews on merge requests.
+gito-ai-review:
+  stage: review
+  image: python:3.13
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_PIPELINE_SOURCE == "web" && $MR_NUMBER
+      when: manual
+  variables:
+    GIT_DEPTH: 0
+    LLM_API_TYPE: {{ api_type }}
+    LLM_API_KEY: ${{ secret_name }}
+    MODEL: {{ model }}
+  script:
+    - pip install gito.bot~={{ major }}.{{ minor }}
+    - gito --verbose review --against="origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
+    - gito gitlab-comment --token $GITLAB_ACCESS_TOKEN --project-id $CI_PROJECT_ID --merge-request-iid $CI_MERGE_REQUEST_IID
