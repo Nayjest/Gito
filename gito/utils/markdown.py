@@ -80,10 +80,11 @@ def syntax_hint(file_path: str | Path) -> str:
       str: A syntax identifier suitable for code highlighting (e.g., 'python', 'json').
     """
     p = Path(file_path)
+    name = p.name
+    # Check full filename first (e.g., Dockerfile, CMakeLists.txt)
+    if name in _EXT_TO_HINT:
+        return _EXT_TO_HINT[name]
     ext = p.suffix.lower()
     if not ext:
-        name = p.name.lower()
-        if name == "dockerfile":
-            return "dockerfile"
         return ""
     return _EXT_TO_HINT.get(ext, ext.lstrip("."))
