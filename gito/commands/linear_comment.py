@@ -3,7 +3,6 @@ import sys
 import logging
 
 import typer
-from git import Repo
 
 from ..cli_base import app, arg_refs
 from ..issue_trackers import resolve_issue_key

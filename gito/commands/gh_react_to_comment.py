@@ -14,7 +14,6 @@ import typer
 from fastcore.basics import AttrDict
 from microcore import ui
 from ghapi.all import GhApi
-import git
 
 from ..cli_base import app
 from ..constants import JSON_REPORT_FILE_NAME, HTML_TEXT_ICON

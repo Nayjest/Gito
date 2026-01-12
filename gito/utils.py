@@ -170,7 +170,7 @@ def extract_gh_owner_repo(repo: git.Repo) -> tuple[str, str]:
     return owner, repo_name
 
 
-def get_gh_create_pr_link(repo: Repo, branch: str) -> Optional[str]:
+def get_gh_create_pr_link(repo: git.Repo, branch: str) -> Optional[str]:
     """
     Return a GitHub URL to create a pull request for the given branch.
     """
@@ -181,7 +181,7 @@ def get_gh_create_pr_link(repo: Repo, branch: str) -> Optional[str]:
         return None
 
 
-def get_gh_secrets_link(repo: Repo) -> Optional[str]:
+def get_gh_secrets_link(repo: git.Repo) -> Optional[str]:
     """
     Return a GitHub URL to manage secrets.
     """
@@ -215,7 +215,7 @@ def extract_gitlab_owner_repo(repo: git.Repo) -> tuple[str, str]:
     return owner, repo_name
 
 
-def get_gitlab_create_mr_link(repo: Repo, branch: str) -> Optional[str]:
+def get_gitlab_create_mr_link(repo: git.Repo, branch: str) -> Optional[str]:
     """
     Return a GitLab URL to create a merge request for the given branch.
     """
@@ -229,7 +229,7 @@ def get_gitlab_create_mr_link(repo: Repo, branch: str) -> Optional[str]:
         return None
 
 
-def get_gitlab_secrets_link(repo: Repo) -> Optional[str]:
+def get_gitlab_secrets_link(repo: git.Repo) -> Optional[str]:
     """
     Return a GitLab URL to manage secrets.
     """
@@ -271,7 +271,7 @@ def detect_github_env() -> dict:
     if not repo or repo == "octocat/Hello-World":
         git_repo = None
         try:
-            git_repo = Repo(Env.working_folder, search_parent_directories=True)
+            git_repo = git.Repo(Env.working_folder, search_parent_directories=True)
             origin = git_repo.remotes.origin.url
             # e.g. git@github.com:Nayjest/ai-code-review.git -> Nayjest/ai-code-review
             match = re.search(r"[:/]([\w\-]+)/([\w\-\.]+?)(\.git)?$", origin)
@@ -308,6 +308,7 @@ def make_streaming_function(handler: Optional[callable] = None) -> callable:
 
 
 def version() -> str:
+    """Return the current version of the gito.bot package."""
     return importlib.metadata.version("gito.bot")
 
 
@@ -344,7 +345,7 @@ def filter_kwargs(cls, kwargs, log_warnings=True):
     return filtered
 
 
-def get_cwd_repo_or_fail() -> Repo:
+def get_cwd_repo_or_fail() -> git.Repo:
     """
     Get Git repository from current working directory.
 
