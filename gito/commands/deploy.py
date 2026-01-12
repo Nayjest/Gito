@@ -251,7 +251,7 @@ def _configure_llm(api_type: str | ApiType | None) -> tuple[ApiType, str, str]:
             "gpt-5-mini": "GPT-5 Mini",
         },
         ApiType.GOOGLE_AI_STUDIO: {
-            "gemini-2.5-pro": f"Gemini 2.5 Pro",
+            "gemini-2.5-pro": "Gemini 2.5 Pro",
             "gemini-2.5-flash": "Gemini 2.5 Flash",
             "gemini-3-pro-preview": f"Gemini 3 Pro Preview {ui.dim}(rate limited)",
             "gemini-3-flash-preview": f"Gemini 3 Flash Preview {ui.dim}(rate limited)",
@@ -278,7 +278,7 @@ def _configure_llm(api_type: str | ApiType | None) -> tuple[ApiType, str, str]:
     model = default_models[api_type]
     if api_type in model_proposals:
         model = mc.ui.ask_choose(
-            f"Select a model",
+            "Select a model",
             model_proposals[api_type],
             default=default_models[api_type],
         )
