@@ -30,7 +30,7 @@ You may use a secret manager (such as HashiCorp Vault) to fetch keys at runtime,
 
 There are two ways to set up Gito for code reviews in your repository:
 - Manually create the workflow file in your repository.
-- Use `gito init` command locally in the context of your repository and commit the generated workflow files.
+- Use `gito deploy` command locally in the context of your repository and commit the generated workflow files.
 > **Note:** 
 > 1. This requires the `gito` CLI tool to be installed locally.
 > 2. It will also create the workflow for reacting to the GitHub comments (experimental).
@@ -61,7 +61,7 @@ jobs:
         uses: actions/setup-python@v6
         with: { python-version: "3.13" }
       - name: Install AI Code Review tool
-        run: pip install gito.bot~=3.6
+        run: pip install gito.bot~=4.0
       - name: Run AI code review
         env:
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
@@ -71,7 +71,7 @@ jobs:
           PR_NUMBER_FROM_WORKFLOW_DISPATCH: ${{ github.event.inputs.pr_number }}
         run: |
           gito --verbose review
-          gito github-comment --token "$GITHUB_TOKEN"
+          gito github-comment
       - uses: actions/upload-artifact@v6
         with:
           name: gito-code-review-results

@@ -3,7 +3,17 @@
 This guide covers common issues you may encounter while using Gito and provides solutions to resolve them. If your issue is not listed here, please refer to the [Getting Help](#getting-help) section below.
 
 ---
-## 1. LLM API Rate Limit / "Overloaded" Errors
+
+## 1. Not seeing a PR comment on GitHub?
+  1. On the PR page, click the status icon near the latest commit hash.
+  2. Click **Details** to open the Actions run.
+  3. Review logs for any errors (e.g., API key missing, token issues).
+
+**Example:**
+
+![Workflow Diagnostics](assets/github_setup_screenshot1.png)
+
+## 2. LLM API Rate Limit / "Overloaded" Errors
 
 When the LLM provider's rate limits are exceeded, you may encounter errors similar to the following:
 ```
