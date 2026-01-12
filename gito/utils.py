@@ -9,7 +9,8 @@ from typing import Optional
 
 import typer
 import git
-from git import Repo
+from microcore import ui
+
 from .env import Env
 
 _EXT_TO_HINT: dict[str, str] = {
@@ -341,3 +342,20 @@ def filter_kwargs(cls, kwargs, log_warnings=True):
                     f"Warning: field '{k}' not in {cls.__name__}, dropping."
                 )
     return filtered
+
+
+def get_cwd_repo_or_fail() -> Repo:
+    """
+    Get Git repository from current working directory.
+
+    Exits with code 2 (usage error) if not inside a Git repository.
+    """
+    try:
+        repo = git.Repo(".")
+        return repo
+    except git.InvalidGitRepositoryError:
+        ui.error(
+            "Current folder is not a Git repository.\n"
+            "Navigate to your repository root and run again."
+        )
+        raise typer.Exit(2)

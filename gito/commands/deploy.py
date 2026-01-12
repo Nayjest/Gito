@@ -5,7 +5,7 @@ from pathlib import Path
 import typer
 import microcore as mc
 from microcore import ApiType, ui, utils
-from git import InvalidGitRepositoryError, Repo, GitCommandError
+from git import Repo, GitCommandError
 from rich.panel import Panel
 from rich.console import Console
 
@@ -16,6 +16,7 @@ from ..utils import (
     get_gh_secrets_link,
     get_gitlab_create_mr_link,
     get_gitlab_secrets_link,
+    get_cwd_repo_or_fail,
 )
 from ..cli_base import app
 from ..gh_api import gh_api
@@ -225,23 +226,6 @@ def deploy(
         expand=False,
     ))
     return True
-
-
-def get_cwd_repo_or_fail() -> Repo:
-    """
-    Get Git repository from current working directory.
-
-    Exits with code 2 (usage error) if not inside a Git repository.
-    """
-    try:
-        repo = Repo(".")
-        return repo
-    except InvalidGitRepositoryError:
-        ui.error(
-            "Current folder is not a Git repository.\n"
-            "Navigate to your repository root and run again."
-        )
-        raise typer.Exit(2)
 
 
 def _configure_llm(api_type: str | ApiType | None) -> tuple[ApiType, str, str]:

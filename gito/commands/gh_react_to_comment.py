@@ -21,7 +21,7 @@ from ..constants import JSON_REPORT_FILE_NAME, HTML_TEXT_ICON
 from ..core import answer
 from ..gh_api import post_gh_comment, resolve_gh_token
 from ..project_config import ProjectConfig
-from ..utils import extract_gh_owner_repo
+from ..utils import extract_gh_owner_repo, get_cwd_repo_or_fail
 from .fix import fix
 
 
@@ -72,7 +72,7 @@ def react_to_comment(
     Fetches the PR comment by ID, parses agent directives, and executes the requested
     actions automatically to enable seamless code review workflow integration.
     """
-    repo = git.Repo(".")  # Current directory
+    repo = get_cwd_repo_or_fail()
     owner, repo_name = extract_gh_owner_repo(repo)
     logging.info(f"Using repository: {ui.yellow}{owner}/{repo_name}{ui.reset}")
     gh_token = resolve_gh_token(gh_token)

@@ -7,6 +7,7 @@ from git import Repo
 
 from ..cli_base import app, arg_refs
 from ..issue_trackers import resolve_issue_key
+from ..utils import get_cwd_repo_or_fail
 
 import requests
 
@@ -47,7 +48,7 @@ def linear_comment(
         logging.error("LINEAR_API_KEY environment variable is not set")
         return
 
-    repo = Repo(".")
+    repo = get_cwd_repo_or_fail()
     key = resolve_issue_key(repo)
     post_linear_comment(key, text, api_key)
     logging.info("Comment posted to Linear issue %s", key)
