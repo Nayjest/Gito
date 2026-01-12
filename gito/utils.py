@@ -175,7 +175,7 @@ def get_gh_create_pr_link(repo: Repo, branch: str) -> Optional[str]:
     """
     try:
         owner, repo_name = extract_gh_owner_repo(repo)
-        return f"https://github.com/{owner}/{repo_name}/compare/{to_branch}?expand=1"
+        return f"https://github.com/{owner}/{repo_name}/compare/{branch}?expand=1"
     except ValueError:
         return None
 
@@ -220,7 +220,7 @@ def get_gitlab_create_mr_link(repo: Repo, branch: str) -> Optional[str]:
     """
     try:
         owner, repo_name = extract_gh_owner_repo(repo)
-        return f"https://github.com/{owner}/{repo_name}/-/compare?from=main&to={to_branch}?expand=1"
+        return f"https://github.com/{owner}/{repo_name}/-/compare?from=main&to={branch}?expand=1"
     except ValueError:
         return None
 

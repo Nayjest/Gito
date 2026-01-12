@@ -44,6 +44,7 @@ GIT_PROVIDER_WORKFLOWS = {
     )
 }
 
+
 @app.command(
     name="deploy",
     help="\bCreate and deploy Gito workflows to your CI pipeline for automatic code reviews."
@@ -67,7 +68,7 @@ def deploy(
 ) -> bool:
     """Deploy Gito to repository's CI pipeline for automatic code reviews."""
     repo: Repo = get_cwd_repo_or_fail()
-    console  = Console()
+    console = Console()
 
     provider: GitProvider | None = identify_git_provider(repo)
     if not provider:
@@ -76,7 +77,7 @@ def deploy(
             provider = ui.ask_choose("Choose your Git provider", list(GitProvider))
         else:
             return False
-    if not provider in GIT_PROVIDER_WORKFLOWS:
+    if provider not in GIT_PROVIDER_WORKFLOWS:
         ui.error(
             f"Git provider {ui.bright(provider)} is not supported for automatic deployment yet.\n"
             f"Please create CI workflows manually."
@@ -155,14 +156,15 @@ def deploy(
                 mc.ui.error(f"Failed to create pull request automatically: {e}")
                 create_pr_link = get_gh_create_pr_link(repo, to_branch)
                 if create_pr_link:
-                    details =":\n[link]{create_pr_link}[/link]"
+                    details = ":\n[link]{create_pr_link}[/link]"
                 else:
                     details = "."
                 console.print(Panel(
                     title="Next step",
-                    renderable=
-                    f"Please create a PR from '{to_branch}' "
-                    f"to your main branch and merge it{details}",
+                    renderable=(
+                        f"Please create a PR from '{to_branch}' "
+                        f"to your main branch and merge it{details}"
+                    ),
                     border_style="yellow",
                     expand=False,
                 ))
@@ -174,26 +176,27 @@ def deploy(
                 details = "."
             console.print(Panel(
                 title="Next step",
-                renderable=
-                f"Please create a Merge Request from branch '{to_branch}' "
-                f"to your main branch and merge it{details}",
+                renderable=(
+                    f"Please create a Merge Request from branch '{to_branch}' "
+                    f"to your main branch and merge it{details}"
+                ),
                 border_style="yellow",
                 expand=False,
             ))
         else:
             console.print(Panel(
                 title="Next step",
-                renderable=
-                f"Please merge branch named '{to_branch}' to your main branch.",
+                renderable=f"Please merge branch named '{to_branch}' to your main branch.",
                 border_style="yellow",
                 expand=False,
             ))
     else:
         console.print(Panel(
             title="Next step: Deliver CI workflows to the repository",
-            renderable=
-            "Commit and push created CI workflow files to your main repository branch "
-            "to activate Gito.",
+            renderable=(
+                "Commit and push created CI workflow files to your main repository branch "
+                "to activate Gito."
+            ),
             border_style="yellow",
             expand=False,
         ))
@@ -204,20 +207,20 @@ def deploy(
             details = f"\n\nAdd it here:  [link]{secrets_url}[/link]"
     elif provider == GitProvider.GITLAB:
         details = (
-            f"\n\nAdd it in your GitLab project settings under"
-            f"\n'Settings -> CI/CD -> Variables."
+            "\n\nAdd it in your GitLab project settings under"
+            "\n'Settings -> CI/CD -> Variables."
         )
         if secrets_url := get_gitlab_secrets_link(repo):
             details += f"\n[link]{secrets_url}[/link]"
     console.print(Panel(
         title="Final step: Add your LLM API key to repository secrets",
-        renderable=
-        f"[bold yellow]Required[/bold yellow]\n"
-        f"  {secret_name}\n"
-        f"\n"
-        f"[bold dim]Optional — Issue trackers[/bold dim]\n"
-        f"  LINEAR_API_KEY, JIRA_URL, JIRA_USER, JIRA_TOKEN"
-        f"{details}",
+        renderable=(
+            f"[bold yellow]Required[/bold yellow]\n"
+            f"  {secret_name}\n"
+            f"\n"
+            f"[bold dim]Optional — Issue trackers[/bold dim]\n"
+            f"  LINEAR_API_KEY, JIRA_URL, JIRA_USER, JIRA_TOKEN{details}"
+        ),
         border_style="green",
         expand=False,
     ))
@@ -234,7 +237,10 @@ def get_cwd_repo_or_fail() -> Repo:
         repo = Repo(".")
         return repo
     except InvalidGitRepositoryError:
-        ui.error("Current folder is not a Git repository.\nNavigate to your repository root and run again.")
+        ui.error(
+            "Current folder is not a Git repository.\n"
+            "Navigate to your repository root and run again."
+        )
         raise typer.Exit(2)
 
 
