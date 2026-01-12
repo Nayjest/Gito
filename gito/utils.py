@@ -203,10 +203,10 @@ def extract_gitlab_owner_repo(repo: git.Repo) -> tuple[str, str]:
     except Exception as e:
         raise ValueError("Could not get remote URL from the repository.") from e
     if remote_url.startswith('git@gitlab.com:'):
-        # SSH format: git@github.com:owner/repo.git
+        # SSH format: git@gitlab.com:owner/repo.git
         repo_path = remote_url.split(':')[1].replace('.git', '')
     elif remote_url.startswith('https://gitlab.com/'):
-        # HTTPS format: https://github.com/owner/repo.git
+        # HTTPS format: https://gitlab.com/owner/repo.git
         repo_path = remote_url.replace('https://gitlab.com/', '').replace('.git', '')
     else:
         raise ValueError("Unsupported remote URL format")
