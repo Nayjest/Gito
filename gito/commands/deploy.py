@@ -143,7 +143,7 @@ def deploy(
         print(f"Changes pushed to {ui.green(to_branch)} branch.")
         if provider == GitProvider.GITHUB:
             try:
-                api = gh_api(repo=repo)
+                api = gh_api(repo=repo, token=token)
                 base = get_base_branch(repo).split('/')[-1]
                 logging.info(f"Creating PR {ui.green(to_branch)} -> {ui.yellow(base)}...")
                 res = api.pulls.create(
@@ -156,7 +156,7 @@ def deploy(
                 mc.ui.error(f"Failed to create pull request automatically: {e}")
                 create_pr_link = get_gh_create_pr_link(repo, to_branch)
                 if create_pr_link:
-                    details = ":\n[link]{create_pr_link}[/link]"
+                    details = f":\n[link]{create_pr_link}[/link]"
                 else:
                     details = "."
                 console.print(Panel(
@@ -171,7 +171,7 @@ def deploy(
         elif provider == GitProvider.GITLAB:
             create_pr_link = get_gitlab_create_mr_link(repo, to_branch)
             if create_pr_link:
-                details = ":\n[link]{create_pr_link}[/link]"
+                details = f":\n[link]{create_pr_link}[/link]"
             else:
                 details = "."
             console.print(Panel(
