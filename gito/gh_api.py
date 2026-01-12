@@ -7,7 +7,7 @@ from fastcore.basics import AttrDict  # objects returned by ghapi
 from ghapi.core import GhApi
 
 from .project_config import ProjectConfig
-from .utils import extract_gh_owner_repo
+from .utils.github import extract_gh_owner_repo
 
 
 def gh_api(

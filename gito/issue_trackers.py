@@ -4,7 +4,7 @@ import re
 from dataclasses import dataclass, field
 
 import git
-from gito.utils import is_running_in_github_action
+from .utils.github import is_running_in_github_action
 
 
 @dataclass

@@ -1,0 +1,35 @@
+import sys
+from typing import Optional
+
+import typer
+
+
+def make_streaming_function(handler: Optional[callable] = None) -> callable:
+    """
+    Create a streaming function that processes text chunks using an optional handler.
+    Used as callback for streaming LLM responses.
+    Args:
+        handler (callable, optional): A function to process each text chunk before printing.
+            If None, the text chunk is printed as is.
+    Returns:
+        callable: A function that takes a text chunk and processes it.
+    """
+    def stream(text):
+        if handler:
+            text = handler(text)
+        print(text, end='', flush=True)
+    return stream
+
+
+def no_subcommand(app: typer.Typer) -> bool:
+    """
+    Checks if the current script is being invoked as a command in a target Typer application.
+    """
+    return not (
+        (first_arg := next((a for a in sys.argv[1:] if not a.startswith('-')), None))
+        and first_arg in (
+            cmd.name or cmd.callback.__name__.replace('_', '-')
+            for cmd in app.registered_commands
+        )
+        or '--help' in sys.argv
+    )

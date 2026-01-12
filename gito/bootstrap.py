@@ -1,3 +1,4 @@
+"""Bootstrap module for initializing the Gito application environment."""
 import os
 import sys
 import io
@@ -7,7 +8,7 @@ from pathlib import Path
 
 import microcore as mc
 
-from .utils import is_running_in_github_action
+from .utils.github import is_running_in_github_action
 from .constants import HOME_ENV_PATH, EXECUTABLE, PROJECT_GITO_FOLDER, DEFAULT_MAX_CONCURRENT_TASKS
 from .env import Env
 

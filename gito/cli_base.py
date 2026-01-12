@@ -1,4 +1,6 @@
-"""Common CLI arguments and utilities for Gito commands."""
+"""
+Common CLI arguments and utilities for Gito commands.
+"""
 import contextlib
 import logging
 import tempfile
@@ -9,7 +11,7 @@ import typer
 from git import Repo, InvalidGitRepositoryError
 
 from .constants import REFS_VALUE_ALL
-from .utils import parse_refs_pair
+from .utils.string import parse_refs_pair
 from .env import Env
 
 
@@ -17,6 +19,7 @@ app = typer.Typer(pretty_exceptions_show_locals=False)
 
 
 def args_to_target(refs, what, against) -> tuple[str | None, str | None]:
+    """Convert CLI arguments to target WHAT and AGAINST refs."""
     if refs == REFS_VALUE_ALL:
         return REFS_VALUE_ALL, None
     _what, _against = parse_refs_pair(refs)

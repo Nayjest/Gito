@@ -13,7 +13,7 @@ from microcore import ui
 from ..cli_base import app
 from ..constants import JSON_REPORT_FILE_NAME
 from ..report_struct import Report, Issue
-from ..utils import get_cwd_repo_or_fail
+from ..utils.git import get_cwd_repo_or_fail
 
 
 @app.command(

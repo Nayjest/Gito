@@ -10,17 +10,14 @@ from rich.panel import Panel
 from rich.console import Console
 
 from ..core import get_base_branch
-from ..utils import (
-    version,
-    get_gh_create_pr_link,
-    get_gh_secrets_link,
-    get_gitlab_create_mr_link,
-    get_gitlab_secrets_link,
-    get_cwd_repo_or_fail,
-)
 from ..cli_base import app
 from ..gh_api import gh_api
 from ..identify_git_provider import identify_git_provider, GitProvider
+from ..utils.package_metadata import version
+from ..utils.github import get_gh_create_pr_link, get_gh_secrets_link
+from ..utils.gitlab import get_gitlab_create_mr_link, get_gitlab_secrets_link
+from ..utils.git import  get_cwd_repo_or_fail
+
 
 GIT_PROVIDER_WORKFLOWS = {
     GitProvider.GITHUB: dict(

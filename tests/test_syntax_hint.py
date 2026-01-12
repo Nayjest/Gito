@@ -1,4 +1,4 @@
-from gito.utils import syntax_hint
+from gito.utils.markdown import syntax_hint
 
 
 def test_extensions():

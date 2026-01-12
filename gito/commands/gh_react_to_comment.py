@@ -20,7 +20,8 @@ from ..constants import JSON_REPORT_FILE_NAME, HTML_TEXT_ICON
 from ..core import answer
 from ..gh_api import post_gh_comment, resolve_gh_token
 from ..project_config import ProjectConfig
-from ..utils import extract_gh_owner_repo, get_cwd_repo_or_fail
+from ..utils.github import extract_gh_owner_repo
+from ..utils.git import get_cwd_repo_or_fail
 from .fix import fix
 
 

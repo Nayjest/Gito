@@ -6,7 +6,7 @@ from microcore import ui
 from microcore.utils import resolve_callable
 
 from .context import Context
-from .utils import is_running_in_github_action
+from .utils.github import is_running_in_github_action
 
 
 class PipelineEnv(StrEnum):

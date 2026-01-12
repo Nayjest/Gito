@@ -4,7 +4,8 @@ from dataclasses import dataclass
 
 import typer
 
-from gito.utils import filter_kwargs, no_subcommand  # Adjust import as needed
+from gito.utils.python import filter_kwargs
+from gito.utils.cli import no_subcommand
 
 
 def test_no_subcommand():
