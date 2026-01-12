@@ -219,8 +219,11 @@ def get_gitlab_create_mr_link(repo: Repo, branch: str) -> Optional[str]:
     Return a GitLab URL to create a merge request for the given branch.
     """
     try:
-        owner, repo_name = extract_gh_owner_repo(repo)
-        return f"https://github.com/{owner}/{repo_name}/-/compare?from=main&to={branch}?expand=1"
+        owner, repo_name = extract_gitlab_owner_repo(repo)
+        return (
+            f"https://gitlab.com/{owner}/{repo_name}"
+            f"/-/merge_requests/new?merge_request%5Bsource_branch%5D={branch}"
+        )
     except ValueError:
         return None
 
@@ -230,7 +233,7 @@ def get_gitlab_secrets_link(repo: Repo) -> Optional[str]:
     Return a GitLab URL to manage secrets.
     """
     try:
-        owner, repo_name = extract_gh_owner_repo(repo)
+        owner, repo_name = extract_gitlab_owner_repo(repo)
         return f"https://gitlab.com/{owner}/{repo_name}/-/settings/ci_cd#js-cicd-variables-settings"
     except ValueError:
         return None

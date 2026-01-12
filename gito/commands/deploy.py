@@ -73,7 +73,7 @@ def deploy(
     provider: GitProvider | None = identify_git_provider(repo)
     if not provider:
         ui.error("No supported Git provider detected.")
-        if ui.ask_yn("Choose GitHub provider manually?"):
+        if ui.ask_yn("Choose Git provider manually?"):
             provider = ui.ask_choose("Choose your Git provider", list(GitProvider))
         else:
             return False
