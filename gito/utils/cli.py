@@ -1,10 +1,10 @@
 import sys
-from typing import Optional
+from typing import Optional, Callable
 
 import typer
 
 
-def make_streaming_function(handler: Optional[callable] = None) -> callable:
+def make_streaming_function(handler: Optional[callable] = None) -> Callable:
     """
     Create a streaming function that processes text chunks using an optional handler.
     Used as callback for streaming LLM responses.
