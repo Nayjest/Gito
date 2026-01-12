@@ -208,7 +208,7 @@ def deploy(
             f"\n'Settings -> CI/CD -> Variables."
         )
         if secrets_url := get_gitlab_secrets_link(repo):
-            details = f"\n[link]{secrets_url}[/link]"
+            details += f"\n[link]{secrets_url}[/link]"
     console.print(Panel(
         title="Final step: Add your LLM API key to repository secrets",
         renderable=
