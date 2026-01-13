@@ -128,5 +128,5 @@ def collapse_gh_outdated_cr_comments(
                 collapsed_qty += 1
         else:
             logging.error(f"Failed to hide comment {comment.id} via GraphQL API.")
-    logging.info("%s outdated comments collapsed successfully.",collapsed_qty)
+    logging.info("%s outdated comments collapsed successfully.", collapsed_qty)
     return collapsed_qty
