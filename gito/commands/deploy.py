@@ -275,6 +275,7 @@ def deploy(
         ))
 
     _show_create_secrets_instructions(console, provider, repo, secret_name)
+    return True
 
 
 def _try_commit_workflow_changes(repo: Repo) -> bool:
@@ -288,7 +289,7 @@ def _try_commit_workflow_changes(repo: Repo) -> bool:
     """
     try:
         repo.git.commit("-m", "Add Gito CI workflows")
-        print(ui.green("Changes was committed."))
+        print(ui.green("Changes committed."))
         return True
     except GitCommandError as e:
         if "nothing added" in str(e):
