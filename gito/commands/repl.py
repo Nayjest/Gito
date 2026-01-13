@@ -19,8 +19,21 @@ from microcore import ui
 from ..cli_base import app
 from ..constants import *
 from ..core import *
-from ..utils import *
 from ..gh_api import *
+from ..identify_git_provider import *
+from ..issue_trackers import *
+from ..pipeline import *
+from ..project_config import *
+from ..report_struct import *
+from ..utils.cli import *
+from ..utils.git import *
+from ..utils.github import *
+from ..utils.gitlab import *
+from ..utils.html import *
+from ..utils.markdown import *
+from ..utils.package_metadata import *
+from ..utils.python import *
+from ..utils.string import *
 
 
 @app.command(
