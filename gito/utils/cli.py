@@ -23,7 +23,7 @@ def make_streaming_function(handler: Optional[Callable] = None) -> Callable:
 
 def no_subcommand(app: typer.Typer) -> bool:
     """
-    Checks if the current script is being invoked as a command in a target Typer application.
+    Check if no subcommand was provided to the target Typer application.
     """
     return not (
         (first_arg := next((a for a in sys.argv[1:] if not a.startswith('-')), ""))
