@@ -3,6 +3,7 @@ import logging
 from pathlib import Path
 
 import typer
+import yaml
 import microcore as mc
 from microcore import ApiType, ui, utils
 from git import Repo, GitCommandError
@@ -17,6 +18,45 @@ from ..utils.package_metadata import version
 from ..utils.github import get_gh_create_pr_link, get_gh_secrets_link
 from ..utils.gitlab import get_gitlab_create_mr_link, get_gitlab_secrets_link
 from ..utils.git import get_cwd_repo_or_fail
+
+
+def merge_gitlab_configs(file: Path, vars: dict):
+    """Merge GitLab CI configuration files."""
+    # Read existing config or start with empty dict
+    if file.exists():
+        with open(file, 'r') as f:
+            config = yaml.safe_load(f) or {}
+    else:
+        config = {}
+
+    # Ensure 'stages' exists and add 'review' if not present
+    if 'stages' not in config:
+        config['stages'] = []
+    if 'review' not in config['stages']:
+        config['stages'].insert(0, 'review')  # Insert at beginning
+
+    # Ensure 'include' exists and add the local include if not present
+    if 'include' not in config:
+        config['include'] = []
+
+    # Handle case where include might be a single item (not a list)
+    if not isinstance(config['include'], list):
+        config['include'] = [config['include']]
+
+    # Check if the local include already exists
+    new_include = {'local': '.gitlab/ci/gito-code-review.yml'}
+    include_exists = any(
+        'gito-code-review.yml' in str(item.get('local'))
+        if isinstance(item, dict) else 'gito-code-review.yml' in str(item)
+        for item in config['include']
+    )
+
+    if not include_exists:
+        config['include'].append(new_include)
+
+    content = yaml.dump(config, default_flow_style=False, sort_keys=False, indent=2)
+    with open(file, 'w') as f:
+        f.write(content)
 
 
 GIT_PROVIDER_WORKFLOWS = {
@@ -38,6 +78,7 @@ GIT_PROVIDER_WORKFLOWS = {
         gitlab_ci=dict(
             path=Path(".gitlab-ci.yml"),
             template="workflows/gitlab/.gitlab-ci.yml.j2",
+            merge_function=merge_gitlab_configs,
         ),
     )
 }
@@ -110,10 +151,17 @@ def deploy(
     created_files = []
     for key, file_config in workflow_files.items():
         file: Path = file_config["path"]
-        template: str = file_config["template"]
-        content = mc.tpl(template, **template_vars)
         file.parent.mkdir(parents=True, exist_ok=True)
-        file.write_text(content)
+        if file.exists() and "merge_function" in file_config:
+            ui.warning("Merging Gito CI workflow into existing file:", utils.file_link(file))
+            merge_function = file_config["merge_function"]
+            merge_function(file, vars=template_vars)
+        else:
+            template: str = file_config["template"]
+            content = mc.tpl(template, **template_vars)
+            if not content.endswith("\n"):
+                content = content.rstrip() + "\n"
+            file.write_text(content)
         created_files.append(file)
     print(
         mc.ui.green("Gito CI workflows have been created.\n"),
@@ -206,7 +254,7 @@ def deploy(
     elif provider == GitProvider.GITLAB:
         details = (
             "\n\nAdd it in your GitLab project settings under"
-            "\n'Settings -> CI/CD -> Variables."
+            "\nSettings -> CI/CD -> Variables."
         )
         if secrets_url := get_gitlab_secrets_link(repo):
             details += f"\n[link]{secrets_url}[/link]"
