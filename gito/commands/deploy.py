@@ -206,6 +206,9 @@ def deploy(
     need_to_commit = commit is True or commit is None and mc.ui.ask_yn(
         f"Commit & push CI workflows to a {mc.ui.green(to_branch)} branch?"
     )
+    is_committed = False
+    is_pushed = False
+
     if need_to_commit:
         if not repo.active_branch.name.startswith(to_branch):
             repo.git.checkout("-b", to_branch)
