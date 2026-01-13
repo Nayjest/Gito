@@ -364,9 +364,15 @@ def _configure_llm(
             "Which language model API should Gito use?",
             api_types,
         )
-    elif api_type not in api_types:
-        ui.error(f"Unsupported API type: {api_type}")
-        raise typer.Exit(2)
+
+    if api_type not in api_types:
+        orig_value = api_type
+        api_type = str(api_type).lower()
+        if api_type == "openai":
+            api_type = ApiType.OPEN_AI
+        if api_type not in api_types:
+            ui.error(f"Unsupported API type: {orig_value}")
+            raise typer.Exit(2)
     secret_names = {
         ApiType.ANTHROPIC: "ANTHROPIC_API_KEY",
         ApiType.OPEN_AI: "OPENAI_API_KEY",
