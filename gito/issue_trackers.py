@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 
 import git
 from .utils.github import is_running_in_github_action
+from .utils.gitlab import is_running_in_gitlab_ci
 
 
 @dataclass
@@ -30,6 +31,11 @@ def get_branch(repo: git.Repo):
         github_ref = os.getenv('GITHUB_REF', '')
         if github_ref.startswith('refs/heads/'):
             return github_ref.replace('refs/heads/', '')
+    elif is_running_in_gitlab_ci():
+        # See: https://docs.gitlab.com/ci/variables/predefined_variables/
+        gitlab_ref = os.getenv('CI_COMMIT_REF_NAME')
+        if gitlab_ref:
+            return gitlab_ref
     try:
         branch_name = repo.active_branch.name
         return branch_name

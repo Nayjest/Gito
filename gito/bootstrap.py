@@ -8,6 +8,7 @@ from pathlib import Path
 
 import microcore as mc
 
+from .utils.gitlab import is_running_in_gitlab_ci
 from .utils.github import is_running_in_github_action
 from .constants import HOME_ENV_PATH, EXECUTABLE, PROJECT_GITO_FOLDER, DEFAULT_MAX_CONCURRENT_TASKS
 from .env import Env
@@ -86,7 +87,15 @@ def bootstrap(verbosity: int = 1):
                 ref = f" (.github/workflows/{ref})"
             msg += (
                 f"\nPlease check your GitHub Action Secrets "
-                f"and `env` configuration section of the corresponding workflow step{ref}."
+                f"and `env` configuration section of the corresponding workflow step{ref}.\n"
+                f"See https://github.com/Nayjest/Gito/blob/main/documentation/github_setup.md "
+                f"for details."
+            )
+        elif is_running_in_gitlab_ci():
+            # @TODO add link to GitLab setup article
+            msg += (
+                "\nPlease check your GitLab CI/CD Variables "
+                "and `variables` configuration section of the corresponding job."
             )
         else:
             msg += (

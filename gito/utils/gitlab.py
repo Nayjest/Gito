@@ -1,9 +1,22 @@
 """
 Utilities for working with GitLab platform.
 """
+import os
 from typing import Optional
 
 import git
+
+
+def is_running_in_gitlab_ci() -> bool:
+    """
+    Check if the code is running inside a GitLab CI/CD environment.
+
+    Returns:
+        bool: True if running in GitLab CI, False otherwise.
+
+    See: https://docs.gitlab.com/ci/variables/predefined_variables/
+    """
+    return os.getenv("GITLAB_CI") == "true"
 
 
 def extract_gitlab_owner_repo(repo: git.Repo) -> tuple[str, str]:
