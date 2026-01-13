@@ -129,6 +129,13 @@ def deploy(
     token: str = typer.Option(
         "", help="GitHub token (or set GITHUB_TOKEN env var)"
     ),
+    model: str = typer.Option(
+        None,
+        help=(
+            "Language model to use "
+            "(interactive if omitted; \"default\" selects the recommended model)"
+        ),
+    )
 ) -> bool:
     """Deploy Gito to repository's CI pipeline for automatic code reviews."""
     repo: Repo = get_cwd_repo_or_fail()
@@ -160,7 +167,7 @@ def deploy(
                 return False
 
     # configure LLM
-    api_type, secret_name, model = _configure_llm(api_type)
+    api_type, secret_name, model = _configure_llm(api_type, model)
 
     # generate workflow files from templates
     major, minor, *_ = version().split(".")
@@ -312,11 +319,15 @@ def _try_push_branch(repo: Repo, branch: str) -> bool:
         return False
 
 
-def _configure_llm(api_type: str | ApiType | None) -> tuple[ApiType, str, str]:
+def _configure_llm(
+    api_type: str | ApiType | None,
+    model: str | None = None,
+) -> tuple[ApiType, str, str]:
     """
     Configure LLM.
     Args:
         api_type (str | ApiType | None): API type as string.
+        model (str | None): Model name.
     Returns:
         tuple[ApiType, str, str]: (api_type, secret_name, default_model
     """
@@ -362,13 +373,20 @@ def _configure_llm(api_type: str | ApiType | None) -> tuple[ApiType, str, str]:
         ApiType.OPEN_AI: "gpt-5.2",
         ApiType.GOOGLE_AI_STUDIO: "gemini-2.5-pro",
     }
-    model = default_models[api_type]
-    if api_type in model_proposals:
-        model = mc.ui.ask_choose(
-            "Select a model",
-            model_proposals[api_type],
-            default=default_models[api_type],
-        )
+    use_default_model = model == "default"
+    if not model or use_default_model:
+        model = default_models.get(api_type, "")
+        if use_default_model and not model:
+            ui.error(f"No default model for API type: {api_type}")
+        if not use_default_model or not model:
+            if api_type in model_proposals:
+                model = ui.ask_choose(
+                    "Select a model",
+                    model_proposals[api_type],
+                    default=default_models[api_type],
+                )
+            else:
+                model = ui.ask_non_empty("Enter the model name")
 
     return api_type, secret_names[api_type], model
 
