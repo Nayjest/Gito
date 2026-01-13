@@ -271,10 +271,10 @@ answer_prompt = "tpl:answer.j2"
 aux_files = []
 [pipeline_steps.jira] # Jira integration step, fetches associated issue details for the review context.
 call="gito.pipeline_steps.jira.fetch_associated_issue"
-envs=["local","gh-action"]
+envs=["local","ci"]
 [pipeline_steps.linear] # Linear integration step, fetches associated issue details for the review context.
 call="gito.pipeline_steps.linear.fetch_associated_issue"
-envs=["local","gh-action"]
+envs=["local","ci"]
 [prompt_vars] # Additional variables to pass to prompts.
 self_id = """
 You are a subsystem of an AI-powered software platform, specifically tasked with performing expert code reviews.

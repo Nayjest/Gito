@@ -1,4 +1,5 @@
 import logging
+import warnings
 from enum import StrEnum
 from dataclasses import dataclass, field
 
@@ -6,24 +7,39 @@ from microcore import ui
 from microcore.utils import resolve_callable
 
 from .context import Context
-from .utils.github import is_running_in_github_action
+from .utils.cli import is_running_in_ci
 
 
 class PipelineEnv(StrEnum):
     LOCAL = "local"
-    GH_ACTION = "gh-action"
+    CI = "ci"
 
     @staticmethod
     def all():
-        return [PipelineEnv.LOCAL, PipelineEnv.GH_ACTION]
+        return [PipelineEnv.LOCAL, PipelineEnv.CI]
 
     @staticmethod
     def current():
         return (
-            PipelineEnv.GH_ACTION
-            if is_running_in_github_action()
+            PipelineEnv.CI
+            if is_running_in_ci()
             else PipelineEnv.LOCAL
         )
+
+    @classmethod
+    def _missing_(cls, value):
+        """
+        Handle deprecated values:
+        PipelineEnv.GH_ACTION -> PipelineEnv.CI
+        """
+        if value == "gh-action":
+            warnings.warn(
+                "PipelineEnv 'gh-action' is deprecated; use 'ci' instead",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            return cls.CI
+        return None
 
 
 @dataclass

@@ -3,6 +3,18 @@ from typing import Optional, Callable
 
 import typer
 
+from .github import is_running_in_github_action
+from .gitlab import is_running_in_gitlab_ci
+
+
+def is_running_in_ci() -> bool:
+    """
+    Check if the current environment is a Continuous Integration (CI) environment.
+    Returns:
+        True if running in GitHub Actions or GitLab CI, False otherwise.
+    """
+    return is_running_in_github_action() or is_running_in_gitlab_ci()
+
 
 def make_streaming_function(handler: Optional[Callable] = None) -> Callable:
     """

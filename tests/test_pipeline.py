@@ -45,7 +45,11 @@ def test_pipelineenv_current_local(patch_github_action_env):
 
 def test_pipelineenv_current_gh_action(patch_github_action_env):
     patch_github_action_env(True)
-    assert PipelineEnv.current() == PipelineEnv.GH_ACTION
+    assert PipelineEnv.current() == PipelineEnv.CI
+
+
+def test_pipelineenv_gh_action_deprecation(patch_github_action_env):
+    assert PipelineEnv("gh-action") == PipelineEnv.CI
 
 
 def test_pipeline_step_run_calls_resolve_callable(patch_resolve_callable):
@@ -59,7 +63,7 @@ def test_pipeline_run_skips_steps_for_other_env(
 ):
     patch_github_action_env(False)  # LOCAL
 
-    dummy_step = PipelineStep(call="myfunc", envs=[PipelineEnv.GH_ACTION])
+    dummy_step = PipelineStep(call="myfunc", envs=[PipelineEnv.CI])
     dummy_step.run = MagicMock()
     steps = {"step1": dummy_step}
     mc.configure(
