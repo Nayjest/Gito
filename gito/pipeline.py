@@ -71,7 +71,8 @@ class Pipeline:
                         )
                     if not step_output:
                         logging.warning(
-                            f'Pipeline step "{step_name}" returned {repr(step_output)}.'
+                            f"Pipeline step \"{step_name}\" "
+                            f'returned no result ({repr(step_output)}).'
                         )
                 except Exception as e:
                     logging.error(f'Error in pipeline step "{step_name}": {e}')
