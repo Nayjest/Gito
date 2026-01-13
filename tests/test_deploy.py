@@ -1,17 +1,15 @@
 """Tests for Gito CI deployment."""
-
-import os
 from pathlib import Path
 
 import pytest
 from git import Repo
 
-from gito.commands.deploy import deploy, GIT_PROVIDER_WORKFLOWS
-from gito.identify_git_provider import GitProvider
+from gito.commands.deploy import deploy
 from gito.bootstrap import bootstrap
 
+
 @pytest.fixture
-def github_repo(tmp_path):
+def github_repo(tmp_path, monkeypatch):
     """Create a minimal GitHub repository."""
     repo = Repo.init(tmp_path)
     repo.create_remote("origin", "https://github.com/test/repo.git")
@@ -22,12 +20,12 @@ def github_repo(tmp_path):
     repo.index.add(["README.md"])
     repo.index.commit("Initial commit")
 
-    os.chdir(tmp_path)
+    monkeypatch.chdir(tmp_path)
     yield repo
 
 
 @pytest.fixture
-def gitlab_repo(tmp_path):
+def gitlab_repo(tmp_path, monkeypatch):
     """Create a minimal GitLab repository."""
     repo = Repo.init(tmp_path)
     repo.create_remote("origin", "https://gitlab.com/test/repo.git")
@@ -37,13 +35,13 @@ def gitlab_repo(tmp_path):
     repo.index.add(["README.md"])
     repo.index.commit("Initial commit")
 
-    os.chdir(tmp_path)
+    monkeypatch.chdir(tmp_path)
     yield repo
 
 
 def test_deploy_github_creates_workflow_files(github_repo, monkeypatch):
-    bootstrap()
     """Deploying to GitHub creates expected workflow files."""
+    bootstrap()
     monkeypatch.setattr("builtins.input", lambda _: "")
 
     deploy(api_type="anthropic", commit=False, model='claude-opus-4-5')
@@ -57,8 +55,8 @@ def test_deploy_github_creates_workflow_files(github_repo, monkeypatch):
 
 
 def test_deploy_gitlab_creates_workflow_files(gitlab_repo, monkeypatch):
-    bootstrap()
     """Deploying to GitLab creates expected workflow files."""
+    bootstrap()
     monkeypatch.setattr("builtins.input", lambda _: "")
 
     deploy(api_type="anthropic", commit=False, model='claude-opus-4-5')
@@ -75,8 +73,8 @@ def test_deploy_gitlab_creates_workflow_files(gitlab_repo, monkeypatch):
 
 
 def test_deploy_does_not_overwrite_existing(github_repo, monkeypatch):
-    bootstrap()
     """Deploying fails if workflow already exists (without --rewrite)."""
+    bootstrap()
     monkeypatch.setattr("builtins.input", lambda _: "")
 
     # First deploy
@@ -89,8 +87,8 @@ def test_deploy_does_not_overwrite_existing(github_repo, monkeypatch):
 
 
 def test_deploy_rewrite_overwrites_existing(github_repo, monkeypatch):
-    bootstrap()
     """Deploying with --rewrite replaces existing workflow."""
+    bootstrap()
     monkeypatch.setattr("builtins.input", lambda _: "")
 
     deploy(api_type="anthropic", commit=False, model='claude-opus-4-5')
