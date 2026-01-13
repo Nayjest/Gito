@@ -168,6 +168,10 @@ pip install gito.bot
 > **Troubleshooting:**  
 > pip may also be available via cli as `pip3` depending on your Python installation.
 
+To install from repository source / specific branch:
+```bash
+pip install git+https://github.com/Nayjest/Gito.git@<branch-or-tag>
+```
 #### Option B: Windows Standalone Installer
 
 Download the latest Windows installer from [Releases](https://github.com/Nayjest/Gito/releases).
