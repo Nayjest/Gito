@@ -163,9 +163,10 @@ def collapse_gl_outdated_cr_comments(
 def post_gitlab_cr_comment(
     md_report_file: str = typer.Option(
         default=None,
-        help=
-        "Path to the markdown review file. "
-        "Gito's standard report file will be used by default.",
+        help=(
+            "Path to the markdown review file. "
+            "Gito's standard report file will be used by default."
+        ),
     ),
     project_id: str = typer.Option(
         default=None, help="GitLab project ID (numeric) or URL-encoded path"
