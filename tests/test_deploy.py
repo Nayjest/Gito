@@ -46,7 +46,7 @@ def test_deploy_github_creates_workflow_files(github_repo, monkeypatch):
     monkeypatch.setattr("builtins.input", lambda _: "")
     monkeypatch.setattr(
         "gito.commands.deploy.identify_git_provider",
-        lambda _: GitProvider.GITLAB
+        lambda _: GitProvider.GITHUB
     )
 
     deploy(api_type="anthropic", commit=False, model='claude-opus-4-5')
@@ -63,6 +63,10 @@ def test_deploy_gitlab_creates_workflow_files(gitlab_repo, monkeypatch):
     """Deploying to GitLab creates expected workflow files."""
     bootstrap()
     monkeypatch.setattr("builtins.input", lambda _: "")
+    monkeypatch.setattr(
+        "gito.commands.deploy.identify_git_provider",
+        lambda _: GitProvider.GITLAB
+    )
 
     deploy(api_type="anthropic", commit=False, model='claude-opus-4-5')
 
