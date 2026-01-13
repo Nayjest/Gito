@@ -1,9 +1,11 @@
 import logging
 import os
+from itertools import chain
 from time import sleep
 
 import typer
 from ghapi.core import GhApi
+from ghapi.page import paged
 
 from ..cli_base import app
 from ..constants import GITHUB_MD_REPORT_FILE_NAME, HTML_CR_COMMENT_MARKER
@@ -92,7 +94,7 @@ def collapse_gh_outdated_cr_comments(
     owner, repo = gh_repository.split('/')
     api = GhApi(owner, repo, token=token)
 
-    comments = api.issues.list_comments(pr_or_issue_number)
+    comments = list(chain.from_iterable(paged(api.issues.list_comments, pr_or_issue_number)))
     review_marker = HTML_CR_COMMENT_MARKER
     collapsed_title = "🗑️ Outdated Code Review by Gito"
     collapsed_marker = f"<summary>{collapsed_title}</summary>"
