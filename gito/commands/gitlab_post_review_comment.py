@@ -159,8 +159,12 @@ def collapse_gl_outdated_cr_comments(
 
 
 @app.command(name="gitlab-comment", help="Leave a GitLab MR comment with the review.")
+@app.command(name="post-gitlab-comment", hidden=True)
 def post_gitlab_cr_comment(
-    md_report_file: str = typer.Option(default=None),
+    md_report_file: str = typer.Option(
+        default=None,
+        help="Path to the markdown review file. Gito's standard report file will be used by default.",
+    ),
     project_id: str = typer.Option(
         default=None, help="GitLab project ID (numeric) or URL-encoded path"
     ),
@@ -174,6 +178,9 @@ def post_gitlab_cr_comment(
 ):
     """
     Leaves a comment with the review on the current GitLab merge request.
+
+    Requires a Project Access Token with 'api' scope.
+    The default $CI_JOB_TOKEN does not have write access to merge requests.
 
     Examples:
       ```bash
