@@ -113,7 +113,7 @@ def collapse_gh_outdated_cr_comments(
     if not outdated_comments:
         logging.info("No outdated comments found.")
         return 0
-    errors_qty = 0
+    collapsed_qty = 0
     for comment in outdated_comments:
         logging.info(f"Collapsing comment {comment.id}...")
         new_body = f"<details>\n<summary>{collapsed_title}</summary>\n\n{comment.body}\n</details>"
@@ -123,13 +123,10 @@ def collapse_gh_outdated_cr_comments(
             collapsed = True
         except Exception as e:
             logging.error(f"Failed to collapse comment body {comment.id}: {e}")
-            errors_qty += 1
-        if not hide_gh_comment(comment.node_id, token):
+        if hide_gh_comment(comment.node_id, token):
+            if collapsed:
+                collapsed_qty += 1
+        else:
             logging.error(f"Failed to hide comment {comment.id} via GraphQL API.")
-            errors_qty += (1 if collapsed else 0)
-    processed_qty = len(outdated_comments) - errors_qty
-    logging.info(
-        "%s outdated comments collapsed successfully.",
-        processed_qty
-    )
-    return processed_qty
+    logging.info("%s outdated comments collapsed successfully.",collapsed_qty)
+    return collapsed_qty
