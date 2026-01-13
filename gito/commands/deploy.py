@@ -1,4 +1,24 @@
-"""Deploy Gito to repository's CI pipeline for automatic code reviews."""
+"""
+Gito CI Deployment
+
+Generates and deploys CI workflow files for automatic AI-powered code reviews.
+
+Supported platforms:
+  - GitHub Actions (.github/workflows/)
+  - GitLab CI (.gitlab/ci/)
+
+The command:
+  1. Detects your Git provider (GitHub/GitLab)
+  2. Prompts for LLM configuration (provider, model)
+  3. Creates workflow files from templates
+  4. Optionally commits and pushes to a dedicated branch
+  5. Provides instructions for secrets setup
+
+Usage:
+  gito deploy [--api-type TYPE] [--commit] [--rewrite] [--to-branch NAME]
+
+Aliases: init, connect, ci
+"""
 import logging
 from pathlib import Path
 
@@ -16,11 +36,18 @@ from ..gh_api import gh_api
 from ..identify_git_provider import identify_git_provider, GitProvider
 from ..utils.package_metadata import version
 from ..utils.github import get_gh_create_pr_link, get_gh_secrets_link
-from ..utils.gitlab import get_gitlab_create_mr_link, get_gitlab_secrets_link
+from ..utils.gitlab import (
+    get_gitlab_create_mr_link,
+    get_gitlab_secrets_link,
+    get_gitlab_access_tokens_link,
+)
 from ..utils.git import get_cwd_repo_or_fail
 
 
-def merge_gitlab_configs(file: Path, vars: dict):  # vars reserved for future use / other merges
+def merge_gitlab_configs(
+    file: Path,
+    vars: dict  # vars reserved for future use / other merges
+) -> str:
     """Merge GitLab CI configuration files."""
     # Read existing config or start with empty dict
     if file.exists():
@@ -54,9 +81,7 @@ def merge_gitlab_configs(file: Path, vars: dict):  # vars reserved for future us
     if not include_exists:
         config['include'].append(new_include)
 
-    content = yaml.dump(config, default_flow_style=False, sort_keys=False, indent=2)
-    with open(file, 'w') as f:
-        f.write(content)
+    return yaml.dump(config, default_flow_style=False, sort_keys=False, indent=2)
 
 
 GIT_PROVIDER_WORKFLOWS = {
@@ -126,7 +151,7 @@ def deploy(
     for file_config in workflow_files.values():
         file = file_config["path"]
         if file.exists():
-            message = f"Gito CI workflow already exists at {utils.file_link(file)}."
+            message = f"Gito CI workflow already exists at {utils.file_link(file)}"
             if rewrite:
                 ui.warning(message)
             else:
@@ -155,13 +180,13 @@ def deploy(
         if file.exists() and "merge_function" in file_config:
             ui.warning("Merging Gito CI workflow into existing file:", utils.file_link(file))
             merge_function = file_config["merge_function"]
-            merge_function(file, vars=template_vars)
+            content = merge_function(file, vars=template_vars)
         else:
             template: str = file_config["template"]
             content = mc.tpl(template, **template_vars)
-            if not content.endswith("\n"):
-                content = content.rstrip() + "\n"
-            file.write_text(content)
+        if not content.endswith("\n"):
+            content = content.rstrip() + "\n"
+        file.write_text(content, encoding='utf-8')
         created_files.append(file)
     print(
         mc.ui.green("Gito CI workflows have been created.\n"),
@@ -170,73 +195,68 @@ def deploy(
 
     # commit and push
     ui.warning('[!] Please review created files before proceeding.')
-    if commit is True or commit is None and mc.ui.ask_yn(
+
+    need_to_commit = commit is True or commit is None and mc.ui.ask_yn(
         f"Commit & push CI workflows to a {mc.ui.green(to_branch)} branch?"
-    ):
-        repo.git.add([str(file) for file in created_files])
+    )
+    if need_to_commit:
         if not repo.active_branch.name.startswith(to_branch):
             repo.git.checkout("-b", to_branch)
-        try:
-            repo.git.commit("-m", "Add Gito CI workflows")
-        except GitCommandError as e:
-            if "nothing added" in str(e):
-                ui.warning("Failed to commit changes: nothing was added")
-            else:
-                ui.error(f"Failed to commit changes: {e}")
-                return False
-
-        repo.git.push("origin", to_branch)
-        print(f"Changes pushed to {ui.green(to_branch)} branch.")
-        if provider == GitProvider.GITHUB:
-            try:
-                api = gh_api(repo=repo, token=token)
-                base = get_base_branch(repo).split('/')[-1]
-                logging.info(f"Creating PR {ui.green(to_branch)} -> {ui.yellow(base)}...")
-                res = api.pulls.create(
-                    head=to_branch,
-                    base=base,
-                    title="Add Gito CI workflows",
-                )
-                print(f"Pull request #{res.number} created successfully:\n{res.html_url}")
-            except Exception as e:
-                mc.ui.error(f"Failed to create pull request automatically: {e}")
-                create_pr_link = get_gh_create_pr_link(repo, to_branch)
-                if create_pr_link:
-                    details = f":\n[link]{create_pr_link}[/link]"
+        repo.git.add([str(file) for file in created_files])
+        is_committed = _try_commit_workflow_changes(repo)
+        if is_committed:
+            is_pushed = _try_push_branch(repo, to_branch)
+            if is_pushed:
+                if provider == GitProvider.GITHUB:
+                    try:
+                        api = gh_api(repo=repo, token=token)
+                        base = get_base_branch(repo).split('/')[-1]
+                        logging.info(f"Creating PR {ui.green(to_branch)} -> {ui.yellow(base)}...")
+                        res = api.pulls.create(
+                            head=to_branch,
+                            base=base,
+                            title="Add Gito CI workflows",
+                        )
+                        print(f"Pull request #{res.number} created successfully:\n{res.html_url}")
+                    except Exception as e:
+                        mc.ui.error(f"Failed to create pull request automatically: {e}")
+                        create_pr_link = get_gh_create_pr_link(repo, to_branch)
+                        if create_pr_link:
+                            details = f":\n[link]{create_pr_link}[/link]"
+                        else:
+                            details = "."
+                        console.print(Panel(
+                            title="Next step",
+                            renderable=(
+                                f"Please create a PR from '{to_branch}' "
+                                f"to your main branch and merge it{details}"
+                            ),
+                            border_style="yellow",
+                            expand=False,
+                        ))
+                elif provider == GitProvider.GITLAB:
+                    create_pr_link = get_gitlab_create_mr_link(repo, to_branch)
+                    if create_pr_link:
+                        details = f":\n[link]{create_pr_link}[/link]"
+                    else:
+                        details = "."
+                    console.print(Panel(
+                        title="Next step",
+                        renderable=(
+                            f"Please create a Merge Request from branch '{to_branch}' "
+                            f"to your main branch and merge it{details}"
+                        ),
+                        border_style="yellow",
+                        expand=False,
+                    ))
                 else:
-                    details = "."
-                console.print(Panel(
-                    title="Next step",
-                    renderable=(
-                        f"Please create a PR from '{to_branch}' "
-                        f"to your main branch and merge it{details}"
-                    ),
-                    border_style="yellow",
-                    expand=False,
-                ))
-        elif provider == GitProvider.GITLAB:
-            create_pr_link = get_gitlab_create_mr_link(repo, to_branch)
-            if create_pr_link:
-                details = f":\n[link]{create_pr_link}[/link]"
-            else:
-                details = "."
-            console.print(Panel(
-                title="Next step",
-                renderable=(
-                    f"Please create a Merge Request from branch '{to_branch}' "
-                    f"to your main branch and merge it{details}"
-                ),
-                border_style="yellow",
-                expand=False,
-            ))
-        else:
-            console.print(Panel(
-                title="Next step",
-                renderable=f"Please merge branch named '{to_branch}' to your main branch.",
-                border_style="yellow",
-                expand=False,
-            ))
-    else:
+                    console.print(Panel(
+                        title="Next step",
+                        renderable=f"Please merge branch named '{to_branch}' to your main branch.",
+                        border_style="yellow",
+                        expand=False,
+                    ))
+    if not need_to_commit or not is_committed:
         console.print(Panel(
             title="Next step: Deliver CI workflows to the repository",
             renderable=(
@@ -247,43 +267,49 @@ def deploy(
             expand=False,
         ))
 
-    details = ""
-    if provider == GitProvider.GITHUB:
-        if secrets_url := get_gh_secrets_link(repo):
-            details = f"\n\nAdd it here:  [link]{secrets_url}[/link]"
-    elif provider == GitProvider.GITLAB:
-        details = (
-            "\n\nAdd it in your GitLab project settings under "
-            "Settings -> CI/CD -> Variables."
-        )
-        if secrets_url := get_gitlab_secrets_link(repo):
-            details += f"\n[link]{secrets_url}[/link]"
-    console.print(Panel(
-        title="Final step: Add your LLM API key to repository secrets",
-        renderable=(
-            f"[bold yellow]Required[/bold yellow]\n"
-            f"  {secret_name}\n"
-            f"\n"
-            f"[bold dim]Optional — Issue trackers[/bold dim]\n"
-            f"  LINEAR_API_KEY, JIRA_URL, JIRA_USER, JIRA_TOKEN{details}"
-        ),
-        border_style="green",
-        expand=False,
-    ))
-    if provider == GitProvider.GITLAB:
-        console.print(Panel(
-            title="Variable Settings",
-            renderable=(
-                "☑ Mask variable   ☐ Protect variable (uncheck, or MRs won't have access)\n"
-                "\n"
-                "Public repos: enable \"Require approval\" for fork pipelines in CI/CD settings."
-                "\n"
-                "Docs: [link]https://docs.gitlab.com/ci/variables/[/link]"
-            ),
-            border_style="yellow",
-            expand=False,
+    _show_create_secrets_instructions(console, provider, repo, secret_name)
+
+
+def _try_commit_workflow_changes(repo: Repo) -> bool:
+    """
+    Try to commit workflow changes.
+    Prints success or error message.
+    Args:
+        repo (Repo): Git repository.
+    Returns:
+        bool: True if commit was successful, False otherwise.
+    """
+    try:
+        repo.git.commit("-m", "Add Gito CI workflows")
+        print(ui.green("Changes was committed."))
+        return True
+    except GitCommandError as e:
+        if "nothing added" in str(e):
+            ui.error("Failed to commit changes: nothing was added")
+        else:
+            ui.error(f"Failed to commit changes: {e}")
+        return False
+
+
+def _try_push_branch(repo: Repo, branch: str) -> bool:
+    """
+    Try to push branch to origin.
+    Prints success or error message.
+    Args:
+        repo (Repo): Git repository.
+        branch (str): Branch name.
+    Returns:
+        bool: True if push was successful, False otherwise.
+    """
+    try:
+        repo.git.push("origin", branch)
+        print(ui.green(
+            f"Changes pushed to {ui.bright}{ui.white}{branch}{ui.reset}{ui.green} branch."
         ))
-    return True
+        return True
+    except GitCommandError as e:
+        ui.error(f"Failed to push changes: {e}")
+        return False
 
 
 def _configure_llm(api_type: str | ApiType | None) -> tuple[ApiType, str, str]:
@@ -345,3 +371,59 @@ def _configure_llm(api_type: str | ApiType | None) -> tuple[ApiType, str, str]:
         )
 
     return api_type, secret_names[api_type], model
+
+
+def _show_create_secrets_instructions(
+    console: Console,
+    provider: GitProvider,
+    repo: Repo,
+    secret_name: str
+):
+    """Show instructions to create secrets in the repository."""
+    details = ""
+    secrets = f"  {secret_name}\n"
+    title = "Add your LLM API key to repository secrets"
+    if provider == GitProvider.GITHUB:
+        if secrets_url := get_gh_secrets_link(repo):
+            details = f"\n\nAdd it here:  [link]{secrets_url}[/link]"
+    elif provider == GitProvider.GITLAB:
+        title = "Add LLM API key and GitLab access token to CI/CD variables"
+        details = (
+            "\n\nAdd it in your GitLab project settings under "
+            "Settings → CI/CD → Variables."
+        )
+        if secrets_url := get_gitlab_secrets_link(repo):
+            details += f"\n[link]{secrets_url}[/link]"
+        secrets += (
+            "  GITLAB_ACCESS_TOKEN [dim]— Project Access Token with 'api' scope\n"
+            "    Create: Settings → Access Tokens[/dim]\n"
+        )
+        if manage_tokens_url := get_gitlab_access_tokens_link(repo):
+            secrets += f"    [link]{manage_tokens_url}[/link]\n"
+
+    console.print(Panel(
+        title=f"Final step: {title}",
+        renderable=(
+            f"[bold yellow]Required[/bold yellow]\n"
+            f"{secrets}"
+            f"\n"
+            f"[bold dim]Optional — Issue trackers[/bold dim]\n"
+            f"  LINEAR_API_KEY, JIRA_URL, JIRA_USER, JIRA_TOKEN{details}"
+        ),
+        border_style="green",
+        expand=False,
+    ))
+    if provider == GitProvider.GITLAB:
+        console.print(Panel(
+            title="Variable Settings",
+            renderable=(
+                "☑ Mask variable   ☐ Protect variable (uncheck, or MRs won't have access)\n"
+                "\n"
+                "Public repos: enable \"Require approval\" for fork pipelines"
+                " in CI/CD settings to prevent secret leaks."
+                "\n"
+                "Docs: [link]https://docs.gitlab.com/ci/variables/[/link]"
+            ),
+            border_style="yellow",
+            expand=False,
+        ))

@@ -46,12 +46,29 @@ def get_gitlab_create_mr_link(repo: git.Repo, branch: str) -> Optional[str]:
         return None
 
 
-def get_gitlab_secrets_link(repo: git.Repo) -> Optional[str]:
+def get_gitlab_repo_url(repo: git.Repo, url_path: str = "") -> Optional[str]:
     """
-    Return a GitLab URL to manage secrets.
+    Return the GitLab repository URL.
+    Returns None in case of error.
     """
     try:
         owner, repo_name = extract_gitlab_owner_repo(repo)
-        return f"https://gitlab.com/{owner}/{repo_name}/-/settings/ci_cd#js-cicd-variables-settings"
+        return f"https://gitlab.com/{owner}/{repo_name}" + url_path if url_path else ""
     except ValueError:
         return None
+
+
+def get_gitlab_secrets_link(repo: git.Repo) -> Optional[str]:
+    """
+    Return a GitLab URL to manage secrets.
+    Returns None in case of error.
+    """
+    return get_gitlab_repo_url(repo, "/-/settings/ci_cd#js-cicd-variables-settings")
+
+
+def get_gitlab_access_tokens_link(repo: git.Repo) -> Optional[str]:
+    """
+    Return a GitLab URL to create an access token.
+    Returns None in case of error.
+    """
+    return get_gitlab_repo_url(repo, "/-/settings/access_tokens")
