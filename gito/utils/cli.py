@@ -4,15 +4,15 @@ from typing import Optional, Callable
 import typer
 
 
-def make_streaming_function(handler: Optional[callable] = None) -> Callable:
+def make_streaming_function(handler: Optional[Callable] = None) -> Callable:
     """
     Create a streaming function that processes text chunks using an optional handler.
     Used as callback for streaming LLM responses.
     Args:
-        handler (callable, optional): A function to process each text chunk before printing.
+        handler (Callable, optional): A function to process each text chunk before printing.
             If None, the text chunk is printed as is.
     Returns:
-        callable: A function that takes a text chunk and processes it.
+        Callable: A function that takes a text chunk and processes it.
     """
     def stream(text):
         if handler:
