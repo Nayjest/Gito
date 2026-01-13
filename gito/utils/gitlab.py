@@ -53,7 +53,7 @@ def get_gitlab_repo_url(repo: git.Repo, url_path: str = "") -> Optional[str]:
     """
     try:
         owner, repo_name = extract_gitlab_owner_repo(repo)
-        return f"https://gitlab.com/{owner}/{repo_name}" + url_path if url_path else ""
+        return f"https://gitlab.com/{owner}/{repo_name}" + (url_path if url_path else "")
     except ValueError:
         return None
 
