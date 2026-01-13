@@ -20,7 +20,7 @@ from ..utils.gitlab import get_gitlab_create_mr_link, get_gitlab_secrets_link
 from ..utils.git import get_cwd_repo_or_fail
 
 
-def merge_gitlab_configs(file: Path, vars: dict):
+def merge_gitlab_configs(file: Path, vars: dict):  # vars reserved for future use / other merges
     """Merge GitLab CI configuration files."""
     # Read existing config or start with empty dict
     if file.exists():
@@ -46,8 +46,8 @@ def merge_gitlab_configs(file: Path, vars: dict):
     # Check if the local include already exists
     new_include = {'local': '.gitlab/ci/gito-code-review.yml'}
     include_exists = any(
-        'gito-code-review.yml' in str(item.get('local'))
-        if isinstance(item, dict) else 'gito-code-review.yml' in str(item)
+        'gito-code-review.yml' in str(item.get('local', ''))
+        if isinstance(item, dict) else 'gito-code-review.yml' in str(item or '')
         for item in config['include']
     )
 
@@ -253,8 +253,8 @@ def deploy(
             details = f"\n\nAdd it here:  [link]{secrets_url}[/link]"
     elif provider == GitProvider.GITLAB:
         details = (
-            "\n\nAdd it in your GitLab project settings under"
-            "\nSettings -> CI/CD -> Variables."
+            "\n\nAdd it in your GitLab project settings under "
+            "Settings -> CI/CD -> Variables."
         )
         if secrets_url := get_gitlab_secrets_link(repo):
             details += f"\n[link]{secrets_url}[/link]"
@@ -270,6 +270,19 @@ def deploy(
         border_style="green",
         expand=False,
     ))
+    if provider == GitProvider.GITLAB:
+        console.print(Panel(
+            title="Variable Settings",
+            renderable=(
+                "☑ Mask variable   ☐ Protect variable (uncheck, or MRs won't have access)\n"
+                "\n"
+                "Public repos: enable \"Require approval\" for fork pipelines in CI/CD settings."
+                "\n"
+                "Docs: [link]https://docs.gitlab.com/ci/variables/[/link]"
+            ),
+            border_style="yellow",
+            expand=False,
+        ))
     return True
 
 
