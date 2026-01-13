@@ -83,10 +83,18 @@ def post_github_cr_comment(
 def collapse_gh_outdated_cr_comments(
     gh_repository: str,
     pr_or_issue_number: int,
-    token: str = None
-):
+    token: str = None,
+) -> int:
     """
-    Collapse outdated code review comments in a GitHub pull request or issue.
+    Collapse outdated code review comments in a GitHub pull request.
+
+    Args:
+        gh_repository: Repository in 'owner/repo' format.
+        pr_or_issue_number: PR or issue number.
+        token: GitHub token (uses GITHUB_TOKEN env var if not provided).
+
+    Returns:
+        Number of comments collapsed.
     """
     logging.info(f"Collapsing outdated comments in {gh_repository} #{pr_or_issue_number}...")
 
@@ -103,11 +111,25 @@ def collapse_gh_outdated_cr_comments(
         if c.body and review_marker in c.body and collapsed_marker not in c.body
     ][:-1]
     if not outdated_comments:
-        logging.info("No outdated comments found")
-        return
+        logging.info("No outdated comments found.")
+        return 0
+    errors_qty = 0
     for comment in outdated_comments:
         logging.info(f"Collapsing comment {comment.id}...")
         new_body = f"<details>\n<summary>{collapsed_title}</summary>\n\n{comment.body}\n</details>"
-        api.issues.update_comment(comment.id, new_body)
-        hide_gh_comment(comment.node_id, token)
-    logging.info("All outdated comments collapsed successfully.")
+        collapsed = False
+        try:
+            api.issues.update_comment(comment.id, new_body)
+            collapsed = True
+        except Exception as e:
+            logging.error(f"Failed to collapse comment body {comment.id}: {e}")
+            errors_qty += 1
+        if not hide_gh_comment(comment.node_id, token):
+            logging.error(f"Failed to hide comment {comment.id} via GraphQL API.")
+            errors_qty += (1 if collapsed else 0)
+    processed_qty = len(outdated_comments) - errors_qty
+    logging.info(
+        "%s outdated comments collapsed successfully.",
+        processed_qty
+    )
+    return processed_qty
