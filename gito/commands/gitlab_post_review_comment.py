@@ -8,18 +8,35 @@ from typing import List, Dict, Optional
 
 import requests
 import typer
+from microcore import ui
 
 from ..cli_base import app
 from ..constants import GITHUB_MD_REPORT_FILE_NAME, HTML_CR_COMMENT_MARKER
 from ..project_config import ProjectConfig
+from ..utils.gitlab import is_running_in_gitlab_ci
 
 
 def resolve_gl_token(token: str | None) -> Optional[str]:
     """Resolve GitLab access token from CLI flag or env var."""
-    token = (token or "").strip()
-    if token:
+    return (token or "").strip() or os.getenv("GITLAB_ACCESS_TOKEN") or os.getenv("GITLAB_TOKEN")
+
+
+def require_gl_token(token: str | None) -> str:
+    """Resolve GitLab access token from CLI flag or env var, or exit."""
+    if token := resolve_gl_token(token):
         return token
-    return os.getenv("GITLAB_ACCESS_TOKEN")
+    hint = (
+        "Add it to CI/CD variables (Settings → CI/CD → Variables)."
+        if is_running_in_gitlab_ci()
+        else "Pass --token or set GITLAB_ACCESS_TOKEN env var."
+    )
+    ui.error(
+        f"GitLab access token is required.\n"
+        f"{hint}\n"
+        "Create a Project Access Token (role: Reporter, scope: api) at:\n"
+        "Settings → Access Tokens"
+    )
+    raise typer.Exit(1)
 
 
 def _gl_base_url(base_url: Optional[str]) -> str:
@@ -125,11 +142,7 @@ def collapse_gl_outdated_cr_comments(
         project_id,
         merge_request_iid,
     )
-
-    token = resolve_gl_token(token)
-    if not token:
-        logging.error("GitLab token is required to collapse comments.")
-        return
+    token = require_gl_token(token)
 
     notes = list_gl_mr_notes(project_id, merge_request_iid, token, base_url)
 
@@ -201,10 +214,7 @@ def post_gitlab_cr_comment(
     with open(file, "r", encoding="utf-8") as f:
         body = f.read()
 
-    token = resolve_gl_token(token)
-    if not token:
-        print("GitLab token is required (--token or GITLAB_ACCESS_TOKEN env var).")
-        raise typer.Exit(1)
+    token = require_gl_token(token)
 
     # Resolve project and MR IID from flags or common CI env vars
     project_id = project_id or os.getenv("CI_PROJECT_ID")
