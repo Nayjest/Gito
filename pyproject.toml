@@ -56,10 +56,10 @@ packages = [
 "Bug Tracker" = "https://github.com/Nayjest/Gito/issues"
 [tool.poetry.dependencies]
 python = "^3.11"
-ai-microcore = ">=4.6.3,<5"
+ai-microcore = "5.0.0.dev5"
 GitPython = "^3.1.44"
 unidiff = "^0.7.5"
-google-generativeai = "^0.8.5"
+google-genai = "~1.56.0"
 anthropic = ">=0.57.1,<1"
 typer = ">=0.16.0,<0.22"
 ghapi = "~=1.0.8"

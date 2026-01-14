@@ -338,7 +338,7 @@ def _configure_llm(
     api_types = {
         ApiType.ANTHROPIC: "Anthropic",
         ApiType.OPEN_AI: "OpenAI",
-        ApiType.GOOGLE_AI_STUDIO: "Google",
+        ApiType.GOOGLE: "Google",
     }
     model_proposals = {
         ApiType.ANTHROPIC: {
@@ -352,7 +352,7 @@ def _configure_llm(
             "gpt-5": "GPT-5",
             "gpt-5-mini": "GPT-5 Mini",
         },
-        ApiType.GOOGLE_AI_STUDIO: {
+        ApiType.GOOGLE: {
             "gemini-2.5-pro": "Gemini 2.5 Pro",
             "gemini-2.5-flash": "Gemini 2.5 Flash",
             "gemini-3-pro-preview": f"Gemini 3 Pro Preview {ui.dim}(rate limited)",
@@ -376,12 +376,12 @@ def _configure_llm(
     secret_names = {
         ApiType.ANTHROPIC: "ANTHROPIC_API_KEY",
         ApiType.OPEN_AI: "OPENAI_API_KEY",
-        ApiType.GOOGLE_AI_STUDIO: "GOOGLE_API_KEY",
+        ApiType.GOOGLE: "GOOGLE_API_KEY",
     }
     default_models = {
         ApiType.ANTHROPIC: "claude-sonnet-4-5",
         ApiType.OPEN_AI: "gpt-5.2",
-        ApiType.GOOGLE_AI_STUDIO: "gemini-2.5-pro",
+        ApiType.GOOGLE: "gemini-2.5-pro",
     }
     use_default_model = model == "default"
     if not model or use_default_model:
