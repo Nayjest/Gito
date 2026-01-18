@@ -111,7 +111,7 @@ $ gito init [OPTIONS]
 
 **Options**:
 
-* `--api-type [open_ai|azure|anyscale|deep_infra|anthropic|google_vertex_ai|google_ai_studio|function|transformers|none]`
+* `--api-type [openai|azure|anyscale|deep_infra|anthropic|google_vertex_ai|google_ai_studio|function|transformers|none]`
 * `--commit / --no-commit`
 * `--rewrite / --no-rewrite`: [default: no-rewrite]
 * `--to-branch TEXT`: Branch name for new PR containing with Gito workflows commit  [default: gito_deploy]
@@ -131,7 +131,7 @@ $ gito deploy [OPTIONS]
 
 **Options**:
 
-* `--api-type [open_ai|azure|anyscale|deep_infra|anthropic|google_vertex_ai|google_ai_studio|function|transformers|none]`
+* `--api-type [openai|azure|anyscale|deep_infra|anthropic|google_vertex_ai|google_ai_studio|function|transformers|none]`
 * `--commit / --no-commit`
 * `--rewrite / --no-rewrite`: [default: no-rewrite]
 * `--to-branch TEXT`: Branch name for new PR containing with Gito workflows commit  [default: gito_deploy]

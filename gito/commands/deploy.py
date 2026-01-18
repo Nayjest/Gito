@@ -360,7 +360,7 @@ def _configure_llm(
     """
     api_types = {
         ApiType.ANTHROPIC: "Anthropic",
-        ApiType.OPEN_AI: "OpenAI",
+        ApiType.OPENAI: "OpenAI",
         ApiType.GOOGLE: "Google",
     }
     model_proposals = {
@@ -369,7 +369,7 @@ def _configure_llm(
             "claude-sonnet-4-5": f"Claude Sonnet 4.5 {ui.dim}(balanced)",
             "claude-haiku-4-5": f"Claude Haiku 4.5 {ui.dim}(cheapest but less capable)",
         },
-        ApiType.OPEN_AI: {
+        ApiType.OPENAI: {
             "gpt-5.2": f"GPT-5.2 {ui.dim} (recommended)",
             "gpt-5.1": "GPT-5.1",
             "gpt-5": "GPT-5",
@@ -392,18 +392,18 @@ def _configure_llm(
         orig_value = api_type
         api_type = str(api_type).lower()
         if api_type == "openai":
-            api_type = ApiType.OPEN_AI
+            api_type = ApiType.OPENAI
         if api_type not in api_types:
             ui.error(f"Unsupported API type: {orig_value}")
             raise typer.Exit(2)
     secret_names = {
         ApiType.ANTHROPIC: "ANTHROPIC_API_KEY",
-        ApiType.OPEN_AI: "OPENAI_API_KEY",
+        ApiType.OPENAI: "OPENAI_API_KEY",
         ApiType.GOOGLE: "GOOGLE_API_KEY",
     }
     default_models = {
         ApiType.ANTHROPIC: "claude-sonnet-4-5",
-        ApiType.OPEN_AI: "gpt-5.2",
+        ApiType.OPENAI: "gpt-5.2",
         ApiType.GOOGLE: "gemini-2.5-pro",
     }
     use_default_model = model == "default"
