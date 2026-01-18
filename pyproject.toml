@@ -65,6 +65,9 @@ typer = ">=0.16.0,<0.22"
 ghapi = "~=1.0.8"
 jira = "^3.10.5"
 pydantic = "^2.12.5"
+# fastcore dependency is fixed becasue 1.12+ does not work in python 3.11, used by ghapi
+# https://github.com/AnswerDotAI/fastcore/pull/752
+fastcore= "~=1.11.3"
 
 [tool.poetry.group.dev.dependencies]
 flake8 = "*"

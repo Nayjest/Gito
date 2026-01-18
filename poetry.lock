@@ -1023,14 +1023,14 @@ valkey = ["valkey (>=6) ; python_version >= \"3.8\""]
 
 [[package]]
 name = "fastcore"
-version = "1.12.2"
+version = "1.11.5"
 description = "Python supercharged for fastai development"
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "fastcore-1.12.2-py3-none-any.whl", hash = "sha256:11fccdc9dc0a13a0d15f6b63bed3f45e6bc8ab73458f8795300d2bd8e35d8ba6"},
-    {file = "fastcore-1.12.2.tar.gz", hash = "sha256:01c0c9e19cd0c3cb7a208311d2826da3f0269babc32bd9aa21c7b7976ad5626e"},
+    {file = "fastcore-1.11.5-py3-none-any.whl", hash = "sha256:832d3620f9bc30272666ff5908d14826e8dba3d43b318cc9e29941d8d60b3296"},
+    {file = "fastcore-1.11.5.tar.gz", hash = "sha256:e81d223417f820214a31b1fdb46845aa4ecd4c93a7de5d511f4b2d4ccc8e39c4"},
 ]
 
 [package.dependencies]
@@ -4462,4 +4462,4 @@ cffi = ["cffi (>=1.17,<2.0) ; platform_python_implementation != \"PyPy\" and pyt
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "d7ac3656419159e085576bc44478ed07939d01dfa430275ade2cd579fc50c6b4"
+content-hash = "93b8570e62e1abfb8477acf4b0c3cca5c52135a05d54a2c216cd62493edf00ad"
