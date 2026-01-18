@@ -28,7 +28,7 @@ from .cli_base import (
 from .report_struct import Report
 from .constants import HOME_ENV_PATH, GITHUB_MD_REPORT_FILE_NAME, REFS_VALUE_ALL
 from .bootstrap import bootstrap
-from .utils.cli import no_subcommand
+from .utils.cli import no_subcommand, logo
 from .utils.github import extract_gh_owner_repo
 from .utils.html import remove_html_comments
 from .identify_git_provider import GitProvider, identify_git_provider
@@ -240,6 +240,7 @@ def cmd_answer(
 
 @app.command(help="Configure LLM for local usage interactively.")
 def setup():
+    print(logo())
     mc.interactive_setup(HOME_ENV_PATH)
 
 

@@ -42,6 +42,7 @@ from ..utils.gitlab import (
     get_gitlab_access_tokens_link,
 )
 from ..utils.git import get_cwd_repo_or_fail
+from ..utils.cli import logo
 
 
 def merge_gitlab_configs(
@@ -109,6 +110,26 @@ GIT_PROVIDER_WORKFLOWS = {
 }
 
 
+def _show_intro(console: Console):
+    """Show introduction message for deploy command."""
+    def num(n):
+        return f"[green][dim][[/dim][{n:02d}][dim]][/dim][/green]"
+    console.print(Panel(
+        title="CI Setup",
+        renderable=(
+            " [bold]Wiring myself into pipel[/bold]ines...\n"
+            f" [green][dim]⟩[/dim]⟩⟩ INTEGRATION SEQUENCE ⟩⟩[dim]⟩[/dim] [/green] \n"
+            f" {num(1)} [bold]C[/bold]onfigure language model\n"
+            f" {num(2)} [bold]W[/bold]rite workflow files \n"
+            f" {num(3)} [bold]C[/bold]ommit [dim]&[/dim] push to dedicated branch "
+            f"[dim][[/dim]optional[dim]][/dim]       \n"  # trailing spaces to align with Logo
+            f" {num(4)} [bold]G[/bold]uide you through secrets configuration"
+        ),
+        border_style="green",
+        expand=False,
+    ))
+
+
 @app.command(
     name="deploy",
     help="\bCreate and deploy Gito workflows to your CI pipeline for automatic code reviews."
@@ -138,8 +159,10 @@ def deploy(
     )
 ) -> bool:
     """Deploy Gito to repository's CI pipeline for automatic code reviews."""
+    print(logo())
     repo: Repo = get_cwd_repo_or_fail()
     console = Console()
+    _show_intro(console)
 
     provider: GitProvider | None = identify_git_provider(repo)
     if not provider:
@@ -423,7 +446,8 @@ def _show_create_secrets_instructions(
         if secrets_url := get_gitlab_secrets_link(repo):
             details += f"\n[link]{secrets_url}[/link]"
         secrets += (
-            "  GITLAB_ACCESS_TOKEN [dim]— Project Access Token with 'api' scope\n"
+            "  GITLAB_ACCESS_TOKEN [dim]— Project Access Token "
+            "with 'api' scope and 'Reporter' role\n"
             "    Create: Settings → Access Tokens[/dim]\n"
         )
         if manage_tokens_url := get_gitlab_access_tokens_link(repo):
