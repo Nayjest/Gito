@@ -70,8 +70,9 @@ class Issue(RawIssue):
         )
         if self.affected_lines:
             url += f"#L{self.affected_lines[0].start_line}"
-            if self.affected_lines[0].end_line:
-                url += f"-L{self.affected_lines[0].end_line}"
+            # Currently GitHub does not support linking to a range of lines in a file :(
+            # if self.affected_lines[0].end_line:
+            #     url += f"-L{self.affected_lines[0].end_line}"
         return url
 
 
