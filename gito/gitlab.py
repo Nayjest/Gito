@@ -8,7 +8,7 @@ from .report_struct import Report
 
 GitLabSeverity = Literal["info", "minor", "major", "critical", "blocker"]
 
-SEVERITY_MAP: dict[str, GitLabSeverity] = {
+SEVERITY_MAP: dict[int, GitLabSeverity] = {
     5: "minor",  # from: Suggestion
     4: "minor",  # from: Trivial
     3: "minor",  # from: Minor
@@ -51,7 +51,7 @@ def convert_to_gitlab_code_quality_report(report: Report, **kwargs) -> str:
                 + (f":\n{issue.details}" if issue.details else "")
                 + (f"\n[Tags]: {', '.join(issue.tags)}" if issue.tags else "")
                 + (
-                    "[Proposed change]:\n"
+                    "\n[Proposed change]:"
                     f"\n```{line.syntax_hint}\n{line.proposal.strip()}\n```"
                     if line.proposal else ""
                 )

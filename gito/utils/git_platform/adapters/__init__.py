@@ -13,7 +13,7 @@ IMPLEMENTATIONS = {
 
 def get_platform_adapter(
     platform_type: PlatformType,
-    repo_or_base_url: str,
+    repo_or_base_url: git.Repo | str,
 ) -> BaseGitPlatform:
     """
     Factory function to get the appropriate Git platform adapter.
