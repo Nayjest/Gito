@@ -10,6 +10,7 @@
 mention_triggers = ["gito", "bot", "ai", "/fix"]
 # Collapse previous code review comments in the GitHub PR before posting new ones
 collapse_previous_code_review_comments = true
+report_template_gitlab_code_quality = "fn:gito.gitlab.convert_to_gitlab_code_quality_report"
 # Code review report template in Markdown format, used for GitHub PR comments.
 report_template_md = """
 <h2>{{ HTML_TEXT_ICON }}I've Reviewed the Code</h2>
@@ -34,7 +35,7 @@ report_template_md = """
         {%- if loop.last == false -%}, {%- endif -%}
         {%- endfor -%}
     {%- endif -%}
-    ]({{ issue.github_code_link(github_env) }})
+    ]({{ issue.code_link(report.target) }})
 
     {{"\n"}}{{ issue.details -}}
     {{"\n"}}**Tags: {{ ', '.join(issue.tags) }}**
@@ -271,10 +272,10 @@ answer_prompt = "tpl:answer.j2"
 aux_files = []
 [pipeline_steps.jira] # Jira integration step, fetches associated issue details for the review context.
 call="gito.pipeline_steps.jira.fetch_associated_issue"
-envs=["local","gh-action"]
+envs=["local","ci"]
 [pipeline_steps.linear] # Linear integration step, fetches associated issue details for the review context.
 call="gito.pipeline_steps.linear.fetch_associated_issue"
-envs=["local","gh-action"]
+envs=["local","ci"]
 [prompt_vars] # Additional variables to pass to prompts.
 self_id = """
 You are a subsystem of an AI-powered software platform, specifically tasked with performing expert code reviews.

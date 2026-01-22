@@ -1,3 +1,6 @@
+"""
+Constants used throughout the Gito project.
+"""
 from pathlib import Path
 from .env import Env
 

@@ -4,6 +4,8 @@ from dataclasses import field, asdict, is_dataclass
 from datetime import datetime
 from enum import StrEnum
 from pathlib import Path
+from typing import Optional
+from pkgutil import resolve_name
 
 import textwrap
 import microcore as mc
@@ -11,9 +13,42 @@ from microcore.utils import file_link
 from colorama import Fore, Style, Back
 from pydantic.dataclasses import dataclass
 
-from .constants import JSON_REPORT_FILE_NAME, HTML_TEXT_ICON, HTML_CR_COMMENT_MARKER
+from .constants import JSON_REPORT_FILE_NAME, HTML_TEXT_ICON, HTML_CR_COMMENT_MARKER, REFS_VALUE_ALL
 from .project_config import ProjectConfig
-from .utils import syntax_hint, block_wrap_lr, max_line_len, remove_html_comments, filter_kwargs
+from .utils.string import block_wrap_lr, max_line_len
+from .utils.html import remove_html_comments
+from .utils.python import filter_kwargs
+from .utils.markdown import syntax_hint
+from .utils.git_platform.platform_types import PlatformType
+from .utils.git_platform.adapters import (
+    get_platform_adapter,
+    BaseGitPlatform
+)
+
+
+@dataclass
+class ReviewTarget:
+    git_platform_type: Optional[PlatformType] = field(default=None)
+    repo_url: Optional[str] = field(default=None)
+    pull_request_id: Optional[str] = field(default=None)
+    what: Optional[str] = field(default=None)
+    against: Optional[str] = field(default=None)
+    commit_sha: Optional[str] = field(default=None)
+    filters: str | list[str] | None = field(default=None)
+    use_merge_base: bool = field(default=True)
+    active_branch: Optional[str] = field(default=None)
+
+    def is_full_codebase_review(self) -> bool:
+        return self.what == REFS_VALUE_ALL
+
+    def get_platform_adapter(self, raise_exceptions: bool = False) -> Optional[BaseGitPlatform]:
+        try:
+            return get_platform_adapter(self.git_platform_type, repo_or_base_url=self.repo_url)
+        except ValueError as e:
+            if raise_exceptions:
+                raise e
+            logging.warning(f"Could not get platform adapter: {e}")
+            return None
 
 
 @dataclass
@@ -21,13 +56,13 @@ class RawIssue:
     @dataclass
     class AffectedCode:
         start_line: int = field()
-        end_line: int | None = field(default=None)
-        proposal: str | None = field(default="")
+        end_line: Optional[int] = field(default=None)
+        proposal: Optional[str] = field(default="")
 
     title: str = field()
-    details: str | None = field(default="")
-    severity: int | None = field(default=None)
-    confidence: int | None = field(default=None)
+    details: Optional[str] = field(default="")
+    severity: Optional[int] = field(default=None)
+    confidence: Optional[int] = field(default=None)
     tags: list[str] = field(default_factory=list)
     affected_lines: list[AffectedCode] = field(default_factory=list)
 
@@ -59,17 +94,21 @@ class Issue(RawIssue):
             )
         return Issue(**params)
 
-    def github_code_link(self, github_env: dict) -> str:
-        url = (
-            f"https://github.com/{github_env['github_repo']}"
-            f"/blob/{github_env['github_pr_sha_or_branch']}"
-            f"/{self.file}"
-        )
-        if self.affected_lines:
-            url += f"#L{self.affected_lines[0].start_line}"
-            if self.affected_lines[0].end_line:
-                url += f"-L{self.affected_lines[0].end_line}"
-        return url
+    def code_link(self, review_target: Optional[ReviewTarget]) -> str:
+        """Generate a link to the affected code in the git platform."""
+        if not review_target:
+            return ""
+        if not (platform := review_target.get_platform_adapter(raise_exceptions=False)):
+            return ""
+        branch = review_target.active_branch or "main"
+        if platform.is_running_in_ci() and (ci_branch := platform.ci_src_branch()):
+            branch = ci_branch
+        return platform.file_url(
+            file=self.file,
+            branch=branch,
+            start_line=self.affected_lines[0].start_line if self.affected_lines else None,
+            end_line=self.affected_lines[0].end_line if self.affected_lines else None,
+        ) or ""
 
 
 @dataclass
@@ -86,6 +125,7 @@ class Report:
     class Format(StrEnum):
         MARKDOWN = "md"
         CLI = "cli"
+        GITLAB_QUALITY_REPORT = "gitlab_quality_report"
 
     issues: dict[str, list[Issue]] = field(default_factory=dict)
     summary: str = field(default="")
@@ -95,6 +135,7 @@ class Report:
     model: str = field(default_factory=lambda: mc.config().MODEL or "")
     pipeline_out: dict = field(default_factory=dict)
     processing_warnings: list[ProcessingWarning] = field(default_factory=list)
+    target: Optional[ReviewTarget] = field(default=None)
 
     @property
     def plain_issues(self):
@@ -138,9 +179,7 @@ class Report:
         report_format: Format = Format.MARKDOWN,
     ) -> str:
         config = config or ProjectConfig.load()
-        template = getattr(config, f"report_template_{report_format}")
-        return mc.prompt(
-            template,
+        vars = dict(
             report=self,
             ui=mc.ui,
             Fore=Fore,
@@ -155,6 +194,23 @@ class Report:
             remove_html_comments=remove_html_comments,
             **config.prompt_vars
         )
+        template = getattr(config, f"report_template_{report_format}")
+        if str(template).startswith("tpl:"):
+            template_file = str(template)[4:]
+        else:
+            template_file = None
+        if str(template).startswith("fn:"):
+            fn = str(template)[3:]
+        else:
+            fn = None
+
+        if template_file:
+            return mc.tpl(template_file, **vars)
+        elif fn:
+            fn = resolve_name(fn)
+            return fn(**vars)
+        else:
+            return mc.prompt(template, **vars)
 
     def to_cli(self, report_format=Format.CLI):
         output = self.render(report_format=report_format)

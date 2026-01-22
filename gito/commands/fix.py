@@ -13,6 +13,7 @@ from microcore import ui
 from ..cli_base import app
 from ..constants import JSON_REPORT_FILE_NAME
 from ..report_struct import Report, Issue
+from ..utils.git import get_cwd_repo_or_fail
 
 
 @app.command(
@@ -150,7 +151,7 @@ def commit_changes(
     Raises typer.Exit on failure.
     """
     if opened_repo := not repo:
-        repo = git.Repo(".")
+        repo = get_cwd_repo_or_fail()
     for i in files:
         repo.index.add(i)
     repo.index.commit(commit_message)

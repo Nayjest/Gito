@@ -107,6 +107,17 @@ def test_report_save_load(tmp_path):
         },
         "summary": "SUMMARY",
         "number_of_processed_files": 2,
+        "target": {
+            "git_platform_type": "GitHub",
+            "repo_url": "https://github.com/Nayjest/Gito",
+            "pull_request_id": None,
+            "what": None,
+            "against": None,
+            "commit_sha": "c254bd342d75fe6103eb9ef822d780a14abd2ef5",
+            "filters": "",
+            "use_merge_base": True,
+            "active_branch": "gitlab"
+        }
     }
     file_name = tmp_path / "report.json"
     report = Report(**data)

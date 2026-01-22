@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "gito.bot"
-version = "3.6.0"
+version = "4.0.0"
 description = "AI code review tool that works with any language model provider. It detects issues in GitHub pull requests or local changes—instantly, reliably, and without vendor lock-in."
 authors = ["Nayjest <mail@vitaliy.in>"]
 readme = "README.md"
@@ -56,15 +56,18 @@ packages = [
 "Bug Tracker" = "https://github.com/Nayjest/Gito/issues"
 [tool.poetry.dependencies]
 python = "^3.11"
-ai-microcore = "~4"
+ai-microcore = "5.0.0.dev6"
 GitPython = "^3.1.44"
 unidiff = "^0.7.5"
-google-generativeai = "^0.8.5"
+google-genai = "~1.56.0"
 anthropic = ">=0.57.1,<1"
-typer = ">=0.16.0,<0.21"
-ghapi = "~=1.0.6"
-jira = "^3.8.0"
-pydantic = "^2.12.3"
+typer = ">=0.16.0,<0.22"
+ghapi = "~=1.0.8"
+jira = "^3.10.5"
+pydantic = "^2.12.5"
+# fastcore dependency is fixed becasue 1.12+ does not work in python 3.11, used by ghapi
+# https://github.com/AnswerDotAI/fastcore/pull/752
+fastcore= "~=1.11.3"
 
 [tool.poetry.group.dev.dependencies]
 flake8 = "*"

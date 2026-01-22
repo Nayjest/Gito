@@ -2,16 +2,24 @@ import os
 import sys
 import logging
 
+import requests
 import typer
-from git import Repo
 
 from ..cli_base import app, arg_refs
 from ..issue_trackers import resolve_issue_key
+from ..utils.git import get_cwd_repo_or_fail
 
-import requests
 
-
-def post_linear_comment(issue_key, text, api_key):
+def post_linear_comment(issue_key: str, text: str, api_key: str):
+    """
+    Post a comment to a Linear issue using the Linear API.
+    Args:
+        issue_key (str): The ID of the Linear issue to comment on.
+        text (str): The comment text to post.
+        api_key (str): The Linear API key for authentication.
+    Returns:
+        dict: The JSON response from the Linear API.
+    """
     response = requests.post(
        'https://api.linear.app/graphql',
        headers={'Authorization': api_key, 'Content-Type': 'application/json'},
@@ -47,7 +55,7 @@ def linear_comment(
         logging.error("LINEAR_API_KEY environment variable is not set")
         return
 
-    repo = Repo(".")
+    repo = get_cwd_repo_or_fail()
     key = resolve_issue_key(repo)
     post_linear_comment(key, text, api_key)
     logging.info("Comment posted to Linear issue %s", key)

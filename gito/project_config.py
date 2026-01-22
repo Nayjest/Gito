@@ -4,12 +4,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import microcore as mc
-from gito.utils import detect_github_env
 from microcore import ui
 from git import Repo
 
 from .constants import PROJECT_CONFIG_BUNDLED_DEFAULTS_FILE, PROJECT_CONFIG_FILE_PATH
 from .pipeline import PipelineStep
+from .utils.git_platform.github import detect_github_env
 
 
 @dataclass
@@ -21,6 +21,7 @@ class ProjectConfig:
     """Markdown report template"""
     report_template_cli: str = ""
     """Report template for CLI output"""
+    report_template_gitlab_code_quality: str = "fn:gito.gitlab:convert_to_gitlab_code_quality_report"  # noqa: E501
     post_process: str = ""
     retries: int = 3
     """LLM retries for one request"""
@@ -63,8 +64,12 @@ class ProjectConfig:
         return config
 
     @staticmethod
-    def load_for_repo(repo: Repo):
-        return ProjectConfig.load(Path(repo.working_tree_dir) / PROJECT_CONFIG_FILE_PATH)
+    def load_for_repo(repo: Repo) -> "ProjectConfig":
+        if repo.working_tree_dir is not None:
+            config_path = Path(repo.working_tree_dir) / PROJECT_CONFIG_FILE_PATH
+        else:
+            config_path = None
+        return ProjectConfig.load(config_path)
 
     @staticmethod
     def load(config_path: str | Path | None = None) -> "ProjectConfig":

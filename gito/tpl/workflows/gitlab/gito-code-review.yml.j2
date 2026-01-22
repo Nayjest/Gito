@@ -1,0 +1,29 @@
+# Gito AI Code Review for GitLab
+# Docs: https://github.com/Nayjest/Gito
+#
+# Required CI/CD variables (Settings → CI/CD → Variables):
+#   {{ secret_name }}        - Your LLM API key
+#   GITLAB_ACCESS_TOKEN      - Project Access Token with 'api' scope (for MR comments)
+#
+# Variable settings: ☑ Mask  ☐ Protect (uncheck, or MRs won't have access)
+# Public repos: enable "Require approval" for fork pipelines to prevent secret leaks.
+gito-ai-review:
+  stage: review
+  image: python:3.13
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_PIPELINE_SOURCE == "web" && $MR_NUMBER  # Manual trigger via "Run pipeline"
+      when: manual
+  variables:
+    GIT_DEPTH: 0  # Full history needed for diff
+    LLM_API_TYPE: {{ api_type }}
+    LLM_API_KEY: ${{ secret_name }}
+    MODEL: {{ model }}
+  script:
+    - pip install gito.bot~={{ major }}.{{ minor }}
+    - gito --verbose review --against="origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
+    - gito gitlab-comment --token "$GITLAB_ACCESS_TOKEN" --project-id "$CI_PROJECT_ID" --merge-request-iid "$CI_MERGE_REQUEST_IID"
+    - gito -v0 render gitlab_code_quality > gitlab_code_quality_report.json
+  artifacts:
+    reports:
+      codequality: gitlab_code_quality_report.json

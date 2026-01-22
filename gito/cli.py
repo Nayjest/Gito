@@ -6,6 +6,7 @@ import textwrap
 
 import microcore as mc
 import typer
+from gito.utils.git_platform.shared import get_repo_base_web_url
 
 from .core import (
     review,
@@ -25,17 +26,20 @@ from .cli_base import (
     arg_all,
     get_repo_context,
 )
-from .report_struct import Report
+from .report_struct import Report, ReviewTarget
 from .constants import HOME_ENV_PATH, GITHUB_MD_REPORT_FILE_NAME, REFS_VALUE_ALL
 from .bootstrap import bootstrap
-from .utils import no_subcommand, extract_gh_owner_repo, remove_html_comments
-from .gh_api import resolve_gh_token
+from .utils.cli import no_subcommand, logo
+from .utils.html import remove_html_comments
+from .utils.git_platform.shared import get_repo_domain_and_path
+from .utils.git_platform.platform_types import PlatformType, identify_git_platform
 from .project_config import ProjectConfig
 
-# Import fix command to register it
-from .commands import fix, gh_react_to_comment, repl, deploy, version  # noqa
 from .commands.gh_post_review_comment import post_github_cr_comment
+from .commands.gitlab_post_review_comment import post_gitlab_cr_comment
 from .commands.linear_comment import linear_comment
+# Imported for registering commands
+from .commands import fix, gh_react_to_comment, repl, deploy, version  # noqa
 
 app_no_subcommand = typer.Typer(pretty_exceptions_show_locals=False)
 
@@ -121,14 +125,17 @@ def cmd_review(
     filters: str = arg_filters(),
     merge_base: bool = typer.Option(default=True, help="Use merge base for comparison"),
     url: str = typer.Option("", "--url", help="Git repository URL"),
-    path: str = typer.Option("", "--path", help="Git repository path"),
-    post_comment: bool = typer.Option(default=False, help="Post review comment to GitHub"),
+    path: str = typer.Option("", "--path", help="Git repository path"),  # @todo: implement
+    post_comment: bool = typer.Option(
+        default=False,
+        help="Post review comment to git platform (GitHub, GitLab, etc.)"
+    ),
     pr: int = typer.Option(
         default=None,
         help=textwrap.dedent("""\n
-        GitHub Pull Request number to post the comment to
+        GitHub Pull Request number or GitLab Merge Request ID to post the comment to
         (for local usage together with --post-comment,
-        in the github actions PR is resolved from the environment)
+        in the GitHub/GitLab actions PR/MR is resolved from the environment)
         """)
     ),
     out: str = arg_out(),
@@ -137,31 +144,54 @@ def cmd_review(
     refs, merge_base = _consider_arg_all(all, refs, merge_base)
     _what, _against = args_to_target(refs, what, against)
     pr = pr or os.getenv("PR_NUMBER_FROM_WORKFLOW_DISPATCH")
-    with get_repo_context(url, _what) as (repo, out_folder):
-        asyncio.run(review(
-            repo=repo,
+    with (get_repo_context(url, _what) as (repo, out_folder)):
+        commit_sha = repo.head.commit.hexsha
+        try:
+            active_branch = repo.active_branch.name
+        except TypeError:
+            active_branch = None
+        review_target = ReviewTarget(
+            git_platform_type=identify_git_platform(repo),
+            repo_url=get_repo_base_web_url(repo),
+            pull_request_id=str(pr) if pr else None,
             what=_what,
             against=_against,
             filters=filters,
             use_merge_base=merge_base,
+            commit_sha=commit_sha,
+            active_branch=active_branch,
+        )
+        asyncio.run(review(
+            repo=repo,
+            target=review_target,
             out_folder=out or out_folder,
-            pr=pr,
         ))
         if post_comment:
-            try:
-                owner, repo_name = extract_gh_owner_repo(repo)
-            except ValueError as e:
-                logging.error(
-                    "Error posting comment:\n"
-                    "Could not extract GitHub owner and repository name from the local repository."
+
+            md_report_file = os.path.join(out or out_folder, GITHUB_MD_REPORT_FILE_NAME)
+            if review_target.git_platform_type == PlatformType.GITHUB:
+                try:
+                    _, repo_path = get_repo_domain_and_path(repo)
+                except ValueError as e:
+                    logging.error(
+                        "Error posting comment:\n"
+                        "Could not extract GitHub repository path "
+                        "from the local repository."
+                    )
+                    raise typer.Exit(code=1) from e
+                post_github_cr_comment(
+                    md_report_file=md_report_file,
+                    pr=pr,
+                    gh_repo=repo_path,
                 )
-                raise typer.Exit(code=1) from e
-            post_github_cr_comment(
-                md_report_file=os.path.join(out or out_folder, GITHUB_MD_REPORT_FILE_NAME),
-                pr=pr,
-                gh_repo=f"{owner}/{repo_name}",
-                token=resolve_gh_token()
-            )
+            elif review_target.git_platform_type == PlatformType.GITLAB:
+                post_gitlab_cr_comment(md_report_file=md_report_file, merge_request_iid=pr)
+            else:
+                msg = "Posting comments is only supported for GitHub and GitLab repositories."
+                if not review_target.git_platform_type:
+                    msg = f"Could not identify the Git provider for the current repository. {msg}"
+                logging.error(msg)
+                raise typer.Exit(code=1)
 
 
 @app.command(name="ask", help="Answer questions about the target codebase changes.")
@@ -226,13 +256,17 @@ def cmd_answer(
 
 @app.command(help="Configure LLM for local usage interactively.")
 def setup():
+    print(logo())
     mc.interactive_setup(HOME_ENV_PATH)
 
 
 @app.command(name="report", help="Render and display code review report.")
 @app.command(name="render", hidden=True)
 def render(
-    format: str = typer.Argument(default=Report.Format.CLI),
+    format: str = typer.Argument(
+        default=Report.Format.CLI,
+        help="Report format: md (Markdown), cli (terminal)"
+    ),
     source: str = typer.Option(
         "",
         "--src",
