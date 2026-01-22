@@ -82,7 +82,7 @@ def hide_gh_comment(
     Args:
         comment (dict | str):
             The comment to hide,
-            either as a object returned from ghapi or a string node ID.
+            either as an object returned from ghapi or a string node ID.
             note: comment.id is not the same as node_id.
         token (str): GitHub personal access token with permissions to minimize comments.
         reason (str): The reason for hiding the comment, e.g., "OUTDATED".
