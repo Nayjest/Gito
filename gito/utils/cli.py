@@ -5,8 +5,8 @@ from typing import Optional, Callable
 import typer
 import microcore as mc
 
-from .github import is_running_in_github_action
-from .gitlab import is_running_in_gitlab_ci
+from .git_platform.github import is_running_in_github_action
+from .git_platform.gitlab import is_running_in_gitlab_ci
 from .package_metadata import version
 
 

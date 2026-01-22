@@ -13,7 +13,7 @@ from microcore import ui
 from ..cli_base import app
 from ..constants import GITHUB_MD_REPORT_FILE_NAME, HTML_CR_COMMENT_MARKER
 from ..project_config import ProjectConfig
-from ..utils.gitlab import is_running_in_gitlab_ci
+from ..utils.git_platform.gitlab import is_running_in_gitlab_ci
 
 
 def resolve_gl_token(token: str | None) -> Optional[str]:

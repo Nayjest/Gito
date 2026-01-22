@@ -6,7 +6,7 @@ from git import Repo
 
 from gito.commands.deploy import deploy
 from gito.bootstrap import bootstrap
-from gito.identify_git_provider import GitProvider
+from gito.utils.git_platform.platform_types import PlatformType
 
 
 @pytest.fixture
@@ -45,8 +45,8 @@ def test_deploy_github_creates_workflow_files(github_repo, monkeypatch):
     bootstrap()
     monkeypatch.setattr("builtins.input", lambda _: "")
     monkeypatch.setattr(
-        "gito.commands.deploy.identify_git_provider",
-        lambda _: GitProvider.GITHUB
+        "gito.commands.deploy.identify_git_platform",
+        lambda _: PlatformType.GITHUB
     )
 
     deploy(api_type="anthropic", commit=False, model='claude-opus-4-5')
@@ -64,8 +64,8 @@ def test_deploy_gitlab_creates_workflow_files(gitlab_repo, monkeypatch):
     bootstrap()
     monkeypatch.setattr("builtins.input", lambda _: "")
     monkeypatch.setattr(
-        "gito.commands.deploy.identify_git_provider",
-        lambda _: GitProvider.GITLAB
+        "gito.commands.deploy.identify_git_platform",
+        lambda _: PlatformType.GITLAB
     )
 
     deploy(api_type="anthropic", commit=False, model='claude-opus-4-5')

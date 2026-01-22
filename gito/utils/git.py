@@ -17,7 +17,7 @@ def get_cwd_repo_or_fail() -> git.Repo:
         typer.Exit: If the current folder is not a Git repository.
     """
     try:
-        repo = git.Repo(".")
+        repo = git.Repo(".", search_parent_directories=False)
         return repo
     except git.InvalidGitRepositoryError:
         ui.error(

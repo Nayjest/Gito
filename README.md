@@ -44,7 +44,7 @@ Get consistent, thorough code reviews in seconds—no waiting for human availabi
 - [🌐] **Universal:** Supports all major programming languages and frameworks  
 - [🔍] **Comprehensive Analysis:** Detect issues across security, performance, maintainability, best practices, and much more  
 - [📈] **Consistent Quality:** Never tired, never biased—consistent review quality every time  
-- [🚀] **Easy Integration:** Automatically reviews pull requests via CI/CD workflows (GitHub actions, etc), posts results as PR comments, reacts to maintainer comments
+- [🚀] **Easy Integration:** Automatically reviews pull requests via CI/CD workflows (GitHub Actions, etc), posts results as PR comments, and reacts to maintainer comments
 - [🎛️] **Infinitely Flexible:** Adapt to any project's standards—configure review rules, severity levels, and focus areas, build custom workflows 
 
 ## 🎯 Perfect For<a id="-perfect-for"></a>

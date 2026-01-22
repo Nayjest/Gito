@@ -83,5 +83,16 @@
     "number_of_processed_files": 555,
     "total_issues": 4,
     "created_at": "2025-06-17 14:34:12",
-    "model": "claude-sonnet-4-20250514"
+    "model": "claude-sonnet-4-20250514",
+    "target": {
+        "git_platform_type": "GitHub",
+        "repo_url": "https://github.com/Nayjest/Gito",
+        "pull_request_id": null,
+        "what": null,
+        "against": null,
+        "commit_sha": "c254bd342d75fe6103eb9ef822d780a14abd2ef5",
+        "filters": "",
+        "use_merge_base": true,
+        "active_branch": "gitlab"
+    }
 }

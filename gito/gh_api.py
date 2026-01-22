@@ -7,7 +7,7 @@ from fastcore.basics import AttrDict  # objects returned by ghapi
 from ghapi.core import GhApi
 
 from .project_config import ProjectConfig
-from .utils.github import extract_gh_owner_repo
+from .utils.git_platform.shared import get_repo_owner_and_name
 
 
 def gh_api(
@@ -17,7 +17,7 @@ def gh_api(
 ) -> GhApi:
     if repo:
         # resolve owner/repo from repo.remotes.origin.url
-        owner, repo_name = extract_gh_owner_repo(repo)
+        owner, repo_name = get_repo_owner_and_name(repo)
     else:
         if not config:
             config = ProjectConfig.load()
@@ -73,7 +73,7 @@ def post_gh_comment(
 
 
 def hide_gh_comment(
-    comment: dict | str,
+    comment: dict | str | AttrDict,
     token: str = None,
     reason: str = "OUTDATED"
 ) -> bool:

@@ -20,12 +20,12 @@ from ..constants import JSON_REPORT_FILE_NAME, HTML_TEXT_ICON
 from ..core import answer
 from ..gh_api import post_gh_comment, resolve_gh_token
 from ..project_config import ProjectConfig
-from ..utils.github import extract_gh_owner_repo
+from ..utils.git_platform.shared import get_repo_owner_and_name
 from ..utils.git import get_cwd_repo_or_fail
 from .fix import fix
 
 
-def cleanup_comment_addressed_to_gito(text):
+def cleanup_comment_addressed_to_gito(text: Optional[str]) -> Optional[str]:
     if not text:
         return text
     patterns = [
@@ -73,7 +73,7 @@ def react_to_comment(
     actions automatically to enable seamless code review workflow integration.
     """
     repo = get_cwd_repo_or_fail()
-    owner, repo_name = extract_gh_owner_repo(repo)
+    owner, repo_name = get_repo_owner_and_name(repo)
     logging.info(f"Using repository: {ui.yellow}{owner}/{repo_name}{ui.reset}")
     gh_token = resolve_gh_token(gh_token)
     api = GhApi(owner=owner, repo=repo_name, token=gh_token)
@@ -162,8 +162,8 @@ def last_code_review_run(api: GhApi, pr_number: int) -> AttrDict | None:
 
 
 def download_latest_code_review_artifact(
-    api: GhApi, pr_number: int, gh_token: str, out_folder: Optional[str] = "artifact"
-) -> tuple[str, dict] | None:
+    api: GhApi, pr_number: int, gh_token: str, out_folder: str = "artifact"
+) -> None:
     run = last_code_review_run(api, pr_number)
     if not run:
         raise Exception("No workflow run found for this PR/SHA")
@@ -185,14 +185,14 @@ def download_latest_code_review_artifact(
                     f.write(chunk)
 
         # Unpack to ./artifact
-        os.makedirs("artifact", exist_ok=True)
+        os.makedirs(out_folder, exist_ok=True)
         with zipfile.ZipFile(zip_path, "r") as zip_ref:
-            zip_ref.extractall("artifact")
+            zip_ref.extractall(out_folder)
     finally:
         if os.path.exists(zip_path):
             os.remove(zip_path)
 
-    print("Artifact unpacked to ./artifact")
+    print(f"Artifact unpacked to ./{out_folder}")
 
 
 def extract_fix_args(text: str) -> list[int]:

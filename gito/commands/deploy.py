@@ -33,13 +33,13 @@ from rich.console import Console
 from ..core import get_base_branch
 from ..cli_base import app
 from ..gh_api import gh_api
-from ..identify_git_provider import identify_git_provider, GitProvider
 from ..utils.package_metadata import version
-from ..utils.github import get_gh_create_pr_link, get_gh_secrets_link
-from ..utils.gitlab import (
+from ..utils.git_platform.platform_types import PlatformType, identify_git_platform
+from ..utils.git_platform.github import get_gh_create_pr_link, get_gh_secrets_link
+from ..utils.git_platform.gitlab import (
+    get_gitlab_access_tokens_link,
     get_gitlab_create_mr_link,
     get_gitlab_secrets_link,
-    get_gitlab_access_tokens_link,
 )
 from ..utils.git import get_cwd_repo_or_fail
 from ..utils.cli import logo
@@ -86,7 +86,7 @@ def merge_gitlab_configs(
 
 
 GIT_PROVIDER_WORKFLOWS = {
-    GitProvider.GITHUB: dict(
+    PlatformType.GITHUB: dict(
         code_review=dict(
             path=Path(".github/workflows/gito-code-review.yml"),
             template="workflows/github/gito-code-review.yml.j2",
@@ -96,7 +96,7 @@ GIT_PROVIDER_WORKFLOWS = {
             template="workflows/github/gito-react-to-comments.yml.j2",
         ),
     ),
-    GitProvider.GITLAB: dict(
+    PlatformType.GITLAB: dict(
         code_review=dict(
             path=Path(".gitlab/ci/gito-code-review.yml"),
             template="workflows/gitlab/gito-code-review.yml.j2",
@@ -117,7 +117,7 @@ def _show_intro(console: Console):
     console.print(Panel(
         title="CI Setup",
         renderable=(
-            " [bold]Wiring myself into pipel[/bold]ines...\n"
+            " [bold]Wiring myself into pipelines...[/bold]\n"
             f" [green][dim]⟩[/dim]⟩⟩ INTEGRATION SEQUENCE ⟩⟩[dim]⟩[/dim] [/green] \n"
             f" {num(1)} [bold]C[/bold]onfigure language model\n"
             f" {num(2)} [bold]W[/bold]rite workflow files \n"
@@ -145,7 +145,7 @@ def deploy(
     rewrite: bool = typer.Option(False, help="Overwrite existing configuration"),
     to_branch: str = typer.Option(
         default="gito-ci",
-        help="Branch name for PR containing Gito CI workflows"
+        help="Branch name for new PR containing Gito CI workflows"
     ),
     token: str = typer.Option(
         "", help="GitHub token (or set GITHUB_TOKEN env var)"
@@ -164,20 +164,21 @@ def deploy(
     console = Console()
     _show_intro(console)
 
-    provider: GitProvider | None = identify_git_provider(repo)
-    if not provider:
+    git_platform_type: PlatformType | None = identify_git_platform(repo)
+    if not git_platform_type:
         ui.error("No supported Git provider detected.")
         if ui.ask_yn("Choose Git provider manually?"):
-            provider = ui.ask_choose("Choose your Git provider", list(GitProvider))
+            git_platform_type = ui.ask_choose("Choose your Git provider", list(PlatformType))
         else:
             return False
-    if provider not in GIT_PROVIDER_WORKFLOWS:
+    if git_platform_type not in GIT_PROVIDER_WORKFLOWS:
         ui.error(
-            f"Git provider {ui.bright(provider)} is not supported for automatic deployment yet.\n"
-            f"Please create CI workflows manually."
+            f"Git provider {ui.bright(git_platform_type)} is not supported "
+            "for automatic deployment yet.\n"
+            "Please create CI workflows manually."
         )
         return False
-    workflow_files = GIT_PROVIDER_WORKFLOWS[provider]
+    workflow_files = GIT_PROVIDER_WORKFLOWS[git_platform_type]
     for file_config in workflow_files.values():
         file = file_config["path"]
         if file.exists():
@@ -233,14 +234,18 @@ def deploy(
     is_pushed = False
 
     if need_to_commit:
-        if not repo.active_branch.name.startswith(to_branch):
+        try:
+            active_branch_name = repo.active_branch.name
+        except TypeError:
+            active_branch_name = ""
+        if active_branch_name != to_branch:
             repo.git.checkout("-b", to_branch)
         repo.git.add([str(file) for file in created_files])
         is_committed = _try_commit_workflow_changes(repo)
         if is_committed:
             is_pushed = _try_push_branch(repo, to_branch)
             if is_pushed:
-                if provider == GitProvider.GITHUB:
+                if git_platform_type == PlatformType.GITHUB:
                     try:
                         api = gh_api(repo=repo, token=token)
                         base = get_base_branch(repo).split('/')[-1]
@@ -267,7 +272,7 @@ def deploy(
                             border_style="yellow",
                             expand=False,
                         ))
-                elif provider == GitProvider.GITLAB:
+                elif git_platform_type == PlatformType.GITLAB:
                     create_pr_link = get_gitlab_create_mr_link(repo, to_branch)
                     if create_pr_link:
                         details = f":\n[link]{create_pr_link}[/link]"
@@ -300,7 +305,7 @@ def deploy(
             expand=False,
         ))
 
-    _show_create_secrets_instructions(console, provider, repo, secret_name)
+    _show_create_secrets_instructions(console, git_platform_type, repo, secret_name)
     return True
 
 
@@ -426,7 +431,7 @@ def _configure_llm(
 
 def _show_create_secrets_instructions(
     console: Console,
-    provider: GitProvider,
+    git_platform: PlatformType,
     repo: Repo,
     secret_name: str
 ):
@@ -434,10 +439,10 @@ def _show_create_secrets_instructions(
     details = ""
     secrets = f"  {secret_name}\n"
     title = "Add your LLM API key to repository secrets"
-    if provider == GitProvider.GITHUB:
+    if git_platform == PlatformType.GITHUB:
         if secrets_url := get_gh_secrets_link(repo):
             details = f"\n\nAdd it here:  [link]{secrets_url}[/link]"
-    elif provider == GitProvider.GITLAB:
+    elif git_platform == PlatformType.GITLAB:
         title = "Add LLM API key and GitLab access token to CI/CD variables"
         details = (
             "\n\nAdd it in your GitLab project settings under "
@@ -465,7 +470,7 @@ def _show_create_secrets_instructions(
         border_style="green",
         expand=False,
     ))
-    if provider == GitProvider.GITLAB:
+    if git_platform == PlatformType.GITLAB:
         console.print(Panel(
             title="Variable Settings",
             renderable=(

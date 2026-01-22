@@ -8,8 +8,8 @@ from pathlib import Path
 
 import microcore as mc
 
-from .utils.gitlab import is_running_in_gitlab_ci
-from .utils.github import is_running_in_github_action
+from .utils.git_platform.gitlab import is_running_in_gitlab_ci
+from .utils.git_platform.github import is_running_in_github_action
 from .constants import HOME_ENV_PATH, EXECUTABLE, PROJECT_GITO_FOLDER, DEFAULT_MAX_CONCURRENT_TASKS
 from .env import Env
 
@@ -86,7 +86,7 @@ def bootstrap(verbosity: int = 1):
                 ref = ref.split(".github/workflows/")[-1]
                 ref = f" (.github/workflows/{ref})"
             msg += (
-                f"\nPlease check your GitHub Action Secrets "
+                f"\nPlease check your GitHub Action secrets "
                 f"and `env` configuration section of the corresponding workflow step{ref}.\n"
                 f"See https://github.com/Nayjest/Gito/blob/main/documentation/github_setup.md "
                 f"for details."

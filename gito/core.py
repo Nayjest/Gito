@@ -17,7 +17,7 @@ from unidiff.constants import DEV_NULL
 
 from .context import Context
 from .project_config import ProjectConfig
-from .report_struct import ProcessingWarning, Report, RawIssue
+from .report_struct import ProcessingWarning, Report, ReviewTarget, RawIssue
 from .constants import JSON_REPORT_FILE_NAME, REFS_VALUE_ALL
 from .utils.cli import make_streaming_function
 from .pipeline import Pipeline
@@ -491,27 +491,22 @@ def _llm_response_validator(parsed_response: list[dict]):
 
 
 async def review(
+    target: ReviewTarget,
     repo: Repo = None,
-    what: str = None,
-    against: str = None,
-    filters: str | list[str] = "",
-    use_merge_base: bool = True,
     out_folder: str | os.PathLike | None = None,
-    pr: str | int = None
 ):
     """
     Conducts a code review.
     Prints the review report to the console and saves it to a file.
     """
-    reviewing_all = what == REFS_VALUE_ALL
     try:
         repo, cfg, diff, lines = _prepare(
             repo=repo,
-            what=what,
-            against=against,
-            filters=filters,
-            use_merge_base=use_merge_base,
-            pr=pr,
+            what=target.what,
+            against=target.against,
+            filters=target.filters,
+            use_merge_base=target.use_merge_base,
+            pr=target.pull_request_id,
         )
     except NoChangesInContextError:
         logging.error("No changes to review")
@@ -523,7 +518,7 @@ async def review(
         we provide full file content as input.
         Otherwise, we provide the diff and additional file lines separately.
         """
-        return not reviewing_all and not file_diff.is_added_file
+        return not target.is_full_codebase_review() and not file_diff.is_added_file
 
     responses = await mc.llm_parallel(
         [
@@ -568,6 +563,7 @@ async def review(
     out_folder = Path(out_folder or repo.working_tree_dir)
     out_folder.mkdir(parents=True, exist_ok=True)
     report = Report(
+        target=target,
         number_of_processed_files=len(diff),
         processing_warnings=processing_warnings,
     )

@@ -114,7 +114,7 @@ $ gito init [OPTIONS]
 * `--api-type [openai|azure|anyscale|deep_infra|anthropic|google_vertex_ai|google_ai_studio|function|transformers|none]`
 * `--commit / --no-commit`
 * `--rewrite / --no-rewrite`: [default: no-rewrite]
-* `--to-branch TEXT`: Branch name for new PR containing with Gito workflows commit  [default: gito_deploy]
+* `--to-branch TEXT`: Branch name for the new PR containing the Gito workflows commit  [default: gito_deploy]
 * `--token TEXT`: GitHub token (or set GITHUB_TOKEN env var)
 * `--help`: Show this message and exit.
 
@@ -134,7 +134,7 @@ $ gito deploy [OPTIONS]
 * `--api-type [openai|azure|anyscale|deep_infra|anthropic|google_vertex_ai|google_ai_studio|function|transformers|none]`
 * `--commit / --no-commit`
 * `--rewrite / --no-rewrite`: [default: no-rewrite]
-* `--to-branch TEXT`: Branch name for new PR containing with Gito workflows commit  [default: gito_deploy]
+* `--to-branch TEXT`: Branch name for the new PR containing the Gito workflows commit  [default: gito_deploy]
 * `--token TEXT`: GitHub token (or set GITHUB_TOKEN env var)
 * `--help`: Show this message and exit.
 

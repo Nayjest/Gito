@@ -6,8 +6,10 @@ import re
 from typing import Optional
 
 import git
+from urllib.parse import quote
 
-from ..env import Env
+from ...env import Env
+from .shared import get_repo_web_url
 
 
 def is_running_in_github_action() -> bool:
@@ -19,49 +21,55 @@ def is_running_in_github_action() -> bool:
     return os.getenv("GITHUB_ACTIONS") == "true"
 
 
-def extract_gh_owner_repo(repo: git.Repo) -> tuple[str, str]:
-    """
-    Extracts the GitHub owner and repository name.
-
-    Returns:
-        tuple[str, str]: A tuple containing the owner and repository name.
-    """
-    try:
-        remote_url = repo.remotes.origin.url
-    except Exception as e:
-        raise ValueError("Could not get remote URL from the repository.") from e
-    if remote_url.startswith('git@github.com:'):
-        # SSH format: git@github.com:owner/repo.git
-        repo_path = remote_url.split(':')[1].replace('.git', '')
-    elif remote_url.startswith('https://github.com/'):
-        # HTTPS format: https://github.com/owner/repo.git
-        repo_path = remote_url.replace('https://github.com/', '').replace('.git', '')
-    else:
-        raise ValueError("Unsupported remote URL format")
-    owner, repo_name = repo_path.split('/')
-    return owner, repo_name
-
-
-def get_gh_create_pr_link(repo: git.Repo, branch: str) -> Optional[str]:
+def get_gh_create_pr_link(repo_or_base_url: git.Repo | str, branch: str) -> Optional[str]:
     """
     Return a GitHub URL to create a pull request for the given branch.
     """
-    try:
-        owner, repo_name = extract_gh_owner_repo(repo)
-        return f"https://github.com/{owner}/{repo_name}/compare/{branch}?expand=1"
-    except ValueError:
-        return None
+    branch = quote(branch, safe='')
+    return get_repo_web_url(repo_or_base_url, f"/compare/{branch}?expand=1")
 
 
-def get_gh_secrets_link(repo: git.Repo) -> Optional[str]:
+def get_gh_secrets_link(repo_or_base_url: git.Repo | str) -> Optional[str]:
     """
     Return a GitHub URL to manage secrets.
     """
-    try:
-        owner, repo_name = extract_gh_owner_repo(repo)
-        return f"https://github.com/{owner}/{repo_name}/settings/secrets/actions"
-    except ValueError:
-        return None
+    return get_repo_web_url(repo_or_base_url, "/settings/secrets/actions")
+
+
+def gh_ci_src_branch() -> Optional[str]:
+    """
+    Try to get the current branch name from GitHub Actions environment variables.
+    Returns:
+        Optional[str]: The branch name if available, None otherwise.
+    """
+    # https://docs.github.com/en/actions/reference/workflows-and-actions/variables
+
+    if branch_name := os.getenv('GITHUB_HEAD_REF'):
+        # GITHUB_HEAD_REF — The source branch of a pull request
+        # Push: empty
+        # PR: feature-branch (just the branch name, no refs/heads/ prefix)
+        return branch_name
+
+    ref = os.getenv("GITHUB_REF", "")
+    if ref.startswith("refs/heads/"):
+        return ref[len("refs/heads/"):]
+    return None
+
+
+def get_gh_file_link(
+    repo_or_base_url: git.Repo | str,
+    file: str,
+    branch="main",
+    start_line: Optional[int] = None,
+    end_line: Optional[int] = None,
+) -> Optional[str]:
+    branch, file = quote(branch, safe=''), quote(file, safe='/')
+    url_path = f"/blob/{branch}/{file}"
+    if start_line:
+        url_path += f"#L{start_line}"
+        if end_line and end_line != start_line:
+            url_path += f"-L{end_line}"
+    return get_repo_web_url(repo_or_base_url, url_path)
 
 
 def detect_github_env() -> dict:

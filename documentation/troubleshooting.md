@@ -69,7 +69,7 @@ Couldn't find a solution to your problem? We're here to help!
 
 - **Report a bug or request a feature**: [Open an issue](https://github.com/Nayjest/Gito/issues/new)
 - **Ask a question**: [Start a discussion](https://github.com/Nayjest/Gito/discussions)
-- **Go hands-on:**: [Contributing guide](https://github.com/Nayjest/Gito/blob/main/CONTRIBUTING.md)
+- **Go hands-on**: [Contributing guide](https://github.com/Nayjest/Gito/blob/main/CONTRIBUTING.md)
 -  **Direct contact**: Vitalii Stepanenko — [gmail@vitaliy.in](mailto:gmail@vitaliy.in) · [Telegram](https://t.me/nayjest)
   
 Your feedback helps improve Gito for everyone.
