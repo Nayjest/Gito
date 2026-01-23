@@ -99,14 +99,21 @@ def react_to_comment(
     print(f"Processing comment for PR #{pr}...")
 
     issue_ids = extract_fix_args(comment.body)
-    if issue_ids:
-        logging.info(f"Extracted issue IDs: {ui.yellow(str(issue_ids))}")
+    is_fix_request = is_fix_request_check(comment.body)
+    
+    if is_fix_request:
+        logging.info("Fix request detected")
+        if issue_ids:
+            logging.info(f"Extracted issue IDs: {ui.yellow(str(issue_ids))}")
+        else:
+            logging.info("No specific issue IDs found, will fix all issues")
+        
         out_folder = "artifact"
         download_latest_code_review_artifact(
             api, pr_number=pr, gh_token=gh_token, out_folder=out_folder
         )
         fix(
-            issue_ids[0],  # @todo: support multiple IDs
+            issue_ids[0] if issue_ids else None,  # None means fix all issues
             report_path=Path(out_folder) / JSON_REPORT_FILE_NAME,
             dry_run=dry_run,
             commit=not dry_run,
@@ -214,4 +221,18 @@ def is_review_request(text: str) -> bool:
     parts = text.split()
     if len(parts) == 2 and parts[1] in trigger_words:
         return True
+    return False
+
+
+def is_fix_request_check(text: str) -> bool:
+    """Check if the comment is requesting to fix issues."""
+    text = text.lower().strip()
+    # Check for explicit fix commands
+    fix_patterns = [
+        r'\bfix\b',
+        r'/fix\b',
+    ]
+    for pattern in fix_patterns:
+        if re.search(pattern, text):
+            return True
     return False

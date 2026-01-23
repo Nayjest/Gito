@@ -5,7 +5,11 @@ from pathlib import Path
 
 import microcore as mc
 from microcore import ui
-from git import Repo
+try:
+    import git as _git
+    _Repo = _git.Repo
+except Exception:
+    _Repo = None
 
 from .constants import PROJECT_CONFIG_BUNDLED_DEFAULTS_FILE, PROJECT_CONFIG_FILE_PATH
 from .pipeline import PipelineStep
@@ -64,7 +68,7 @@ class ProjectConfig:
         return config
 
     @staticmethod
-    def load_for_repo(repo: Repo) -> "ProjectConfig":
+    def load_for_repo(repo: 'Repo') -> "ProjectConfig":
         if repo.working_tree_dir is not None:
             config_path = Path(repo.working_tree_dir) / PROJECT_CONFIG_FILE_PATH
         else:

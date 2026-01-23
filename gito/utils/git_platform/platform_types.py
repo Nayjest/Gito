@@ -9,7 +9,13 @@ from functools import lru_cache
 from pathlib import Path
 from urllib.parse import urlparse
 
-from git import Repo
+# Avoid importing GitPython at module import time; it may not be available
+# in environments used by tests that don't need Git functionality.
+try:
+    import git as _git
+    _Repo = _git.Repo
+except Exception:
+    _Repo = None
 
 
 class PlatformType(StrEnum):
@@ -36,7 +42,7 @@ def identify_git_platform_by_ci_env() -> Optional[PlatformType]:
     return None
 
 
-def identify_git_platform_from_remotes(repo_or_urls: Repo | list[str]) -> Optional[PlatformType]:
+def identify_git_platform_from_remotes(repo_or_urls: 'Repo | list[str]') -> Optional[PlatformType]:
     """
     Identify the Git provider/platform type based on git remote URLs.
     """
@@ -47,7 +53,7 @@ def identify_git_platform_from_remotes(repo_or_urls: Repo | list[str]) -> Option
         PlatformType.GITEA: ["gitea", "forgejo", "codeberg.org"],  # not tested yet
         PlatformType.AZURE_DEVOPS: ["dev.azure.com", "visualstudio.com"],  # not tested yet
     }
-    if isinstance(repo_or_urls, Repo):
+    if _Repo is not None and isinstance(repo_or_urls, _Repo):
         try:
             remote_urls: list[str] = repo_or_urls.remotes.origin.urls or []
         except AttributeError:
@@ -61,7 +67,7 @@ def identify_git_platform_from_remotes(repo_or_urls: Repo | list[str]) -> Option
     return None
 
 
-def identify_git_platform(repo: Repo) -> Optional[PlatformType]:
+def identify_git_platform(repo: 'Repo') -> Optional[PlatformType]:
     """
     Identify the Git provider/platform type using multiple strategies.
     """
@@ -89,7 +95,7 @@ def extract_base_url(git_url: str) -> str:
     return f"{parsed.scheme}://{parsed.netloc}".lower()
 
 
-def identify_git_platform_from_files(repo: Repo) -> Optional[PlatformType]:
+def identify_git_platform_from_files(repo: 'Repo') -> Optional[PlatformType]:
     """
     Identify the Git provider/platform type based on provider-specific files in the repository.
     """

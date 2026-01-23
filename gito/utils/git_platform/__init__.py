@@ -1,13 +1,11 @@
 """
 Utilities for interacting with various Git hosting platforms.
 """
-import git
-
 from .platform_types import PlatformType, identify_git_platform
 from .adapters import get_platform_adapter, BaseGitPlatform
 
 
-def platform(repo: git.Repo) -> BaseGitPlatform:
+def platform(repo) -> BaseGitPlatform:
     """
     Get the appropriate Git platform adapter for the given repository.
     Args:

@@ -1,9 +1,13 @@
 from typing import Optional
 
-from git import Repo
+try:
+    import git as _git
+    _Repo = _git.Repo
+except Exception:
+    _Repo = None
 
 
-def get_repo_domain_and_path(repo: Repo) -> tuple[str, str]:
+def get_repo_domain_and_path(repo: 'Repo') -> tuple[str, str]:
     """
     Extract the domain and repository path from the git remote URL.
     Examples:
@@ -32,7 +36,7 @@ def get_repo_domain_and_path(repo: Repo) -> tuple[str, str]:
         raise ValueError("Unsupported git remote URL format")
 
 
-def get_repo_base_web_url(repo: Repo) -> Optional[str]:
+def get_repo_base_web_url(repo: 'Repo') -> Optional[str]:
     """
     Get the base web URL of the repository.
     Tested / supported platforms: GitHub, GitLab.
@@ -49,7 +53,7 @@ def get_repo_base_web_url(repo: Repo) -> Optional[str]:
 
 
 def get_repo_web_url(
-    repo: Repo | str,
+    repo: 'Repo | str',
     subpath: str
 ) -> Optional[str]:
     """
@@ -61,12 +65,12 @@ def get_repo_web_url(
     Returns:
         Optional[str]: The web URL of the repository.
     """
-    if isinstance(repo, Repo):
+    if _Repo is not None and isinstance(repo, _Repo):
         repo = get_repo_base_web_url(repo)
     return (repo + "/" + subpath.lstrip('/')) if repo else None
 
 
-def get_repo_owner_and_name(repo: Repo) -> tuple[str, str]:
+def get_repo_owner_and_name(repo: 'Repo') -> tuple[str, str]:
     """
     Extract the repository owner and repository name.
 
