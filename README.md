@@ -329,7 +329,7 @@ PATs have broader permissions, longer lifespans, and are tied to individual user
 
 
 ## 💻 Development Setup<a id="-development-setup"></a>
-<div><img align="right" width="440" src="https://raw.githubusercontent.com/Nayjest/Gito/4_0_1/press-kit/character/gito_fullbody_1.jpg">
+<div><img align="right" width="420" src="https://raw.githubusercontent.com/Nayjest/Gito/4_0_1/press-kit/character/gito_fullbody_1.jpg">
 
 Cloning the repository:
 ```bash
