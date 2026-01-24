@@ -303,7 +303,9 @@ requirements = """
 For detailed guidance, see the [📖 Configuration Cookbook](https://github.com/Nayjest/Gito/blob/main/documentation/config_cookbook.md).
 
 ## 📚 Guides & Reference<a id="-guides--reference"></a>
-
+<table border="0" cellspacing="0" cellpadding="0">
+<tr>
+<td valign="top">
 For more detailed information, check out these articles:
 
 - [Command Line Reference](https://github.com/Nayjest/Gito/blob/main/documentation/command_line_reference.md)
@@ -316,6 +318,12 @@ For more detailed information, check out these articles:
 - [Troubleshooting](https://github.com/Nayjest/Gito/blob/main/documentation/troubleshooting.md)
 
 Or browse all documentation in the [`/documentation`](https://github.com/Nayjest/Gito/tree/main/documentation) directory.
+</td>
+<td valign="top">
+<img src="press-kit/character/gito_fullbody_1.jpg" width="200">
+</td>
+</tr>
+</table>
 
 ## 🚧 Known Limitations<a id="-known-limitations"></a>
 
