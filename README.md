@@ -345,7 +345,7 @@ make install
 > ```bash
 > pip install -e ".[dev]"
 > ```
-> See the [Makefile]([Makefile](https://github.com/Nayjest/Gito/blob/main/Makefile)) for all available commands.
+> See the [Makefile](https://github.com/Nayjest/Gito/blob/main/Makefile) for all available commands.
 
 Format code and check style:
 ```bash

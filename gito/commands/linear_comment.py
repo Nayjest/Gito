@@ -78,7 +78,6 @@ def linear_comment(
         callback=_process_text_input,
         help="Comment text (supports Markdown). Use '-' to read from stdin.",
     ),
-    refs: str = arg_refs(),
     issue_key: str = typer.Option(
         None,
         "--issue-key",
