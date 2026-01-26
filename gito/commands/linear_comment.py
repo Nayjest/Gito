@@ -88,13 +88,16 @@ def linear_comment(
     api_key = os.getenv("LINEAR_API_KEY")
     if not api_key:
         logging.error("LINEAR_API_KEY environment variable is not set")
-        return
+        raise typer.Exit(code=1)
 
     repo = get_cwd_repo_or_fail()
     key = issue_key or resolve_issue_key(repo)
+    if not key:
+        logging.error("Could not determine Linear issue key from the current branch or argument")
+        raise typer.Exit(code=1)
     try:
         post_linear_comment(key, text, api_key)
     except LinearAPIError as e:
         logging.error("Failed to post comment to Linear issue %s: %s", key, str(e))
-        return
+        raise typer.Exit(code=1)
     logging.info("Comment posted to Linear issue %s", key)
