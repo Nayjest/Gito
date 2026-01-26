@@ -5,7 +5,7 @@ import logging
 import requests
 import typer
 
-from ..cli_base import app, arg_refs
+from ..cli_base import app
 from ..issue_trackers import resolve_issue_key
 from ..utils.git import get_cwd_repo_or_fail
 
@@ -62,7 +62,7 @@ def _process_text_input(text: str | None) -> str:
         if not sys.stdin.isatty():
             # Data is being piped in
             text = sys.stdin.read()
-    if not text:
+    if not text or not text.strip():
         raise typer.BadParameter(
             "Comment text is required. Provide text as argument or pipe from stdin."
         )
