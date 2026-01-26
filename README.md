@@ -302,6 +302,7 @@ requirements = """
 
 For detailed guidance, see the [📖 Configuration Cookbook](https://github.com/Nayjest/Gito/blob/main/documentation/config_cookbook.md).
 
+
 ## 📚 Guides & Reference<a id="-guides--reference"></a>
 
 For more detailed information, check out these articles:
@@ -317,6 +318,7 @@ For more detailed information, check out these articles:
 
 Or browse all documentation in the [`/documentation`](https://github.com/Nayjest/Gito/tree/main/documentation) directory.
 
+
 ## 🚧 Known Limitations<a id="-known-limitations"></a>
 
 Gito cannot modify files inside `.github/workflows` when reacting to GitHub PR comments (e.g., "Gito fix issue 2").  
@@ -328,16 +330,22 @@ PATs have broader permissions, longer lifespans, and are tied to individual user
 
 ## 💻 Development Setup<a id="-development-setup"></a>
 
-Cloning the repository:
+Clone the repository and navigate to it:
 ```bash
 git clone https://github.com/Nayjest/Gito.git
 cd Gito
 ```
+<div><img align="right" width="460" src="https://raw.githubusercontent.com/Nayjest/Gito/4_0_1/press-kit/character/gito_fullbody_1.jpg">
 
 Install dependencies:
 ```bash
 make install
 ```
+> **Note:** If `make` is not available on your system, you can run the underlying command directly:
+> ```bash
+> pip install -e ".[dev]"
+> ```
+> See the [Makefile](https://github.com/Nayjest/Gito/blob/main/Makefile) for all available commands.
 
 Format code and check style:
 ```bash
@@ -349,6 +357,7 @@ Run tests:
 ```bash
 pytest
 ```
+</div>
 
 ## 🤝 Contributing<a id="-contributing"></a>
 
