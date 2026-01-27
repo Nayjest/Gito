@@ -149,6 +149,7 @@ jobs:
 
       - name: Set up Python
         uses: actions/setup-python@v6
+        with: { python-version: "3.13" }
 
       - name: Install Gito
         run: pip install gito.bot~=4.0.1
