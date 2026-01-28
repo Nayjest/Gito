@@ -1,10 +1,4 @@
-try:
-    import git as _git
-    _Repo = _git.Repo
-except Exception:
-    _git = None
-    _Repo = None
-
+import git
 from ..platform_types import PlatformType
 from .base import BaseGitPlatform
 from .github import GitHubPlatform
@@ -19,7 +13,7 @@ IMPLEMENTATIONS = {
 
 def get_platform_adapter(
     platform_type: PlatformType,
-    repo_or_base_url: 'git.Repo | str',
+    repo_or_base_url: git.Repo | str,
 ) -> BaseGitPlatform:
     """
     Factory function to get the appropriate Git platform adapter.
@@ -31,7 +25,7 @@ def get_platform_adapter(
     Raises:
         ValueError: If the platform type is unsupported or if the input type is invalid.
     """
-    if _Repo is not None and isinstance(repo_or_base_url, _Repo):
+    if isinstance(repo_or_base_url, git.Repo):
         repo_base_url = None
         repo = repo_or_base_url
     elif isinstance(repo_or_base_url, str):
