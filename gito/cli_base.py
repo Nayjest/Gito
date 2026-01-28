@@ -8,6 +8,7 @@ from typing import Iterator
 
 import microcore as mc
 import typer
+from git import Repo, InvalidGitRepositoryError
 
 from .constants import REFS_VALUE_ALL
 from .utils.string import parse_refs_pair
@@ -88,7 +89,7 @@ def arg_all() -> typer.Option:
 def get_repo_context(
     url: str | None,
     branch: str | None
-) -> Iterator[tuple['Repo', str]]:
+) -> Iterator[tuple[Repo, str]]:
     """
     Context manager for handling both local and remote repositories.
     Yields a tuple of (Repo object, path to the repository)
@@ -98,10 +99,6 @@ def get_repo_context(
     """
     if branch == REFS_VALUE_ALL:
         branch = None
-    # Import GitPython only when repository access is required to avoid
-    # hard dependency at module import time for simple commands.
-    from git import Repo, InvalidGitRepositoryError
-
     if url:
         with tempfile.TemporaryDirectory() as temp_dir:
             logging.info(
