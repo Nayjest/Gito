@@ -398,10 +398,6 @@ def _configure_llm(
         api_type = str(api_type).lower()
         if api_type == "openai":
             api_type = ApiType.OPENAI
-        if api_type == "anthropic":
-            api_type = ApiType.ANTHROPIC
-        if api_type == "google":
-            api_type = ApiType.GOOGLE
         if api_type not in api_types:
             ui.error(f"Unsupported API type: {orig_value}")
             raise typer.Exit(2)
