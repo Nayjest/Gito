@@ -1,12 +1,7 @@
 import abc
 from typing import ClassVar, Optional
 
-# Defer importing GitPython to avoid hard dependency at module import time.
-try:
-    import git as _git
-    _Repo = _git.Repo
-except Exception:
-    _Repo = None
+import git
 
 from ..platform_types import PlatformType
 from ..shared import get_repo_base_web_url
@@ -19,7 +14,7 @@ class BaseGitPlatform(abc.ABC):
     type: ClassVar[PlatformType]
     repo_base_url: str
 
-    def __init__(self, repo=None, repo_base_url: str = None):
+    def __init__(self, repo: git.Repo = None, repo_base_url: str = None):
         if not repo and not repo_base_url:
             raise ValueError("Must specify repo or repo_base_url")
         if repo:
