@@ -4,6 +4,7 @@ Gito core business logic.
 import os
 import fnmatch
 import logging
+import contextlib
 from typing import Iterable
 from pathlib import Path
 from functools import partial
@@ -110,6 +111,14 @@ def get_base_branch(repo: Repo, pr: int | str = None):
         raise ValueError("No default branch found in the repository.")
 
 
+def try_fetch_ref(repo, ref):
+    try:
+        repo.git.rev_parse("--verify", ref)
+    except git.GitCommandError:
+        with contextlib.suppress(git.GitCommandError):
+            repo.git.fetch("origin", ref)
+
+
 def get_diff(
     repo: Repo = None,
     what: str = None,
@@ -214,6 +223,7 @@ def get_diff(
     logging.info(
         f"Making diff: {ui.green(what or 'INDEX')} vs {ui.yellow(against)}"
     )
+    try_fetch_ref(repo, against)
     diff_content = repo.git.diff(against, what)
     diff = PatchSet.from_string(diff_content)
 
