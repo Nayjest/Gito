@@ -114,8 +114,8 @@ def get_base_branch(repo: Repo, pr: int | str = None):
 def try_fetch_ref(repo, ref):
     try:
         repo.git.rev_parse("--verify", ref)
-    except git.GitCommandError:
-        with contextlib.suppress(git.GitCommandError):
+    except GitCommandError:
+        with contextlib.suppress(GitCommandError):
             repo.git.fetch("origin", ref)
 
 
