@@ -63,6 +63,12 @@ def react_to_comment(
     dry_run: bool = typer.Option(
         False, "--dry-run", "-d", help="Only print changes without applying them"
     ),
+    base_repo: str = typer.Option(
+        "",
+        "--base-repo",
+        help="Base repository in 'owner/repo' format, "
+             "overrides auto-detection for cases when working on a PR from forked repo.",
+    )
 ):
     """
     Handles direct agent instructions from pull request comments.
@@ -73,7 +79,7 @@ def react_to_comment(
     actions automatically to enable seamless code review workflow integration.
     """
     repo = get_cwd_repo_or_fail()
-    owner, repo_name = get_repo_owner_and_name(repo)
+    owner, repo_name = base_repo.split("/", 1) if base_repo else get_repo_owner_and_name(repo)
     logging.info(f"Using repository: {ui.yellow}{owner}/{repo_name}{ui.reset}")
     gh_token = resolve_gh_token(gh_token)
     api = GhApi(owner=owner, repo=repo_name, token=gh_token)
