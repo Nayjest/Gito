@@ -79,7 +79,12 @@ def react_to_comment(
     actions automatically to enable seamless code review workflow integration.
     """
     repo = get_cwd_repo_or_fail()
-    owner, repo_name = base_repo.split("/", 1) if base_repo else get_repo_owner_and_name(repo)
+    if base_repo:
+        if '/' not in base_repo:
+            raise typer.BadParameter("base_repo must be in 'owner/repo' format")
+        owner, repo_name = base_repo.split("/", 1)
+    else:
+        owner, repo_name = get_repo_owner_and_name(repo)
     logging.info(f"Using repository: {ui.yellow}{owner}/{repo_name}{ui.reset}")
     gh_token = resolve_gh_token(gh_token)
     api = GhApi(owner=owner, repo=repo_name, token=gh_token)
