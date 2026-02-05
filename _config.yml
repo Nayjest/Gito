@@ -1,4 +1,16 @@
 # GitHub Pages configuration
-theme: jekyll-theme-cayman
+theme: jekyll-theme-hacker
 title: "Gito: AI Code Reviewer"
 description: Gito is an open-source AI code reviewer that works with any language model provider. It detects issues in GitHub pull requests or local codebase changes—instantly, reliably, and without vendor lock-in.
+
+# Use GitHub Flavored Markdown for proper table rendering
+kramdown:
+  input: GFM
+
+# Disable Liquid template processing for README.md
+# (prevents Jekyll from interpreting ${{ }} in code blocks as Liquid variables)
+defaults:
+  - scope:
+      path: "README.md"
+    values:
+      render_with_liquid: false
