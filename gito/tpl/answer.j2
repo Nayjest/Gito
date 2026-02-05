@@ -5,7 +5,7 @@ Answer the following user question:
 {{ question }}
 ----
 ----RELATED CODEBASE CHANGES----
-{% for part in diff %}{{ part }}\n{% endfor %}
+{% for part in diff %}{{ part }}{{ '\n' }}{% endfor %}
 
 ----FULL FILE CONTENT AFTER APPLYING CHANGES----
 {% for file, file_lines in all_file_lines.items() %}

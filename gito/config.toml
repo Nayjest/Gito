@@ -224,7 +224,7 @@ summary_prompt = """
 {{ self_id }}
 Summarize the code review in one sentence.
 --Reviewed Changes--
-{% for part in diff %}{{ part }}\n{% endfor %}
+{% for part in diff %}{{ part }}{{ '\n' }}{% endfor %}
 --Issues Detected by You--
 {{ issues | tojson(indent=2) }}
 ---
