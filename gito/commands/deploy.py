@@ -370,7 +370,7 @@ def _configure_llm(
     }
     model_proposals = {
         ApiType.ANTHROPIC: {
-            "claude-opus-4-5": f"Claude Opus 4.5 {ui.dim}(most capable)",
+            "claude-opus-4-6": f"Claude Opus 4.6 {ui.dim}(most capable)",
             "claude-sonnet-4-5": f"Claude Sonnet 4.5 {ui.dim}(balanced)",
             "claude-haiku-4-5": f"Claude Haiku 4.5 {ui.dim}(cheapest but less capable)",
         },
