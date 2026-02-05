@@ -41,7 +41,7 @@ jobs:
         # MODEL: "gpt-4.1"
         LLM_API_TYPE: anthropic
         LLM_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        MODEL: claude-opus-4-5
+        MODEL: claude-opus-4-6
         JIRA_TOKEN: ${{ secrets.JIRA_TOKEN }}
         JIRA_URL: ${{ secrets.JIRA_URL }}
         JIRA_USER: ${{ secrets.JIRA_USER }}
