@@ -331,32 +331,37 @@ PATs have broader permissions, longer lifespans, and are tied to individual user
 ## 💻 Development Setup<a id="-development-setup"></a>
 
 Clone the repository and navigate to it:
+
 ```bash
 git clone https://github.com/Nayjest/Gito.git
 cd Gito
 ```
+
 <div><img align="right" width="460" src="https://raw.githubusercontent.com/Nayjest/Gito/4_0_1/press-kit/character/gito_fullbody_1.jpg">
 
 Install dependencies:
+
 ```bash
 make install
 ```
-> **Note:** If `make` is not available on your system, you can run the underlying command directly:
-> ```bash
-> pip install -e ".[dev]"
-> ```
+
+> **Note:** If `make` is not available on your system, you can run the underlying command directly:  
+> `pip install -e ".[dev]"`  
 > See the [Makefile](https://github.com/Nayjest/Gito/blob/main/Makefile) for all available commands.
 
 Format code and check style:
+
 ```bash
 make black
 make cs
 ```
 
 Run tests:
+
 ```bash
 pytest
 ```
+
 </div>
 
 ## 🤝 Contributing<a id="-contributing"></a>

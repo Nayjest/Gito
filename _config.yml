@@ -1,5 +1,5 @@
 # GitHub Pages configuration
-theme: jekyll-theme-hacker
+theme: jekyll-theme-dinky
 title: "Gito: AI Code Reviewer"
 description: Gito is an open-source AI code reviewer that works with any language model provider. It detects issues in GitHub pull requests or local codebase changes—instantly, reliably, and without vendor lock-in.
 
