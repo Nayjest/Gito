@@ -159,7 +159,7 @@ jobs:
           LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
           LLM_API_TYPE: anthropic
           LLM_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          MODEL: claude-opus-4-5
+          MODEL: claude-opus-4-6
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TARGET_BRANCH: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.ref || inputs.target_branch }}
           ISSUE_KEY: ${{ inputs.issue_key }}
