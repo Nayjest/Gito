@@ -2,7 +2,6 @@
 name = "gito.bot"
 version = "4.0.1"
 description = "AI code review tool that works with any language model provider. It detects issues in GitHub pull requests or local changes—instantly, reliably, and without vendor lock-in."
-authors = ["Nayjest <mail@vitaliy.in>"]
 readme = "README.md"
 license = "MIT"
 homepage = "https://github.com/Nayjest/Gito"
@@ -48,6 +47,14 @@ classifiers = [
     "Operating System :: OS Independent",
     "Development Status :: 5 - Production/Stable",
     "License :: OSI Approved :: MIT License",
+]
+authors = [
+    { name = "Vitalii Stepanenko", email = "mail@vitaliy.in" },
+]
+maintainers = [
+    { name = "Vitalii Stepanenko", email = "mail@vitaliy.in" },
+    { name = "Nikita Sahaidachnyi", email = "nikita.sahaidachnyi@gmail.com"},
+    { name = "Dariia Stepanenko", email = "zozulinadarina97@gmail.com"},
 ]
 packages = [
     { include = "gito" }
