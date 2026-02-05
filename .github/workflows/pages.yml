@@ -24,7 +24,8 @@ jobs:
             --standalone
             --from gfm
             --metadata title="Gito: AI Code Reviewer"
-            --css https://cdn.simplecss.org/simple.min.css
+            --css documentation/assets/gh-pages/style.css
+            --include-in-header documentation/assets/gh-pages/header-include.html
       - uses: actions/upload-pages-artifact@v3
         with:
           path: .
