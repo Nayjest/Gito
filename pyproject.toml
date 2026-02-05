@@ -49,12 +49,12 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
 ]
 authors = [
-    { name = "Vitalii Stepanenko", email = "mail@vitaliy.in" },
+    "Vitalii Stepanenko <mail@vitaliy.in>"
 ]
 maintainers = [
-    { name = "Vitalii Stepanenko", email = "mail@vitaliy.in" },
-    { name = "Nikita Sahaidachnyi", email = "nikita.sahaidachnyi@gmail.com"},
-    { name = "Dariia Stepanenko", email = "zozulinadarina97@gmail.com"},
+    "Vitalii Stepanenko <mail@vitaliy.in>",
+    "Nikita Sahaidachnyi <nikita.sahaidachnyi@gmail.com>",
+    "Dariia Stepanenko <zozulinadarina97@gmail.com>"
 ]
 packages = [
     { include = "gito" }
