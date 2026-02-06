@@ -31,7 +31,7 @@ jobs:
         #   1. Requiring approval for running fork pull request workflows from all external contributors
         #      (Settings → Actions → General → Approval for running fork pull request workflows from contributors)
         #   2. Reviewing PRs for secret exfiltration and other malicious code before approving workflow runs.
-        ref: ${{ github.event.pull_request.head.sha }}
+        ref: ${{ github.event.pull_request.head.sha || github.ref }}
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v6
       with:
@@ -69,20 +69,26 @@ jobs:
       with:
         output: 'coverage.svg'
     - name: Commit coverage badge
-      if: |
-        matrix.python-version == '3.13' && (
-          github.event_name == 'push' ||
-          (github.event_name == 'pull_request_target'
-            && github.event.pull_request.head.repo.full_name == github.repository
-          )
-        )
+      if: matrix.python-version == '3.13' && github.event_name == 'push'
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
-        git fetch origin
-        git checkout ${{ github.head_ref || github.ref_name }} --
+        # For PRs from the same repo, head_ref is the branch name.
+        # For pushes, ref_name is the branch name.
+        BRANCH_NAME="${{ github.head_ref || github.ref_name }}"
+        
+        # Determine current branch name if not explicitly available
+        if [ -z "$BRANCH_NAME" ]; then
+          echo "Error: Could not determine branch name"
+          exit 1
+        fi
+        
+        echo "Target branch: $BRANCH_NAME"
+        
+        git fetch origin "$BRANCH_NAME"
+        git checkout "$BRANCH_NAME"
         git add coverage.svg
         git commit -m "Update coverage badge [skip ci]" || echo "No changes to commit"
-        git push
+        git push origin "$BRANCH_NAME"
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
