@@ -166,7 +166,7 @@ pip install gito.bot
 ```
 
 > **Troubleshooting:**  
-> pip may also be available via cli as `pip3` depending on your Python installation.
+> pip may also be available via CLI as `pip3` depending on your Python installation.
 
 To install from repository source / specific branch:
 ```bash
