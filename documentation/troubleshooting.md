@@ -46,7 +46,7 @@ If rate limit errors persist, consider reducing the number of concurrent API req
   env:
     LLM_API_TYPE: anthropic
     LLM_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-    MODEL: claude-opus-4-5
+    MODEL: claude-opus-4-6
     MAX_CONCURRENT_TASKS: 20
   run: |
     ...

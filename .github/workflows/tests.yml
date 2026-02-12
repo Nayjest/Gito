@@ -65,9 +65,9 @@ jobs:
             && github.event.pull_request.head.repo.full_name == github.repository
           )
         )
-      uses: tj-actions/coverage-badge-py@v2
-      with:
-        output: 'coverage.svg'
+      run: |
+        pip install genbadge[coverage]
+        genbadge coverage -i coverage.xml -o coverage.svg
     - name: Commit coverage badge
       if: |
         matrix.python-version == '3.13' && (

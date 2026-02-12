@@ -19,7 +19,7 @@ and suggest focused testing to mitigate them.
 - Number test cases sequentially (C-01, C-02, E-01, E-02, etc.).
 
 ----RELATED CODEBASE CHANGES----
-{% for part in diff %}{{ part }}\n{% endfor %}
+{% for part in diff %}{{ part }}{{ '\n' }}{% endfor %}
 
 ----FULL FILE CONTENT AFTER APPLYING CHANGES----
 {% for file, file_lines in all_file_lines.items() %}
