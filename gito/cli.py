@@ -4,9 +4,17 @@ import logging
 import sys
 import textwrap
 
+import microcore as mc
+import typer
+from gito.utils.git_platform.shared import get_repo_base_web_url
 
-# Defer importing heavy `core` functions that depend on GitPython to runtime
-# so that simple commands (like `version`) work without GitPython present.
+from .core import (
+    review,
+    answer,
+    get_target_diff,
+    get_base_branch,
+    NoChangesInContextError,
+)
 from .cli_base import (
     app,
     args_to_target,
@@ -23,11 +31,8 @@ from .constants import HOME_ENV_PATH, GITHUB_MD_REPORT_FILE_NAME, REFS_VALUE_ALL
 from .bootstrap import bootstrap
 from .utils.cli import no_subcommand, logo
 from .utils.html import remove_html_comments
-import microcore as mc
-import typer
-# Expose `review` symbol so tests can patch `gito.cli.review` even when
-# the real implementation is imported lazily at runtime.
-review = None
+from .utils.git_platform.shared import get_repo_domain_and_path
+from .utils.git_platform.platform_types import PlatformType, identify_git_platform
 from .project_config import ProjectConfig
 
 from .commands.gh_post_review_comment import post_github_cr_comment
@@ -139,20 +144,6 @@ def cmd_review(
     refs, merge_base = _consider_arg_all(all, refs, merge_base)
     _what, _against = args_to_target(refs, what, against)
     pr = pr or os.getenv("PR_NUMBER_FROM_WORKFLOW_DISPATCH")
-    # Defer imports that require GitPython or core logic until runtime so
-    # simple CLI commands (like `version`) can run without those dependencies.
-    from gito.utils.git_platform.shared import get_repo_base_web_url, get_repo_domain_and_path
-    from gito.utils.git_platform.platform_types import PlatformType, identify_git_platform
-    from .core import (
-        get_target_diff,
-        get_base_branch,
-        NoChangesInContextError,
-    )
-    global review
-    if review is None:
-        from .core import review as _real_review
-        review = _real_review
-
     with (get_repo_context(url, _what) as (repo, out_folder)):
         commit_sha = repo.head.commit.hexsha
         try:
@@ -241,8 +232,6 @@ def cmd_answer(
         question = ""
     else:
         prompt_file = None
-    from .core import answer
-
     out = answer(
         question=question,
         what=_what,
@@ -304,9 +293,6 @@ def files(
 ):
     refs, merge_base = _consider_arg_all(all, refs, merge_base)
     _what, _against = args_to_target(refs, what, against)
-    # Import core functions that rely on Git at runtime
-    from .core import get_target_diff, get_base_branch, NoChangesInContextError
-
     with get_repo_context(url=None, branch=_what) as (repo, out_folder):
         cfg = ProjectConfig.load_for_repo(repo)
         try:
