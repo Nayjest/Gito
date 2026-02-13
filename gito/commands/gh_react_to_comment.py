@@ -99,25 +99,19 @@ def react_to_comment(
     print(f"Processing comment for PR #{pr}...")
 
     issue_ids = extract_fix_args(comment.body)
-    is_fix_request = is_fix_request_check(comment.body)
-    
-    if is_fix_request:
-        logging.info("Fix request detected")
-        if issue_ids:
-            logging.info(f"Extracted issue IDs: {ui.yellow(str(issue_ids))}")
-        else:
-            logging.info("No specific issue IDs found, will fix all issues")
-        
+    if issue_ids:
+        logging.info(f"Extracted issue IDs: {ui.yellow(str(issue_ids))}")
         out_folder = "artifact"
         download_latest_code_review_artifact(
             api, pr_number=pr, gh_token=gh_token, out_folder=out_folder
         )
         fix(
-            issue_ids[0] if issue_ids else None,  # None means fix all issues
+            None if issue_ids == "all" else issue_ids,
             report_path=Path(out_folder) / JSON_REPORT_FILE_NAME,
             dry_run=dry_run,
             commit=not dry_run,
             push=not dry_run,
+            src_path=None,
         )
         logging.info("Fix applied successfully.")
     elif is_review_request(comment.body):
@@ -202,9 +196,11 @@ def download_latest_code_review_artifact(
     print(f"Artifact unpacked to ./{out_folder}")
 
 
-def extract_fix_args(text: str) -> list[int]:
-    pattern1 = r"fix\s+(?:issues?)?(?:\s+)?#?(\d+(?:\s*,\s*#?\d+)*)"
-    match = re.search(pattern1, text)
+def extract_fix_args(text: str) -> list[int] | str:
+    if re.search(r"fix\s+all", text, re.IGNORECASE):
+        return "all"
+    pattern = r"fix\s+(?:issues?)?(?:\s+)?#?(\d+(?:\s*,\s*#?\d+)*)"
+    match = re.search(pattern, text)
     if match:
         numbers_str = match.group(1)
         numbers = re.findall(r"\d+", numbers_str)
@@ -221,18 +217,4 @@ def is_review_request(text: str) -> bool:
     parts = text.split()
     if len(parts) == 2 and parts[1] in trigger_words:
         return True
-    return False
-
-
-def is_fix_request_check(text: str) -> bool:
-    """Check if the comment is requesting to fix issues."""
-    text = text.lower().strip()
-    # Check for explicit fix commands
-    fix_patterns = [
-        r'\bfix\b',
-        r'/fix\b',
-    ]
-    for pattern in fix_patterns:
-        if re.search(pattern, text):
-            return True
     return False
