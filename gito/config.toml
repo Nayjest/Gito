@@ -1,9 +1,17 @@
 # :class: gito.project_config.ProjectConfig
 
+# This is default project configuration file bundled within gito.bot distribution.
+# You can override any settings here by creating a .gito/config.toml file in your
+# project root directory.
+
+
 # Defines the keyword or mention tag that triggers bot actions when referenced in code review comments.
 # list of strings, case-insensitive
 mention_triggers = ["gito", "bot", "ai", "/fix"]
+# Collapse previous code review comments in the GitHub PR before posting new ones
 collapse_previous_code_review_comments = true
+report_template_gitlab_code_quality = "fn:gito.gitlab.convert_to_gitlab_code_quality_report"
+# Code review report template in Markdown format, used for GitHub PR comments.
 report_template_md = """
 <h2>{{ HTML_TEXT_ICON }}I've Reviewed the Code</h2>
 
@@ -27,7 +35,7 @@ report_template_md = """
         {%- if loop.last == false -%}, {%- endif -%}
         {%- endfor -%}
     {%- endif -%}
-    ]({{ issue.github_code_link(github_env) }})
+    ]({{ issue.code_link(report.target) }})
 
     {{"\n"}}{{ issue.details -}}
     {{"\n"}}**Tags: {{ ', '.join(issue.tags) }}**
@@ -37,8 +45,15 @@ report_template_md = """
     {%- endfor -%}
     {{ "\n" }}
 {%- endfor -%}
+{%- if report.processing_warnings -%}
+    {{- "\n\n" }}## Processing Warnings
+    {%- for warning in report.processing_warnings -%}
+        {{- "\n" }}  - {{ warning.message -}}
+    {%- endfor -%}
+{%- endif -%}
 {{- HTML_CR_COMMENT_MARKER -}}
 """
+# Code review report template used for CLI output
 report_template_cli = """
 {{ Back.BLUE }}  +  +  +  ---==<<[ CODE REVIEW{{Style.NORMAL}} ]>>==---  +  +  +  {{Style.RESET_ALL}}
 {% if report.total_issues > 0 -%}
@@ -109,8 +124,17 @@ report_template_cli = """
     {%- endfor -%}
     {{ "\n" }}
 {%- endfor -%}
+{%- if report.processing_warnings -%}
+    {{- "\n" }}
+    {{- "\n" }}{{ Style.BRIGHT }}⚠️ PROCESSING WARNINGS{{ Style.RESET_ALL -}}
+    {%- for warning in report.processing_warnings -%}
+        {{- "\n" }}  {{ Fore.YELLOW }}- {{ warning.message }}{{ Style.RESET_ALL -}}
+    {%- endfor -%}
+{%- endif -%}
 """
+# Number of retries for LLM requests in case of failures
 retries = 3
+# Code review prompt template
 prompt = """
 {{ self_id }}
 ----TASK----
@@ -132,7 +156,7 @@ Review the provided code diff carefully and identify *only* highly confident iss
 - Do **not** report vague, theoretical, or overly generic advice.
 - Do **not** report anything with medium or lower confidence.
 - Typographical errors have highest severity.
-{{ requirements -}}
+{{ requirements -}}{#- see prompt_vars.requirements in the .gito/config.toml -#}
 {{ json_requirements }}
 
 Respond with a valid JSON array of issues following this schema:
@@ -184,7 +208,7 @@ Confidence scale:
 - 1 — Highest, 100% confidence that code requires changes in any context
 - 2 — Very High
 - 3 — High
-- 4 — Medium - Should not be reported
+- 4 — Medium, Should not be reported
 
 (!) - If no issues found according to the criteria, respond with empty list: []
 """
@@ -200,7 +224,7 @@ summary_prompt = """
 {{ self_id }}
 Summarize the code review in one sentence.
 --Reviewed Changes--
-{% for part in diff %}{{ part }}\n{% endfor %}
+{% for part in diff %}{{ part }}{{ '\n' }}{% endfor %}
 --Issues Detected by You--
 {{ issues | tojson(indent=2) }}
 ---
@@ -246,13 +270,13 @@ If there are concerns about how thoroughly the code covers the requirements and 
 answer_github_comments = true
 answer_prompt = "tpl:answer.j2"
 aux_files = []
-[pipeline_steps.jira]
+[pipeline_steps.jira] # Jira integration step, fetches associated issue details for the review context.
 call="gito.pipeline_steps.jira.fetch_associated_issue"
-envs=["local","gh-action"]
-[pipeline_steps.linear]
+envs=["local","ci"]
+[pipeline_steps.linear] # Linear integration step, fetches associated issue details for the review context.
 call="gito.pipeline_steps.linear.fetch_associated_issue"
-envs=["local","gh-action"]
-[prompt_vars]
+envs=["local","ci"]
+[prompt_vars] # Additional variables to pass to prompts.
 self_id = """
 You are a subsystem of an AI-powered software platform, specifically tasked with performing expert code reviews.
 Act as a senior, highly experienced software engineer.
@@ -428,8 +452,10 @@ decorators add depth and texture, and observer masterfully completes the composi
 The Gang of Four gives a standing ovation from the stalls."
 ```
 """
+# Used in review prompt template
 requirements = """
-- (!) Never report issues related to software versions, model names, or similar details that you believe have not yet been released—you cannot reliably determine this.
+- Treat language issues as critical defects: Unclear or incorrect English that may cause misunderstanding must be flagged, not ignored.
+- Enforce consistency: Terminology, tense, and naming patterns must be consistent across the codebase.
 """
 summary_requirements = ""
 answering_instructions = """

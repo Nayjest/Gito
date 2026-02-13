@@ -1,6 +1,6 @@
 name: "Gito: AI Code Reviewer"
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, synchronize, reopened]
   workflow_dispatch:
     inputs:
@@ -12,11 +12,19 @@ jobs:
     runs-on: ubuntu-latest
     permissions: { contents: read, pull-requests: write } # 'write' for leaving the summary comment
     steps:
-    - uses: actions/checkout@v4
-      with: { fetch-depth: 0 }
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 0
+        # Checkout PR head to process actual changes (including forks).
+        #
+        # ⚠️ SECURITY: This exposes secrets to fork code. Mitigate by:
+        #   1. Requiring approval for running fork pull request workflows from all external contributors
+        #      (Settings → Actions → General → Approval for running fork pull request workflows from contributors)
+        #   2. Reviewing PRs for secret exfiltration and other malicious code before approving workflow runs.
+        ref: ${{ github.event.pull_request.head.sha }}
 
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with: { python-version: "3.13" }
 
     - name: Install Gito
@@ -33,13 +41,13 @@ jobs:
         # MODEL: "gpt-4.1"
         LLM_API_TYPE: anthropic
         LLM_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        MODEL: claude-opus-4-20250514
+        MODEL: claude-opus-4-6
         JIRA_TOKEN: ${{ secrets.JIRA_TOKEN }}
         JIRA_URL: ${{ secrets.JIRA_URL }}
         JIRA_USER: ${{ secrets.JIRA_USER }}
         LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
         GITO_DEBUG: "1"
-        PR_NUMBER_FROM_WORKFLOW_DISPATCH: ${{ github.event.inputs.pr_number }}
+        PR_NUMBER_FROM_WORKFLOW_DISPATCH: ${{ github.event.inputs.pr_number || github.event.pull_request.number }}
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         gito --verbose review
@@ -47,7 +55,7 @@ jobs:
         # gito --verbose review ${{ github.event_name == 'pull_request' && github.event.pull_request.base.ref && format(' --against="origin/{0}"', github.event.pull_request.base.ref) || '' }}
         gito github-comment
 
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v6
       with:
         name: gito-code-review-results
         path: |

@@ -1,4 +1,4 @@
-from gito.utils import syntax_hint
+from gito.utils.markdown import syntax_hint
 
 
 def test_extensions():
@@ -18,6 +18,7 @@ def test_extensions():
     assert syntax_hint("foo.go") == "go"
     assert syntax_hint("code.cpp") == "cpp"
     assert syntax_hint("folder.1\\file.hello.cxx") == "cpp"
+    assert syntax_hint("CMakeLists.txt") == "cmake"
 
 
 def test_unknown_extension():

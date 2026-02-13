@@ -6,10 +6,15 @@ import textwrap
 
 import microcore as mc
 import typer
-from git import Repo
-from gito.constants import REFS_VALUE_ALL
+from gito.utils.git_platform.shared import get_repo_base_web_url
 
-from .core import review, get_diff, filter_diff, answer
+from .core import (
+    review,
+    answer,
+    get_target_diff,
+    get_base_branch,
+    NoChangesInContextError,
+)
 from .cli_base import (
     app,
     args_to_target,
@@ -18,18 +23,23 @@ from .cli_base import (
     arg_filters,
     arg_out,
     arg_against,
+    arg_all,
     get_repo_context,
 )
-from .report_struct import Report
-from .constants import HOME_ENV_PATH, GITHUB_MD_REPORT_FILE_NAME
+from .report_struct import Report, ReviewTarget
+from .constants import HOME_ENV_PATH, GITHUB_MD_REPORT_FILE_NAME, REFS_VALUE_ALL
 from .bootstrap import bootstrap
-from .utils import no_subcommand, extract_gh_owner_repo, remove_html_comments
-from .gh_api import resolve_gh_token
+from .utils.cli import no_subcommand, logo
+from .utils.html import remove_html_comments
+from .utils.git_platform.shared import get_repo_domain_and_path
+from .utils.git_platform.platform_types import PlatformType, identify_git_platform
+from .project_config import ProjectConfig
 
-# Import fix command to register it
-from .commands import fix, gh_react_to_comment, repl, deploy, version  # noqa
 from .commands.gh_post_review_comment import post_github_cr_comment
+from .commands.gitlab_post_review_comment import post_gitlab_cr_comment
 from .commands.linear_comment import linear_comment
+# Imported for registering commands
+from .commands import fix, gh_react_to_comment, repl, deploy, version  # noqa
 
 app_no_subcommand = typer.Typer(pretty_exceptions_show_locals=False)
 
@@ -88,6 +98,23 @@ def cli(
         bootstrap(verbosity)
 
 
+def _consider_arg_all(all: bool, refs: str, merge_base: bool) -> tuple[str, bool]:
+    """
+    Handle the --all option logic for commands.
+    Returns:
+        Updated (refs, merge_base) tuple.
+    """
+    if all:
+        if refs and refs != REFS_VALUE_ALL:
+            raise typer.BadParameter(
+                "The --all option overrides the refs argument. "
+                "Please remove the refs argument if you want to review all codebase."
+            )
+        refs = REFS_VALUE_ALL
+        merge_base = False
+    return refs, merge_base
+
+
 @app_no_subcommand.command(name="review", help="Perform code review")
 @app.command(name="review", help="Perform a code review of the target codebase changes.")
 @app.command(name="run", hidden=True)
@@ -98,59 +125,77 @@ def cmd_review(
     filters: str = arg_filters(),
     merge_base: bool = typer.Option(default=True, help="Use merge base for comparison"),
     url: str = typer.Option("", "--url", help="Git repository URL"),
-    path: str = typer.Option("", "--path", help="Git repository path"),
-    post_comment: bool = typer.Option(default=False, help="Post review comment to GitHub"),
+    path: str = typer.Option("", "--path", help="Git repository path"),  # @todo: implement
+    post_comment: bool = typer.Option(
+        default=False,
+        help="Post review comment to git platform (GitHub, GitLab, etc.)"
+    ),
     pr: int = typer.Option(
         default=None,
         help=textwrap.dedent("""\n
-        GitHub Pull Request number to post the comment to
+        GitHub Pull Request number or GitLab Merge Request ID to post the comment to
         (for local usage together with --post-comment,
-        in the github actions PR is resolved from the environment)
+        in the GitHub/GitLab actions PR/MR is resolved from the environment)
         """)
     ),
     out: str = arg_out(),
-    all: bool = typer.Option(default=False, help="Review all codebase"),
+    all: bool = arg_all(),
 ):
-    if all:
-        if refs and refs != REFS_VALUE_ALL:
-            raise typer.BadParameter(
-                "The --all option overrides the refs argument. "
-                "Please remove the refs argument if you want to review all codebase."
-            )
-        refs = REFS_VALUE_ALL
-        merge_base = False
+    refs, merge_base = _consider_arg_all(all, refs, merge_base)
     _what, _against = args_to_target(refs, what, against)
     pr = pr or os.getenv("PR_NUMBER_FROM_WORKFLOW_DISPATCH")
-    with get_repo_context(url, _what) as (repo, out_folder):
-        asyncio.run(review(
-            repo=repo,
+    with (get_repo_context(url, _what) as (repo, out_folder)):
+        commit_sha = repo.head.commit.hexsha
+        try:
+            active_branch = repo.active_branch.name
+        except TypeError:
+            active_branch = None
+        review_target = ReviewTarget(
+            git_platform_type=identify_git_platform(repo),
+            repo_url=get_repo_base_web_url(repo),
+            pull_request_id=str(pr) if pr else None,
             what=_what,
             against=_against,
             filters=filters,
             use_merge_base=merge_base,
+            commit_sha=commit_sha,
+            active_branch=active_branch,
+        )
+        asyncio.run(review(
+            repo=repo,
+            target=review_target,
             out_folder=out or out_folder,
-            pr=pr,
         ))
         if post_comment:
-            try:
-                owner, repo_name = extract_gh_owner_repo(repo)
-            except ValueError as e:
-                logging.error(
-                    "Error posting comment:\n"
-                    "Could not extract GitHub owner and repository name from the local repository."
+
+            md_report_file = os.path.join(out or out_folder, GITHUB_MD_REPORT_FILE_NAME)
+            if review_target.git_platform_type == PlatformType.GITHUB:
+                try:
+                    _, repo_path = get_repo_domain_and_path(repo)
+                except ValueError as e:
+                    logging.error(
+                        "Error posting comment:\n"
+                        "Could not extract GitHub repository path "
+                        "from the local repository."
+                    )
+                    raise typer.Exit(code=1) from e
+                post_github_cr_comment(
+                    md_report_file=md_report_file,
+                    pr=pr,
+                    gh_repo=repo_path,
                 )
-                raise typer.Exit(code=1) from e
-            post_github_cr_comment(
-                md_report_file=os.path.join(out or out_folder, GITHUB_MD_REPORT_FILE_NAME),
-                pr=pr,
-                gh_repo=f"{owner}/{repo_name}",
-                token=resolve_gh_token()
-            )
+            elif review_target.git_platform_type == PlatformType.GITLAB:
+                post_gitlab_cr_comment(md_report_file=md_report_file, merge_request_iid=pr)
+            else:
+                msg = "Posting comments is only supported for GitHub and GitLab repositories."
+                if not review_target.git_platform_type:
+                    msg = f"Could not identify the Git provider for the current repository. {msg}"
+                logging.error(msg)
+                raise typer.Exit(code=1)
 
 
 @app.command(name="ask", help="Answer questions about the target codebase changes.")
 @app.command(name="answer", hidden=True)
-@app.command(name="talk", hidden=True)
 def cmd_answer(
     question: str = typer.Argument(help="Question to ask about the codebase changes"),
     refs: str = arg_refs(),
@@ -171,8 +216,15 @@ def cmd_answer(
     aux_files: list[str] = typer.Option(
         default=None,
         help="Auxiliary files that might be helpful"
-    )
+    ),
+    save_to: str = typer.Option(
+        help="Write the answer to the target file",
+        default=None,
+        show_default=False
+    ),
+    all: bool = arg_all(),
 ):
+    refs, merge_base = _consider_arg_all(all, refs, merge_base)
     _what, _against = args_to_target(refs, what, against)
     pr = pr or os.getenv("PR_NUMBER_FROM_WORKFLOW_DISPATCH")
     if str(question).startswith("tpl:"):
@@ -194,18 +246,27 @@ def cmd_answer(
     if post_to == 'linear':
         logging.info("Posting answer to Linear...")
         linear_comment(remove_html_comments(out))
+    if save_to:
+        with open(save_to, "w", encoding="utf-8") as f:
+            f.write(out)
+        logging.info(f"Answer saved to {mc.utils.file_link(save_to)}")
+
     return out
 
 
 @app.command(help="Configure LLM for local usage interactively.")
 def setup():
+    print(logo())
     mc.interactive_setup(HOME_ENV_PATH)
 
 
 @app.command(name="report", help="Render and display code review report.")
 @app.command(name="render", hidden=True)
 def render(
-    format: str = typer.Argument(default=Report.Format.CLI),
+    format: str = typer.Argument(
+        default=Report.Format.CLI,
+        help="Report format: md (Markdown), cli (terminal)"
+    ),
     source: str = typer.Option(
         "",
         "--src",
@@ -227,19 +288,32 @@ def files(
     against: str = arg_against(),
     filters: str = arg_filters(),
     merge_base: bool = typer.Option(default=True, help="Use merge base for comparison"),
-    diff: bool = typer.Option(default=False, help="Show diff content")
+    diff: bool = typer.Option(default=False, help="Show diff content"),
+    all: bool = arg_all(),
 ):
+    refs, merge_base = _consider_arg_all(all, refs, merge_base)
     _what, _against = args_to_target(refs, what, against)
-    repo = Repo(".")
-    try:
-        patch_set = get_diff(repo=repo, what=_what, against=_against, use_merge_base=merge_base)
-        patch_set = filter_diff(patch_set, filters)
+    with get_repo_context(url=None, branch=_what) as (repo, out_folder):
+        cfg = ProjectConfig.load_for_repo(repo)
+        try:
+            patch_set = get_target_diff(
+                repo=repo,
+                config=cfg,
+                what=_what,
+                against=_against,
+                filters=filters,
+                use_merge_base=merge_base,
+                pr=None,
+            )
+        except NoChangesInContextError:
+            patch_set = []
+
         print(
             f"Changed files: "
             f"{mc.ui.green(_what or 'INDEX')} vs "
-            f"{mc.ui.yellow(_against or repo.remotes.origin.refs.HEAD.reference.name)}"
+            f"{mc.ui.yellow(_against or get_base_branch(repo))}"
             f"{' filtered by ' + mc.ui.cyan(filters) if filters else ''} --> "
-            f"{mc.ui.cyan(len(patch_set or []))} file(s)."
+            f"{mc.ui.cyan(len(patch_set))} file(s)."
         )
 
         for patch in patch_set:
@@ -252,5 +326,3 @@ def files(
             print(f"- {color(patch.path)}")
             if diff:
                 print(mc.ui.gray(textwrap.indent(str(patch), "  ")))
-    finally:
-        repo.close()

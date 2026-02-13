@@ -1,8 +1,12 @@
+"""
+Constants used throughout the Gito project.
+"""
 from pathlib import Path
 from .env import Env
 
 PROJECT_GITO_FOLDER = ".gito"
 PROJECT_CONFIG_FILE_NAME = "config.toml"
+# Standard project config file path relative to the current project root
 PROJECT_CONFIG_FILE_PATH = Path(".gito") / PROJECT_CONFIG_FILE_NAME
 PROJECT_CONFIG_BUNDLED_DEFAULTS_FILE = Path(__file__).resolve().parent / PROJECT_CONFIG_FILE_NAME
 HOME_ENV_PATH = Path("~/.gito/.env").expanduser()
@@ -12,5 +16,6 @@ EXECUTABLE = "gito"
 TEXT_ICON_RELATIVE_PATH = "press-kit/logo/gito-bot-1_64top.png"
 TEXT_ICON_URL = f"https://raw.githubusercontent.com/Nayjest/Gito/main/{TEXT_ICON_RELATIVE_PATH}"
 HTML_TEXT_ICON = f'<a href="https://github.com/Nayjest/Gito"><img src="{TEXT_ICON_URL}" align="left" width=64 height=50 title="Gito v{Env.gito_version}"/></a>'  # noqa: E501
-HTML_CR_COMMENT_MARKER = "<!-- GITO_COMMENT:CODE_REVIEW_REPORT -->"
-REFS_VALUE_ALL = "!all"
+HTML_CR_COMMENT_MARKER = '<!-- GITO_COMMENT:CODE_REVIEW_REPORT -->'
+REFS_VALUE_ALL = '!all'
+DEFAULT_MAX_CONCURRENT_TASKS = 40

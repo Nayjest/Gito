@@ -7,7 +7,7 @@ from fastcore.basics import AttrDict  # objects returned by ghapi
 from ghapi.core import GhApi
 
 from .project_config import ProjectConfig
-from .utils import extract_gh_owner_repo
+from .utils.git_platform.shared import get_repo_owner_and_name
 
 
 def gh_api(
@@ -17,7 +17,7 @@ def gh_api(
 ) -> GhApi:
     if repo:
         # resolve owner/repo from repo.remotes.origin.url
-        owner, repo_name = extract_gh_owner_repo(repo)
+        owner, repo_name = get_repo_owner_and_name(repo)
     else:
         if not config:
             config = ProjectConfig.load()
@@ -73,7 +73,7 @@ def post_gh_comment(
 
 
 def hide_gh_comment(
-    comment: dict | str,
+    comment: dict | str | AttrDict,
     token: str = None,
     reason: str = "OUTDATED"
 ) -> bool:
@@ -82,7 +82,7 @@ def hide_gh_comment(
     Args:
         comment (dict | str):
             The comment to hide,
-            either as a object returned from ghapi or a string node ID.
+            either as an object returned from ghapi or a string node ID.
             note: comment.id is not the same as node_id.
         token (str): GitHub personal access token with permissions to minimize comments.
         reason (str): The reason for hiding the comment, e.g., "OUTDATED".

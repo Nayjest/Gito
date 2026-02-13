@@ -1,3 +1,4 @@
+"""Bootstrap module for initializing the Gito application environment."""
 import os
 import sys
 import io
@@ -7,12 +8,14 @@ from pathlib import Path
 
 import microcore as mc
 
-from .utils import is_running_in_github_action
-from .constants import HOME_ENV_PATH, EXECUTABLE, PROJECT_GITO_FOLDER
+from .utils.git_platform.gitlab import is_running_in_gitlab_ci
+from .utils.git_platform.github import is_running_in_github_action
+from .constants import HOME_ENV_PATH, EXECUTABLE, PROJECT_GITO_FOLDER, DEFAULT_MAX_CONCURRENT_TASKS
 from .env import Env
 
 
 def setup_logging(log_level: int = logging.INFO):
+    """Setup custom CLI logging format with colored output."""
     class CustomFormatter(logging.Formatter):
         def format(self, record):
             dt = datetime.fromtimestamp(record.created).strftime("%Y-%m-%d %H:%M:%S")
@@ -23,7 +26,11 @@ def setup_logging(log_level: int = logging.INFO):
             if record.levelno >= logging.ERROR:
                 message = mc.ui.red(message)
                 level_name = mc.ui.red(level_name)
-            return f"{dt} {level_name}: {message}"
+
+            formatted_message = f"{dt} {level_name}: {message}"
+            if record.exc_info:
+                formatted_message += "\n" + self.formatException(record.exc_info)
+            return formatted_message
 
     handler = logging.StreamHandler()
     handler.setFormatter(CustomFormatter())
@@ -60,13 +67,17 @@ def bootstrap(verbosity: int = 1):
                 Path(__file__).parent / "tpl"
             ],
         )
+        if mc.config().MAX_CONCURRENT_TASKS is None:
+            mc.config().MAX_CONCURRENT_TASKS = DEFAULT_MAX_CONCURRENT_TASKS
         if verbosity > 1:
             mc.logging.LoggingConfig.STRIP_REQUEST_LINES = None
         else:
             mc.logging.LoggingConfig.STRIP_REQUEST_LINES = [300, 15]
 
     except mc.LLMConfigError as e:
-        msg = str(e)
+        msg = str(e).strip()
+        if not msg.endswith((".", "!", "?")):
+            msg += "."
         if is_running_in_github_action():
             ref = os.getenv("GITHUB_WORKFLOW_REF", "")
             if ref:
@@ -75,8 +86,16 @@ def bootstrap(verbosity: int = 1):
                 ref = ref.split(".github/workflows/")[-1]
                 ref = f" (.github/workflows/{ref})"
             msg += (
-                f"\nPlease check your GitHub Action Secrets "
-                f"and `env` configuration section of the corresponding workflow step{ref}."
+                f"\nPlease check your GitHub Action secrets "
+                f"and `env` configuration section of the corresponding workflow step{ref}.\n"
+                f"See https://github.com/Nayjest/Gito/blob/main/documentation/github_setup.md "
+                f"for details."
+            )
+        elif is_running_in_gitlab_ci():
+            # @TODO add link to GitLab setup article
+            msg += (
+                "\nPlease check your GitLab CI/CD Variables "
+                "and `variables` configuration section of the corresponding job."
             )
         else:
             msg += (

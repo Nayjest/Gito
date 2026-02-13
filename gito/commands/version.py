@@ -1,3 +1,4 @@
+"""Show Gito version command."""
 from ..cli_base import app
 from ..env import Env
 

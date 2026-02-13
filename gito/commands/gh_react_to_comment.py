@@ -14,18 +14,18 @@ import typer
 from fastcore.basics import AttrDict
 from microcore import ui
 from ghapi.all import GhApi
-import git
 
 from ..cli_base import app
 from ..constants import JSON_REPORT_FILE_NAME, HTML_TEXT_ICON
 from ..core import answer
 from ..gh_api import post_gh_comment, resolve_gh_token
 from ..project_config import ProjectConfig
-from ..utils import extract_gh_owner_repo
+from ..utils.git_platform.shared import get_repo_owner_and_name
+from ..utils.git import get_cwd_repo_or_fail
 from .fix import fix
 
 
-def cleanup_comment_addressed_to_gito(text):
+def cleanup_comment_addressed_to_gito(text: Optional[str]) -> Optional[str]:
     if not text:
         return text
     patterns = [
@@ -72,8 +72,8 @@ def react_to_comment(
     Fetches the PR comment by ID, parses agent directives, and executes the requested
     actions automatically to enable seamless code review workflow integration.
     """
-    repo = git.Repo(".")  # Current directory
-    owner, repo_name = extract_gh_owner_repo(repo)
+    repo = get_cwd_repo_or_fail()
+    owner, repo_name = get_repo_owner_and_name(repo)
     logging.info(f"Using repository: {ui.yellow}{owner}/{repo_name}{ui.reset}")
     gh_token = resolve_gh_token(gh_token)
     api = GhApi(owner=owner, repo=repo_name, token=gh_token)
@@ -106,11 +106,12 @@ def react_to_comment(
             api, pr_number=pr, gh_token=gh_token, out_folder=out_folder
         )
         fix(
-            issue_ids[0],  # @todo: support multiple IDs
+            None if issue_ids == "all" else issue_ids,
             report_path=Path(out_folder) / JSON_REPORT_FILE_NAME,
             dry_run=dry_run,
             commit=not dry_run,
             push=not dry_run,
+            src_path=None,
         )
         logging.info("Fix applied successfully.")
     elif is_review_request(comment.body):
@@ -162,8 +163,8 @@ def last_code_review_run(api: GhApi, pr_number: int) -> AttrDict | None:
 
 
 def download_latest_code_review_artifact(
-    api: GhApi, pr_number: int, gh_token: str, out_folder: Optional[str] = "artifact"
-) -> tuple[str, dict] | None:
+    api: GhApi, pr_number: int, gh_token: str, out_folder: str = "artifact"
+) -> None:
     run = last_code_review_run(api, pr_number)
     if not run:
         raise Exception("No workflow run found for this PR/SHA")
@@ -185,19 +186,21 @@ def download_latest_code_review_artifact(
                     f.write(chunk)
 
         # Unpack to ./artifact
-        os.makedirs("artifact", exist_ok=True)
+        os.makedirs(out_folder, exist_ok=True)
         with zipfile.ZipFile(zip_path, "r") as zip_ref:
-            zip_ref.extractall("artifact")
+            zip_ref.extractall(out_folder)
     finally:
         if os.path.exists(zip_path):
             os.remove(zip_path)
 
-    print("Artifact unpacked to ./artifact")
+    print(f"Artifact unpacked to ./{out_folder}")
 
 
-def extract_fix_args(text: str) -> list[int]:
-    pattern1 = r"fix\s+(?:issues?)?(?:\s+)?#?(\d+(?:\s*,\s*#?\d+)*)"
-    match = re.search(pattern1, text)
+def extract_fix_args(text: str) -> list[int] | str:
+    if re.search(r"fix\s+all", text, re.IGNORECASE):
+        return "all"
+    pattern = r"fix\s+(?:issues?)?(?:\s+)?#?(\d+(?:\s*,\s*#?\d+)*)"
+    match = re.search(pattern, text)
     if match:
         numbers_str = match.group(1)
         numbers = re.findall(r"\d+", numbers_str)

@@ -4,12 +4,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import microcore as mc
-from gito.utils import detect_github_env
 from microcore import ui
 from git import Repo
 
 from .constants import PROJECT_CONFIG_BUNDLED_DEFAULTS_FILE, PROJECT_CONFIG_FILE_PATH
 from .pipeline import PipelineStep
+from .utils.git_platform.github import detect_github_env
 
 
 @dataclass
@@ -21,6 +21,7 @@ class ProjectConfig:
     """Markdown report template"""
     report_template_cli: str = ""
     """Report template for CLI output"""
+    report_template_gitlab_code_quality: str = "fn:gito.gitlab:convert_to_gitlab_code_quality_report"  # noqa: E501
     post_process: str = ""
     retries: int = 3
     """LLM retries for one request"""
@@ -33,6 +34,10 @@ class ProjectConfig:
     when referenced in code review comments.
     """
     aux_files: list[str] = field(default_factory=list)
+    exclude_files: list[str] = field(default_factory=list)
+    """
+    List of file patterns to exclude from analysis.
+    """
     pipeline_steps: dict[str, dict | PipelineStep] = field(default_factory=dict)
     collapse_previous_code_review_comments: bool = field(default=True)
     """
@@ -48,16 +53,38 @@ class ProjectConfig:
 
     @staticmethod
     def _read_bundled_defaults() -> dict:
+        """
+        Read the bundled default project configuration,
+        typically located at <root>/gito/config.toml in the gito.bot distribution.
+        Returns:
+            dict: The default project configuration.
+        """
         with open(PROJECT_CONFIG_BUNDLED_DEFAULTS_FILE, "rb") as f:
             config = tomllib.load(f)
         return config
 
     @staticmethod
-    def load_for_repo(repo: Repo):
-        return ProjectConfig.load(Path(repo.working_tree_dir) / PROJECT_CONFIG_FILE_PATH)
+    def load_for_repo(repo: Repo) -> "ProjectConfig":
+        if repo.working_tree_dir is not None:
+            config_path = Path(repo.working_tree_dir) / PROJECT_CONFIG_FILE_PATH
+        else:
+            config_path = None
+        return ProjectConfig.load(config_path)
 
     @staticmethod
     def load(config_path: str | Path | None = None) -> "ProjectConfig":
+        """
+        Load the project configuration from the specified path.
+        If no path is provided, it defaults to the standard project config file path
+        (<current_project>/.gito/config.toml).
+        If the file exists, it merges the project-specific
+        configuration with the bundled defaults.
+        If not found, it uses only the defaults.
+        Args:
+            config_path (str | Path | None): Alternative path to the project configuration file.
+        Returns:
+            ProjectConfig: The loaded project configuration instance.
+        """
         config = ProjectConfig._read_bundled_defaults()
         github_env = detect_github_env()
         config["prompt_vars"] |= github_env | dict(github_env=github_env)

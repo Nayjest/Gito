@@ -1,0 +1,64 @@
+name: "Build Windows Installer"
+
+on:
+  release:
+    types: [created]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v6
+    
+    - name: Set up Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: '3.13'
+    
+    - name: Install dependencies
+      run: |
+        pip install -e .
+        pip install pyinstaller
+    
+    - name: Build with PyInstaller
+      run: pyinstaller gito.spec
+    
+    - name: Install Inno Setup
+      run: |
+        choco install innosetup -y
+        $isccPath = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+        if (-not (Test-Path $isccPath)) {
+          Write-Error "Inno Setup not found at expected path: $isccPath. Verify that Chocolatey installed Inno Setup correctly."
+          Exit 1
+        }
+      shell: pwsh
+    
+    - name: Build installer
+      run: |
+        & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
+      shell: pwsh
+    
+    - name: Generate checksum
+      run: |
+        cd installer_output
+        Get-FileHash *.exe -Algorithm SHA256 | ForEach-Object { "$($_.Hash)  $($_.Path | Split-Path -Leaf)" } | Out-File -FilePath checksums.txt
+      shell: pwsh
+
+    - name: Upload installer artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: windows-installer
+        path: |
+          installer_output/*.exe
+          installer_output/checksums.txt
+
+    - name: Upload to Release
+      if: github.event_name == 'release'
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          installer_output/*.exe
+          installer_output/checksums.txt
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

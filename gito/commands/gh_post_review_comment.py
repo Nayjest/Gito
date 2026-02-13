@@ -1,9 +1,11 @@
 import logging
 import os
+from itertools import chain
 from time import sleep
 
 import typer
 from ghapi.core import GhApi
+from ghapi.page import paged
 
 from ..cli_base import app
 from ..constants import GITHUB_MD_REPORT_FILE_NAME, HTML_CR_COMMENT_MARKER
@@ -81,10 +83,18 @@ def post_github_cr_comment(
 def collapse_gh_outdated_cr_comments(
     gh_repository: str,
     pr_or_issue_number: int,
-    token: str = None
-):
+    token: str = None,
+) -> int:
     """
-    Collapse outdated code review comments in a GitHub pull request or issue.
+    Collapse outdated code review comments in a GitHub pull request.
+
+    Args:
+        gh_repository: Repository in 'owner/repo' format.
+        pr_or_issue_number: PR or issue number.
+        token: GitHub token (uses GITHUB_TOKEN env var if not provided).
+
+    Returns:
+        Number of comments collapsed.
     """
     logging.info(f"Collapsing outdated comments in {gh_repository} #{pr_or_issue_number}...")
 
@@ -92,7 +102,7 @@ def collapse_gh_outdated_cr_comments(
     owner, repo = gh_repository.split('/')
     api = GhApi(owner, repo, token=token)
 
-    comments = api.issues.list_comments(pr_or_issue_number)
+    comments = list(chain.from_iterable(paged(api.issues.list_comments, pr_or_issue_number)))
     review_marker = HTML_CR_COMMENT_MARKER
     collapsed_title = "🗑️ Outdated Code Review by Gito"
     collapsed_marker = f"<summary>{collapsed_title}</summary>"
@@ -101,11 +111,22 @@ def collapse_gh_outdated_cr_comments(
         if c.body and review_marker in c.body and collapsed_marker not in c.body
     ][:-1]
     if not outdated_comments:
-        logging.info("No outdated comments found")
-        return
+        logging.info("No outdated comments found.")
+        return 0
+    collapsed_qty = 0
     for comment in outdated_comments:
         logging.info(f"Collapsing comment {comment.id}...")
         new_body = f"<details>\n<summary>{collapsed_title}</summary>\n\n{comment.body}\n</details>"
-        api.issues.update_comment(comment.id, new_body)
-        hide_gh_comment(comment.node_id, token)
-    logging.info("All outdated comments collapsed successfully.")
+        collapsed = False
+        try:
+            api.issues.update_comment(comment.id, new_body)
+            collapsed = True
+        except Exception as e:
+            logging.error(f"Failed to collapse comment body {comment.id}: {e}")
+        if hide_gh_comment(comment.node_id, token):
+            if collapsed:
+                collapsed_qty += 1
+        else:
+            logging.error(f"Failed to hide comment {comment.id} via GraphQL API.")
+    logging.info("%s outdated comments collapsed successfully.", collapsed_qty)
+    return collapsed_qty

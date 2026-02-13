@@ -1,4 +1,4 @@
-# GitHub Setup Guide: Integrating Gito with Your Repository
+# <a href="https://github.com/Nayjest/Gito"><img src="https://raw.githubusercontent.com/Nayjest/Gito/main/press-kit/logo/gito-bot-1_64top.png" align="left" width=64 height=50 title="Gito: AI Code Reviewer"></a>GitHub Setup Guide: Integrating Gito with Your Repository
 
 Automate code review for all Pull Requests using AI.  
 This step-by-step guide shows how to connect [Gito](https://pypi.org/project/gito.bot/) to a GitHub repository for **continuous, automated PR reviews**.
@@ -30,7 +30,7 @@ You may use a secret manager (such as HashiCorp Vault) to fetch keys at runtime,
 
 There are two ways to set up Gito for code reviews in your repository:
 - Manually create the workflow file in your repository.
-- Use `gito init` command locally in the context of your repository and commit the generated workflow files.
+- Use `gito deploy` command locally in the context of your repository and commit the generated workflow files.
 > **Note:** 
 > 1. This requires the `gito` CLI tool to be installed locally.
 > 2. It will also create the workflow for reacting to the GitHub comments (experimental).
@@ -55,24 +55,24 @@ jobs:
     runs-on: ubuntu-latest
     permissions: { contents: read, pull-requests: write } # required to post review comments
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with: { fetch-depth: 0 }
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with: { python-version: "3.13" }
       - name: Install AI Code Review tool
-        run: pip install gito.bot~=3.0
+        run: pip install gito.bot~=4.0
       - name: Run AI code review
         env:
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
           LLM_API_TYPE: openai
-          MODEL: "gpt-4.1"
+          MODEL: "gpt-5.2"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER_FROM_WORKFLOW_DISPATCH: ${{ github.event.inputs.pr_number }}
         run: |
           gito --verbose review
-          gito github-comment --token "$GITHUB_TOKEN"
-      - uses: actions/upload-artifact@v4
+          gito github-comment
+      - uses: actions/upload-artifact@v6
         with:
           name: gito-code-review-results
           path: |
@@ -124,7 +124,7 @@ Whenever a PR is opened or updated, you'll see an **AI-generated code review com
 
 Example:
 
-![Workflow Diagnostics](img.png)
+![Workflow Diagnostics](assets/github_setup_screenshot1.png)
 
 ---
 

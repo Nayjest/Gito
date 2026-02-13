@@ -1,6 +1,9 @@
 aux_files=[
     'documentation/command_line_reference.md'
 ]
+exclude_files=[
+    'poetry.lock',
+]
 [prompt_vars]
 # Disable awards
 awards = ""

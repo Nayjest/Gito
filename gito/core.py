@@ -17,9 +17,9 @@ from unidiff.constants import DEV_NULL
 
 from .context import Context
 from .project_config import ProjectConfig
-from .report_struct import Report, RawIssue
+from .report_struct import ProcessingWarning, Report, ReviewTarget, RawIssue
 from .constants import JSON_REPORT_FILE_NAME, REFS_VALUE_ALL
-from .utils import make_streaming_function
+from .utils.cli import make_streaming_function
 from .pipeline import Pipeline
 from .env import Env
 from .gh_api import gh_api
@@ -236,10 +236,18 @@ def get_diff(
 
 
 def filter_diff(
-    patch_set: PatchSet | Iterable[PatchedFile], filters: str | list[str]
+    patch_set: PatchSet | Iterable[PatchedFile],
+    filters: str | list[str],
+    exclude: bool = False,
 ) -> PatchSet | Iterable[PatchedFile]:
     """
     Filter the diff files by the given fnmatch filters.
+    Args:
+        patch_set (PatchSet | Iterable[PatchedFile]): The diff to filter.
+        filters (str | list[str]): The fnmatch patterns to filter by.
+        exclude (bool): If True, inverse logic (exclude files matching the filters).
+    Returns:
+        PatchSet | Iterable[PatchedFile]: The filtered diff.
     """
     if not isinstance(filters, (list, str)):
         raise ValueError(
@@ -252,7 +260,10 @@ def filter_diff(
     files = [
         file
         for file in patch_set
-        if any(fnmatch.fnmatch(file.path, pattern) for pattern in filters)
+        if (
+            not any(fnmatch.fnmatch(file.path, pattern) for pattern in filters) if exclude
+            else any(fnmatch.fnmatch(file.path, pattern) for pattern in filters)
+        )
     ]
     return files
 
@@ -269,7 +280,23 @@ def read_file(repo: Repo, file: str, use_local_files: bool = False) -> str:
     return repo.tree()[file].data_stream.read().decode('utf-8')
 
 
-def file_lines(repo: Repo, file: str, max_tokens: int = None, use_local_files: bool = False) -> str:
+def file_lines(
+    repo: Repo,
+    file: str,
+    max_tokens: int = None,
+    use_local_files: bool = False
+) -> str:
+    """
+    Read file content and return it with line numbers.
+    If max_tokens is specified, trims the content to fit within the token limit.
+    Args:
+        repo (Repo): The git repository.
+        file (str): The file path to read.
+        max_tokens (int, optional): Maximum number of tokens to return. Defaults to None.
+        use_local_files (bool): Whether to read from local working directory first.
+    Returns:
+        str: The file content with line numbers.
+    """
     text = read_file(repo=repo, file=file, use_local_files=use_local_files)
     lines = [f"{i + 1}: {line}\n" for i, line in enumerate(text.splitlines())]
     if max_tokens:
@@ -315,8 +342,62 @@ def make_cr_summary(ctx: Context, **kwargs) -> str:
 
 class NoChangesInContextError(Exception):
     """
-    Exception raised when there are no changes in the context to review /answer questions.
+    Exception raised when there are no changes in the context to review or answer questions.
     """
+
+
+def get_target_diff(
+    repo: Repo,
+    config: ProjectConfig,
+    what: str = None,
+    against: str = None,
+    filters: str | list[str] = "",
+    use_merge_base: bool = True,
+    pr: str | int = None,
+) -> PatchSet | Iterable[PatchedFile]:
+    """
+    Get the target diff for review or answering questions.
+    Applies filtering based on the provided filters and project configuration.
+    Raises NoChangesInContextError if no changes are found after filtering.
+    Returns:
+        PatchSet | Iterable[PatchedFile]: The filtered diff.
+    """
+    diff = get_diff(
+        repo=repo, what=what, against=against, use_merge_base=use_merge_base, pr=pr,
+    )
+    diff = filter_diff(diff, filters)
+    if config.exclude_files:
+        diff = filter_diff(diff, config.exclude_files, exclude=True)
+    if not diff:
+        raise NoChangesInContextError()
+    return diff
+
+
+def get_target_lines(
+    repo: Repo,
+    config: ProjectConfig,
+    diff: PatchSet | Iterable[PatchedFile],
+    what: str = None,
+) -> dict[str, str]:
+    """
+    Get the lines of code for each file in the diff.
+    Returns a dictionary mapping file paths to their respective lines of code.
+    """
+    lines = {
+        file_diff.path: (
+            file_lines(
+                repo,
+                file_diff.path,
+                config.max_code_tokens
+                - mc.tokenizing.num_tokens_from_string(str(file_diff)),
+                use_local_files=review_subject_is_index(what) or what == REFS_VALUE_ALL
+            )
+            if file_diff.target_file != DEV_NULL or what == REFS_VALUE_ALL
+            else ""
+        )
+        for file_diff in diff
+    }
+    return lines
 
 
 def _prepare(
@@ -329,26 +410,16 @@ def _prepare(
 ):
     repo = repo or Repo(".")
     cfg = ProjectConfig.load_for_repo(repo)
-    diff = get_diff(
-        repo=repo, what=what, against=against, use_merge_base=use_merge_base, pr=pr,
+    diff = get_target_diff(
+        repo=repo,
+        config=cfg,
+        what=what,
+        against=against,
+        filters=filters,
+        use_merge_base=use_merge_base,
+        pr=pr,
     )
-    diff = filter_diff(diff, filters)
-    if not diff:
-        raise NoChangesInContextError()
-    lines = {
-        file_diff.path: (
-            file_lines(
-                repo,
-                file_diff.path,
-                cfg.max_code_tokens
-                - mc.tokenizing.num_tokens_from_string(str(file_diff)),
-                use_local_files=review_subject_is_index(what) or what == REFS_VALUE_ALL
-            )
-            if file_diff.target_file != DEV_NULL or what == REFS_VALUE_ALL
-            else ""
-        )
-        for file_diff in diff
-    }
+    lines = get_target_lines(repo=repo, config=cfg, diff=diff, what=what)
     return repo, cfg, diff, lines
 
 
@@ -373,18 +444,39 @@ def get_affected_code_block(repo: Repo, file: str, start_line: int, end_line: in
     return None
 
 
-def provide_affected_code_blocks(issues: dict, repo: Repo):
+def provide_affected_code_blocks(
+    issues: dict,
+    repo: Repo,
+    processing_warnings: list = None
+):
+    """
+    For each issue, fetch the affected code text block
+    and add it to the issue data.
+    """
     for file, file_issues in issues.items():
         for issue in file_issues:
-            for i in issue.get("affected_lines", []):
-                file_name = i.get("file", issue.get("file", file))
-                if block := get_affected_code_block(
-                    repo,
-                    file_name,
-                    i.get("start_line"),
-                    i.get("end_line")
-                ):
-                    i["affected_code"] = block
+            try:
+                for i in issue.get("affected_lines", []):
+                    file_name = i.get("file", issue.get("file", file))
+                    if block := get_affected_code_block(
+                        repo,
+                        file_name,
+                        i.get("start_line"),
+                        i.get("end_line")
+                    ):
+                        i["affected_code"] = block
+            except Exception as e:
+                logging.exception(e)
+                if processing_warnings is None:
+                    continue
+                processing_warnings.append(
+                    ProcessingWarning(
+                        message=(
+                            f"Error fetching affected code blocks for file {file}: {e}"
+                        ),
+                        file=file,
+                    )
+                )
 
 
 def _llm_response_validator(parsed_response: list[dict]):
@@ -401,27 +493,22 @@ def _llm_response_validator(parsed_response: list[dict]):
 
 
 async def review(
+    target: ReviewTarget,
     repo: Repo = None,
-    what: str = None,
-    against: str = None,
-    filters: str | list[str] = "",
-    use_merge_base: bool = True,
     out_folder: str | os.PathLike | None = None,
-    pr: str | int = None
 ):
     """
     Conducts a code review.
     Prints the review report to the console and saves it to a file.
     """
-    reviewing_all = what == REFS_VALUE_ALL
     try:
         repo, cfg, diff, lines = _prepare(
             repo=repo,
-            what=what,
-            against=against,
-            filters=filters,
-            use_merge_base=use_merge_base,
-            pr=pr,
+            what=target.what,
+            against=target.against,
+            filters=target.filters,
+            use_merge_base=target.use_merge_base,
+            pr=target.pull_request_id,
         )
     except NoChangesInContextError:
         logging.error("No changes to review")
@@ -433,7 +520,7 @@ async def review(
         we provide full file content as input.
         Otherwise, we provide the diff and additional file lines separately.
         """
-        return not reviewing_all and not file_diff.is_added_file
+        return not target.is_full_codebase_review() and not file_diff.is_added_file
 
     responses = await mc.llm_parallel(
         [
@@ -450,13 +537,38 @@ async def review(
         ],
         retries=cfg.retries,
         parse_json={"validator": _llm_response_validator},
+        allow_failures=True,
     )
+    processing_warnings: list[ProcessingWarning] = []
+    for i, (res_or_error, file) in enumerate(zip(responses, diff)):
+        if isinstance(res_or_error, Exception):
+            if isinstance(res_or_error, mc.LLMContextLengthExceededError):
+                message = f'File "{file.path}" was skipped due to large size: {str(res_or_error)}.'
+            else:
+                message = (
+                    f"File {file.path} was skipped due to error: "
+                    f"[{type(res_or_error).__name__}] {res_or_error}"
+                )
+                if not message.endswith('.'):
+                    message += '.'
+            processing_warnings.append(
+                ProcessingWarning(
+                    message=message,
+                    file=file.path,
+                )
+            )
+            responses[i] = []
+
     issues = {file.path: issues for file, issues in zip(diff, responses) if issues}
-    provide_affected_code_blocks(issues, repo)
+    provide_affected_code_blocks(issues, repo, processing_warnings)
     exec(cfg.post_process, {"mc": mc, **locals()})
     out_folder = Path(out_folder or repo.working_tree_dir)
     out_folder.mkdir(parents=True, exist_ok=True)
-    report = Report(number_of_processed_files=len(diff))
+    report = Report(
+        target=target,
+        number_of_processed_files=len(diff),
+        processing_warnings=processing_warnings,
+    )
     report.register_issues(issues)
     ctx = Context(
         report=report,

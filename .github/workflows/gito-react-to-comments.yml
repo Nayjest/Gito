@@ -13,7 +13,7 @@ permissions:
   actions: write
 
 jobs:
-  process-comment:
+  check-pr:
     if: |
       github.event.issue.pull_request &&
       (
@@ -31,7 +31,10 @@ jobs:
         contains(github.event.comment.body, '@bot')
       )
     runs-on: ubuntu-latest
-
+    outputs:
+      is_fork: ${{ steps.pr.outputs.is_fork }}
+      head_ref: ${{ steps.pr.outputs.head_ref }}
+      head_repo: ${{ steps.pr.outputs.head_repo }}
     steps:
     - name: Get PR details
       id: pr
@@ -43,22 +46,25 @@ jobs:
             repo: context.repo.repo,
             pull_number: context.issue.number
           });
-          return {
-            head_ref: pr.data.head.ref,
-            head_sha: pr.data.head.sha,
-            base_ref: pr.data.base.ref
-          };
+          const isFork = pr.data.head.repo.full_name !== `${context.repo.owner}/${context.repo.repo}`;
+          core.setOutput('is_fork', isFork);
+          core.setOutput('head_ref', pr.data.head.ref);
+          core.setOutput('head_repo', pr.data.head.repo.full_name);
 
+  process-comment:
+    needs: check-pr
+    environment: ${{ needs.check-pr.outputs.is_fork == 'true' && 'external-pr' || '' }}
+    runs-on: ubuntu-latest
+    steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
-        repository: ${{ github.repository }}
-        token: ${{ secrets.GITHUB_TOKEN }}
-        ref: ${{ fromJson(steps.pr.outputs.result).head_ref }}
+        repository: ${{ needs.check-pr.outputs.head_repo }}
+        ref: ${{ needs.check-pr.outputs.head_ref }}
         fetch-depth: 0
 
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with: { python-version: "3.13" }
 
     - name: Install Gito
@@ -73,11 +79,11 @@ jobs:
         # Otherwise, use LLM_API_TYPE: none
         LLM_API_TYPE: anthropic
         LLM_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        MODEL: claude-opus-4-20250514
+        MODEL: claude-opus-4-6
         JIRA_TOKEN: ${{ secrets.JIRA_TOKEN }}
         JIRA_URL: ${{ secrets.JIRA_URL }}
         JIRA_USER: ${{ secrets.JIRA_USER }}
         LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        gito react-to-comment ${{ github.event.comment.id }} --token ${{ secrets.GITHUB_TOKEN }}
+        gito react-to-comment ${{ github.event.comment.id }}
