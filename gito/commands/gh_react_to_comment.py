@@ -106,11 +106,12 @@ def react_to_comment(
             api, pr_number=pr, gh_token=gh_token, out_folder=out_folder
         )
         fix(
-            issue_ids[0],  # @todo: support multiple IDs
+            None if issue_ids == "all" else issue_ids,
             report_path=Path(out_folder) / JSON_REPORT_FILE_NAME,
             dry_run=dry_run,
             commit=not dry_run,
             push=not dry_run,
+            src_path=None,
         )
         logging.info("Fix applied successfully.")
     elif is_review_request(comment.body):
@@ -195,9 +196,11 @@ def download_latest_code_review_artifact(
     print(f"Artifact unpacked to ./{out_folder}")
 
 
-def extract_fix_args(text: str) -> list[int]:
-    pattern1 = r"fix\s+(?:issues?)?(?:\s+)?#?(\d+(?:\s*,\s*#?\d+)*)"
-    match = re.search(pattern1, text)
+def extract_fix_args(text: str) -> list[int] | str:
+    if re.search(r"fix\s+all", text, re.IGNORECASE):
+        return "all"
+    pattern = r"fix\s+(?:issues?)?(?:\s+)?#?(\d+(?:\s*,\s*#?\d+)*)"
+    match = re.search(pattern, text)
     if match:
         numbers_str = match.group(1)
         numbers = re.findall(r"\d+", numbers_str)
