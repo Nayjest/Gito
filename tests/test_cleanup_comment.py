@@ -17,7 +17,7 @@ def test_remove_comment_prefixes():
         "  AI  ,  with leading spaces",
         "This has @gito in the middle",  # Should NOT be removed
         "Text with @ai somewhere",  # Should NOT be removed
-        ""
+        "",
     ]
     expected_outputs = [
         "please help me with this",
@@ -34,7 +34,7 @@ def test_remove_comment_prefixes():
         "with leading spaces",
         "This has @gito in the middle",  # Should NOT be removed
         "Text with @ai somewhere",  # Should NOT be removed
-        ""
+        "",
     ]
     for text, expected in zip(test_cases, expected_outputs):
         assert cleanup_comment_addressed_to_gito(text) == expected, f"Failed for: {text}"

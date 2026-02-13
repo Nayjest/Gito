@@ -1,4 +1,5 @@
 """Bootstrap module for initializing the Gito application environment."""
+
 import os
 import sys
 import io
@@ -16,6 +17,7 @@ from .env import Env
 
 def setup_logging(log_level: int = logging.INFO):
     """Setup custom CLI logging format with colored output."""
+
     class CustomFormatter(logging.Formatter):
         def format(self, record):
             dt = datetime.fromtimestamp(record.created).strftime("%Y-%m-%d %H:%M:%S")
@@ -49,23 +51,19 @@ def bootstrap(verbosity: int = 1):
     Env.logging_level = log_levels_by_verbosity.get(verbosity, logging.INFO)
     setup_logging(Env.logging_level)
     logging.info(
-        f"Bootstrapping Gito v{Env.gito_version}... "
-        + mc.ui.gray(f"[verbosity={verbosity}]")
+        f"Bootstrapping Gito v{Env.gito_version}... " + mc.ui.gray(f"[verbosity={verbosity}]")
     )
 
     # cp1251 is used on Windows when redirecting output
     if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
-        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 
     try:
         mc.configure(
             DOT_ENV_FILE=HOME_ENV_PATH,
             USE_LOGGING=verbosity >= 1,
             EMBEDDING_DB_TYPE=mc.EmbeddingDbType.NONE,
-            PROMPT_TEMPLATES_PATH=[
-                PROJECT_GITO_FOLDER,
-                Path(__file__).parent / "tpl"
-            ],
+            PROMPT_TEMPLATES_PATH=[PROJECT_GITO_FOLDER, Path(__file__).parent / "tpl"],
         )
         if mc.config().MAX_CONCURRENT_TASKS is None:
             mc.config().MAX_CONCURRENT_TASKS = DEFAULT_MAX_CONCURRENT_TASKS

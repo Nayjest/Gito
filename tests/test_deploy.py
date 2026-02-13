@@ -1,4 +1,5 @@
 """Tests for Gito CI deployment."""
+
 from pathlib import Path
 
 import pytest
@@ -44,12 +45,9 @@ def test_deploy_github_creates_workflow_files(github_repo, monkeypatch):
     """Deploying to GitHub creates expected workflow files."""
     bootstrap()
     monkeypatch.setattr("builtins.input", lambda _: "")
-    monkeypatch.setattr(
-        "gito.commands.deploy.identify_git_platform",
-        lambda _: PlatformType.GITHUB
-    )
+    monkeypatch.setattr("gito.commands.deploy.identify_git_platform", lambda _: PlatformType.GITHUB)
 
-    deploy(api_type="anthropic", commit=False, model='claude-opus-4-6')
+    deploy(api_type="anthropic", commit=False, model="claude-opus-4-6")
 
     workflow = Path(".github/workflows/gito-code-review.yml")
     assert workflow.exists()
@@ -63,12 +61,9 @@ def test_deploy_gitlab_creates_workflow_files(gitlab_repo, monkeypatch):
     """Deploying to GitLab creates expected workflow files."""
     bootstrap()
     monkeypatch.setattr("builtins.input", lambda _: "")
-    monkeypatch.setattr(
-        "gito.commands.deploy.identify_git_platform",
-        lambda _: PlatformType.GITLAB
-    )
+    monkeypatch.setattr("gito.commands.deploy.identify_git_platform", lambda _: PlatformType.GITLAB)
 
-    deploy(api_type="anthropic", commit=False, model='claude-opus-4-6')
+    deploy(api_type="anthropic", commit=False, model="claude-opus-4-6")
 
     workflow = Path(".gitlab/ci/gito-code-review.yml")
     gitlab_ci = Path(".gitlab-ci.yml")
@@ -87,7 +82,7 @@ def test_deploy_does_not_overwrite_existing(github_repo, monkeypatch):
     monkeypatch.setattr("builtins.input", lambda _: "")
 
     # First deploy
-    deploy(api_type="anthropic", commit=False, model='claude-opus-4-6')
+    deploy(api_type="anthropic", commit=False, model="claude-opus-4-6")
 
     # Second deploy should fail
     result = deploy(api_type="anthropic", commit=False, rewrite=False)
@@ -100,8 +95,8 @@ def test_deploy_rewrite_overwrites_existing(github_repo, monkeypatch):
     bootstrap()
     monkeypatch.setattr("builtins.input", lambda _: "")
 
-    deploy(api_type="anthropic", commit=False, model='claude-opus-4-6')
-    deploy(api_type="openai", commit=False, rewrite=True, model='gpt-3.5-turbo')
+    deploy(api_type="anthropic", commit=False, model="claude-opus-4-6")
+    deploy(api_type="openai", commit=False, rewrite=True, model="gpt-3.5-turbo")
 
     workflow = Path(".github/workflows/gito-code-review.yml")
     content = workflow.read_text(encoding="utf-8")

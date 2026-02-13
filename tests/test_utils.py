@@ -34,9 +34,7 @@ def test_no_subcommand():
         sys.argv = ["script.py", "invalid-cmd"]
         assert no_subcommand(app) is True
 
-        app.registered_commands.append(
-            typer.models.CommandInfo()
-        )
+        app.registered_commands.append(typer.models.CommandInfo())
         app.command(name="cmd2", hidden=True)(lambda: None)
         sys.argv = ["script.py"]
         assert no_subcommand(app) is True
@@ -56,16 +54,12 @@ def test_filter_kwargs(caplog):
         b: str = "default"
 
     with caplog.at_level(logging.WARNING):
-        assert filter_kwargs(
-            Example,
-            {"a": 1, "b": "test", "c": 3}
-        ) == {"a": 1, "b": "test"}
+        assert filter_kwargs(Example, {"a": 1, "b": "test", "c": 3}) == {"a": 1, "b": "test"}
         assert "'c'" in caplog.text
 
     caplog.clear()
-    assert filter_kwargs(
-        Example,
-        {"a": 1, "b": "test", "d": 3},
-        log_warnings=False
-    ) == {"a": 1, "b": "test"}
+    assert filter_kwargs(Example, {"a": 1, "b": "test", "d": 3}, log_warnings=False) == {
+        "a": 1,
+        "b": "test",
+    }
     assert caplog.text == ""

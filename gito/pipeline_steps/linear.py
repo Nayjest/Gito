@@ -14,10 +14,7 @@ def fetch_issue(issue_key: str, api_key: str = None) -> IssueTrackerIssue | None
     api_key = api_key or os.getenv("LINEAR_API_KEY")
     try:
         url = "https://api.linear.app/graphql"
-        headers = {
-            "Authorization": f"{api_key}",
-            "Content-Type": "application/json"
-        }
+        headers = {"Authorization": f"{api_key}", "Content-Type": "application/json"}
 
         query = """
             query Issues($teamKey: String!, $issueNumber: Float) {
@@ -37,9 +34,9 @@ def fetch_issue(issue_key: str, api_key: str = None) -> IssueTrackerIssue | None
             url,
             json={
                 "query": query,
-                "variables": {'teamKey': team_key, 'issueNumber': int(issue_number)}
+                "variables": {"teamKey": team_key, "issueNumber": int(issue_number)},
             },
-            headers=headers
+            headers=headers,
         )
         response.raise_for_status()
         data = response.json()
@@ -55,9 +52,7 @@ def fetch_issue(issue_key: str, api_key: str = None) -> IssueTrackerIssue | None
 
         issue = nodes[0]
         return IssueTrackerIssue(
-            title=issue["title"],
-            description=issue.get("description") or "",
-            url=issue["url"]
+            title=issue["title"], description=issue.get("description") or "", url=issue["url"]
         )
 
     except requests.HTTPError as e:
@@ -66,11 +61,7 @@ def fetch_issue(issue_key: str, api_key: str = None) -> IssueTrackerIssue | None
         return None
 
 
-def fetch_associated_issue(
-    repo: git.Repo,
-    api_key=None,
-    **kwargs
-):
+def fetch_associated_issue(repo: git.Repo, api_key=None, **kwargs):
     """
     Pipeline step to fetch a Linear issue based on the current branch name.
     """
@@ -80,6 +71,4 @@ def fetch_associated_issue(
         return
 
     issue_key = resolve_issue_key(repo)
-    return dict(
-        associated_issue=fetch_issue(issue_key, api_key)
-    ) if issue_key else None
+    return dict(associated_issue=fetch_issue(issue_key, api_key)) if issue_key else None

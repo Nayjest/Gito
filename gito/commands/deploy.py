@@ -19,6 +19,7 @@ Usage:
 
 Aliases: init, connect, ci
 """
+
 import logging
 from pathlib import Path
 
@@ -46,41 +47,43 @@ from ..utils.cli import logo
 
 
 def merge_gitlab_configs(
-    file: Path,
-    vars: dict  # vars reserved for future use / other merges
+    file: Path, vars: dict  # vars reserved for future use / other merges
 ) -> str:
     """Merge GitLab CI configuration files."""
     # Read existing config or start with empty dict
     if file.exists():
-        with open(file, 'r') as f:
+        with open(file, "r") as f:
             config = yaml.safe_load(f) or {}
     else:
         config = {}
 
     # Ensure 'stages' exists and add 'review' if not present
-    if 'stages' not in config:
-        config['stages'] = []
-    if 'review' not in config['stages']:
-        config['stages'].insert(0, 'review')  # Insert at beginning
+    if "stages" not in config:
+        config["stages"] = []
+    if "review" not in config["stages"]:
+        config["stages"].insert(0, "review")  # Insert at beginning
 
     # Ensure 'include' exists and add the local include if not present
-    if 'include' not in config:
-        config['include'] = []
+    if "include" not in config:
+        config["include"] = []
 
     # Handle case where include might be a single item (not a list)
-    if not isinstance(config['include'], list):
-        config['include'] = [config['include']]
+    if not isinstance(config["include"], list):
+        config["include"] = [config["include"]]
 
     # Check if the local include already exists
-    new_include = {'local': '.gitlab/ci/gito-code-review.yml'}
+    new_include = {"local": ".gitlab/ci/gito-code-review.yml"}
     include_exists = any(
-        'gito-code-review.yml' in str(item.get('local', ''))
-        if isinstance(item, dict) else 'gito-code-review.yml' in str(item or '')
-        for item in config['include']
+        (
+            "gito-code-review.yml" in str(item.get("local", ""))
+            if isinstance(item, dict)
+            else "gito-code-review.yml" in str(item or "")
+        )
+        for item in config["include"]
     )
 
     if not include_exists:
-        config['include'].append(new_include)
+        config["include"].append(new_include)
 
     return yaml.dump(config, default_flow_style=False, sort_keys=False, indent=2)
 
@@ -106,35 +109,39 @@ GIT_PROVIDER_WORKFLOWS = {
             template="workflows/gitlab/.gitlab-ci.yml.j2",
             merge_function=merge_gitlab_configs,
         ),
-    )
+    ),
 }
 
 
 def _show_intro(console: Console):
     """Show introduction message for deploy command."""
+
     def num(n):
         return f"[green][dim][[/dim][{n:02d}][dim]][/dim][/green]"
-    console.print(Panel(
-        title="CI Setup",
-        renderable=(
-            " [bold]Wiring myself into pipelines...[/bold]\n"
-            f" [green][dim]⟩[/dim]⟩⟩ INTEGRATION SEQUENCE ⟩⟩[dim]⟩[/dim] [/green] \n"
-            f" {num(1)} [bold]C[/bold]onfigure language model\n"
-            f" {num(2)} [bold]W[/bold]rite workflow files \n"
-            f" {num(3)} [bold]C[/bold]ommit [dim]&[/dim] push to dedicated branch "
-            f"[dim][[/dim]optional[dim]][/dim]       \n"  # trailing spaces to align with Logo
-            f" {num(4)} [bold]G[/bold]uide you through secrets configuration"
-        ),
-        border_style="green",
-        expand=False,
-    ))
+
+    console.print(
+        Panel(
+            title="CI Setup",
+            renderable=(
+                " [bold]Wiring myself into pipelines...[/bold]\n"
+                f" [green][dim]⟩[/dim]⟩⟩ INTEGRATION SEQUENCE ⟩⟩[dim]⟩[/dim] [/green] \n"
+                f" {num(1)} [bold]C[/bold]onfigure language model\n"
+                f" {num(2)} [bold]W[/bold]rite workflow files \n"
+                f" {num(3)} [bold]C[/bold]ommit [dim]&[/dim] push to dedicated branch "
+                f"[dim][[/dim]optional[dim]][/dim]       \n"  # trailing spaces to align with Logo
+                f" {num(4)} [bold]G[/bold]uide you through secrets configuration"
+            ),
+            border_style="green",
+            expand=False,
+        )
+    )
 
 
 @app.command(
     name="deploy",
     help="\bCreate and deploy Gito workflows to your CI pipeline for automatic code reviews."
-         "\nRun this command from your repository root."
-         "\naliases: init, connect, ci"
+    "\nRun this command from your repository root."
+    "\naliases: init, connect, ci",
 )
 @app.command(name="init", hidden=True)
 @app.command(name="connect", hidden=True)
@@ -144,19 +151,16 @@ def deploy(
     commit: bool = typer.Option(None, help="Commit and push changes"),
     rewrite: bool = typer.Option(False, help="Overwrite existing configuration"),
     to_branch: str = typer.Option(
-        default="gito-ci",
-        help="Branch name for new PR containing Gito CI workflows"
+        default="gito-ci", help="Branch name for new PR containing Gito CI workflows"
     ),
-    token: str = typer.Option(
-        "", help="GitHub token (or set GITHUB_TOKEN env var)"
-    ),
+    token: str = typer.Option("", help="GitHub token (or set GITHUB_TOKEN env var)"),
     model: str = typer.Option(
         None,
         help=(
             "Language model to use "
-            "(interactive if omitted; \"default\" selects the recommended model)"
+            '(interactive if omitted; "default" selects the recommended model)'
         ),
-    )
+    ),
 ) -> bool:
     """Deploy Gito to repository's CI pipeline for automatic code reviews."""
     print(logo())
@@ -217,18 +221,20 @@ def deploy(
             content = mc.tpl(template, **template_vars)
         if not content.endswith("\n"):
             content = content.rstrip() + "\n"
-        file.write_text(content, encoding='utf-8')
+        file.write_text(content, encoding="utf-8")
         created_files.append(file)
     print(
         mc.ui.green("Gito CI workflows have been created.\n"),
-        *[f"  - {mc.utils.file_link(file)}\n" for file in created_files]
+        *[f"  - {mc.utils.file_link(file)}\n" for file in created_files],
     )
 
     # commit and push
-    ui.warning('[!] Please review created files before proceeding.')
+    ui.warning("[!] Please review created files before proceeding.")
 
-    need_to_commit = commit is True or commit is None and mc.ui.ask_yn(
-        f"Commit & push CI workflows to a {mc.ui.green(to_branch)} branch?"
+    need_to_commit = (
+        commit is True
+        or commit is None
+        and mc.ui.ask_yn(f"Commit & push CI workflows to a {mc.ui.green(to_branch)} branch?")
     )
     is_committed = False
     is_pushed = False
@@ -248,7 +254,7 @@ def deploy(
                 if git_platform_type == PlatformType.GITHUB:
                     try:
                         api = gh_api(repo=repo, token=token)
-                        base = get_base_branch(repo).split('/')[-1]
+                        base = get_base_branch(repo).split("/")[-1]
                         logging.info(f"Creating PR {ui.green(to_branch)} -> {ui.yellow(base)}...")
                         res = api.pulls.create(
                             head=to_branch,
@@ -263,47 +269,55 @@ def deploy(
                             details = f":\n[link]{create_pr_link}[/link]"
                         else:
                             details = "."
-                        console.print(Panel(
-                            title="Next step",
-                            renderable=(
-                                f"Please create a PR from '{to_branch}' "
-                                f"to your main branch and merge it{details}"
-                            ),
-                            border_style="yellow",
-                            expand=False,
-                        ))
+                        console.print(
+                            Panel(
+                                title="Next step",
+                                renderable=(
+                                    f"Please create a PR from '{to_branch}' "
+                                    f"to your main branch and merge it{details}"
+                                ),
+                                border_style="yellow",
+                                expand=False,
+                            )
+                        )
                 elif git_platform_type == PlatformType.GITLAB:
                     create_pr_link = get_gitlab_create_mr_link(repo, to_branch)
                     if create_pr_link:
                         details = f":\n[link]{create_pr_link}[/link]"
                     else:
                         details = "."
-                    console.print(Panel(
-                        title="Next step",
-                        renderable=(
-                            f"Please create a Merge Request from branch '{to_branch}' "
-                            f"to your main branch and merge it{details}"
-                        ),
-                        border_style="yellow",
-                        expand=False,
-                    ))
+                    console.print(
+                        Panel(
+                            title="Next step",
+                            renderable=(
+                                f"Please create a Merge Request from branch '{to_branch}' "
+                                f"to your main branch and merge it{details}"
+                            ),
+                            border_style="yellow",
+                            expand=False,
+                        )
+                    )
                 else:
-                    console.print(Panel(
-                        title="Next step",
-                        renderable=f"Please merge branch named '{to_branch}' to your main branch.",
-                        border_style="yellow",
-                        expand=False,
-                    ))
+                    console.print(
+                        Panel(
+                            title="Next step",
+                            renderable=f"Please merge branch named '{to_branch}' to your main branch.",
+                            border_style="yellow",
+                            expand=False,
+                        )
+                    )
     if not need_to_commit or not is_committed:
-        console.print(Panel(
-            title="Next step: Deliver CI workflows to the repository",
-            renderable=(
-                "Commit and push created CI workflow files to your main repository branch "
-                "to activate Gito."
-            ),
-            border_style="yellow",
-            expand=False,
-        ))
+        console.print(
+            Panel(
+                title="Next step: Deliver CI workflows to the repository",
+                renderable=(
+                    "Commit and push created CI workflow files to your main repository branch "
+                    "to activate Gito."
+                ),
+                border_style="yellow",
+                expand=False,
+            )
+        )
 
     _show_create_secrets_instructions(console, git_platform_type, repo, secret_name)
     return True
@@ -342,9 +356,9 @@ def _try_push_branch(repo: Repo, branch: str) -> bool:
     """
     try:
         repo.git.push("origin", branch)
-        print(ui.green(
-            f"Changes pushed to {ui.bright}{ui.white}{branch}{ui.reset}{ui.green} branch."
-        ))
+        print(
+            ui.green(f"Changes pushed to {ui.bright}{ui.white}{branch}{ui.reset}{ui.green} branch.")
+        )
         return True
     except GitCommandError as e:
         ui.error(f"Failed to push changes: {e}")
@@ -385,7 +399,7 @@ def _configure_llm(
             "gemini-2.5-flash": "Gemini 2.5 Flash",
             "gemini-3-pro-preview": f"Gemini 3 Pro Preview {ui.dim}(rate limited)",
             "gemini-3-flash-preview": f"Gemini 3 Flash Preview {ui.dim}(rate limited)",
-        }
+        },
     }
     if not api_type:
         api_type = mc.ui.ask_choose(
@@ -430,10 +444,7 @@ def _configure_llm(
 
 
 def _show_create_secrets_instructions(
-    console: Console,
-    git_platform: PlatformType,
-    repo: Repo,
-    secret_name: str
+    console: Console, git_platform: PlatformType, repo: Repo, secret_name: str
 ):
     """Show instructions to create secrets in the repository."""
     details = ""
@@ -445,8 +456,7 @@ def _show_create_secrets_instructions(
     elif git_platform == PlatformType.GITLAB:
         title = "Add LLM API key and GitLab access token to CI/CD variables"
         details = (
-            "\n\nAdd it in your GitLab project settings under "
-            "Settings → CI/CD → Variables."
+            "\n\nAdd it in your GitLab project settings under " "Settings → CI/CD → Variables."
         )
         if secrets_url := get_gitlab_secrets_link(repo):
             details += f"\n[link]{secrets_url}[/link]"
@@ -458,29 +468,33 @@ def _show_create_secrets_instructions(
         if manage_tokens_url := get_gitlab_access_tokens_link(repo):
             secrets += f"    [link]{manage_tokens_url}[/link]\n"
 
-    console.print(Panel(
-        title=f"Final step: {title}",
-        renderable=(
-            f"[bold yellow]Required[/bold yellow]\n"
-            f"{secrets}"
-            f"\n"
-            f"[bold dim]Optional — Issue trackers[/bold dim]\n"
-            f"  LINEAR_API_KEY, JIRA_URL, JIRA_USER, JIRA_TOKEN{details}"
-        ),
-        border_style="green",
-        expand=False,
-    ))
-    if git_platform == PlatformType.GITLAB:
-        console.print(Panel(
-            title="Variable Settings",
+    console.print(
+        Panel(
+            title=f"Final step: {title}",
             renderable=(
-                "☑ Mask variable   ☐ Protect variable (uncheck, or MRs won't have access)\n"
-                "\n"
-                "Public repos: enable \"Require approval\" for fork pipelines"
-                " in CI/CD settings to prevent secret leaks."
-                "\n"
-                "Docs: [link]https://docs.gitlab.com/ci/variables/[/link]"
+                f"[bold yellow]Required[/bold yellow]\n"
+                f"{secrets}"
+                f"\n"
+                f"[bold dim]Optional — Issue trackers[/bold dim]\n"
+                f"  LINEAR_API_KEY, JIRA_URL, JIRA_USER, JIRA_TOKEN{details}"
             ),
-            border_style="yellow",
+            border_style="green",
             expand=False,
-        ))
+        )
+    )
+    if git_platform == PlatformType.GITLAB:
+        console.print(
+            Panel(
+                title="Variable Settings",
+                renderable=(
+                    "☑ Mask variable   ☐ Protect variable (uncheck, or MRs won't have access)\n"
+                    "\n"
+                    'Public repos: enable "Require approval" for fork pipelines'
+                    " in CI/CD settings to prevent secret leaks."
+                    "\n"
+                    "Docs: [link]https://docs.gitlab.com/ci/variables/[/link]"
+                ),
+                border_style="yellow",
+                expand=False,
+            )
+        )

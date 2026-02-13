@@ -33,7 +33,7 @@ def make_streaming_function(handler: Optional[Callable] = None) -> Callable:
     def stream(text):
         if handler:
             text = handler(text)
-        print(text, end='', flush=True)
+        print(text, end="", flush=True)
 
     return stream
 
@@ -43,12 +43,13 @@ def no_subcommand(app: typer.Typer) -> bool:
     Check if no subcommand was provided to the target Typer application.
     """
     return not (
-        (first_arg := next((a for a in sys.argv[1:] if not a.startswith('-')), ""))
-        and first_arg in (
-            cmd.name or (cmd.callback.__name__.replace('_', '-') if cmd.callback else "")
+        (first_arg := next((a for a in sys.argv[1:] if not a.startswith("-")), ""))
+        and first_arg
+        in (
+            cmd.name or (cmd.callback.__name__.replace("_", "-") if cmd.callback else "")
             for cmd in app.registered_commands
         )
-        or '--help' in sys.argv
+        or "--help" in sys.argv
     )
 
 
@@ -58,10 +59,10 @@ def logo(indent=2) -> str:
 
     # Character classifications
     CHAR_TYPES = {
-        'shadow': set('╔═╗║╚╝╠╣╦╩╬'),
-        'letter': set('█▓▒░■'),
-        'version': set('⟦⟧v0123456789.'),
-        'accent': set('⌬⧉▣⟁⟨⟩∘∙→⇡{⊕}'),
+        "shadow": set("╔═╗║╚╝╠╣╦╩╬"),
+        "letter": set("█▓▒░■"),
+        "version": set("⟦⟧v0123456789."),
+        "accent": set("⌬⧉▣⟁⟨⟩∘∙→⇡{⊕}"),
     }
 
     # Yellow → orange → red-orange → teal → cyan → blue
@@ -107,21 +108,21 @@ def logo(indent=2) -> str:
             t = (i - start_pos) / span
             rgb = get_gradient_color(t)
 
-            if char in CHAR_TYPES['shadow']:
+            if char in CHAR_TYPES["shadow"]:
                 rgb = [int(c * shadow_mult) for c in rgb]
             elif (
                 dim_decorations
-                and char not in CHAR_TYPES['letter']
-                and char not in CHAR_TYPES['version']
+                and char not in CHAR_TYPES["letter"]
+                and char not in CHAR_TYPES["version"]
             ):
-                if char in CHAR_TYPES['accent']:
+                if char in CHAR_TYPES["accent"]:
                     rgb = [230, lerp(63, 108, row_t), lerp(45, 81, row_t)]
                 else:
                     rgb = [lerp(70, 35, row_t), lerp(150, 80, row_t), lerp(90, 45, row_t)]
 
             result.append(f"\033[38;2;{rgb[0]};{rgb[1]};{rgb[2]}m{char}")
 
-        return ''.join(result)
+        return "".join(result)
 
     lines = [
         "⇡⇡ ∘⌬ ╭──┬──▓████▓╗──◀▓██▓╗ ████████╗→─┬─▓████▓╗──/┬─╮ ⎔ /  +",
@@ -129,12 +130,12 @@ def logo(indent=2) -> str:
         "◀--┬=⟨⟨⟨⟨▓██║ ˊ <▓██▓╗ █▓║─-╚╝ █▓║ ╚╝<▓█╔╝ ▓▓╗  █▓⟩⟩⟩⟩─┬▣ --▶",
         " ∙┬┘ -─┼◉╚▓█║∘{⊕}∘█▓╔╝ █▓║─//╮ █▓║──○─╚▓█╗ ╚═╝ █▓╔╝◉┤╭─┼▣ ∙",
         "◉-╯∙∙⟁ ╰◉-╚═▓█████▓╔╝ ▓██▓╗  ╰─█▓║─→─╮∘╚═▓████▓╔═╝──╯└-∙",
-        "╭──⊕─⊕──{⊕}─╚══════╝──╚═══╝─┴──╚═╝∘∘ ╰⟁ +╚═════╝ ∘∘⌬ "+f"⟦v{version()}⟧",
+        "╭──⊕─⊕──{⊕}─╚══════╝──╚═══╝─┴──╚═╝∘∘ ╰⟁ +╚═════╝ ∘∘⌬ " + f"⟦v{version()}⟧",
     ]
 
     total = len(lines)
     gradient_lines = [apply_gradient(line, i, total) for i, line in enumerate(lines)]
     tagline = apply_gradient("AI Code Reviewer", total // 2, total, dim_decorations=False)
 
-    logo_text = '\n'.join(gradient_lines + [' ' * 22 + tagline + r])
-    return textwrap.indent(logo_text, ' ' * indent)
+    logo_text = "\n".join(gradient_lines + [" " * 22 + tagline + r])
+    return textwrap.indent(logo_text, " " * indent)

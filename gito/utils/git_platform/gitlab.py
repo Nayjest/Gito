@@ -1,6 +1,7 @@
 """
 Utilities for working with GitLab platform.
 """
+
 import os
 from typing import Optional
 
@@ -33,15 +34,15 @@ def extract_gitlab_owner_repo(repo: git.Repo) -> tuple[str, str]:
         remote_url = repo.remotes.origin.url
     except Exception as e:
         raise ValueError("Could not get remote URL from the repository.") from e
-    if remote_url.startswith('git@gitlab.com:'):
+    if remote_url.startswith("git@gitlab.com:"):
         # SSH format: git@gitlab.com:owner/repo.git
-        repo_path = remote_url.split(':')[1].replace('.git', '')
-    elif remote_url.startswith('https://gitlab.com/'):
+        repo_path = remote_url.split(":")[1].replace(".git", "")
+    elif remote_url.startswith("https://gitlab.com/"):
         # HTTPS format: https://gitlab.com/owner/repo.git
-        repo_path = remote_url.replace('https://gitlab.com/', '').replace('.git', '')
+        repo_path = remote_url.replace("https://gitlab.com/", "").replace(".git", "")
     else:
         raise ValueError("Unsupported remote URL format")
-    parts = repo_path.rsplit('/', 1)
+    parts = repo_path.rsplit("/", 1)
     if len(parts) != 2:
         raise ValueError("Unsupported gitlab repository path format")
     owner, repo_name = parts
@@ -52,7 +53,7 @@ def get_gitlab_create_mr_link(repo_or_base_url: git.Repo | str, branch: str) -> 
     """
     Return a GitLab URL to create a merge request for the given branch.
     """
-    branch = quote(branch, safe='')
+    branch = quote(branch, safe="")
     return get_repo_web_url(
         repo_or_base_url, f"/-/merge_requests/new?merge_request%5Bsource_branch%5D={branch}"
     )
@@ -102,7 +103,7 @@ def get_gitlab_file_link(
     Return a GitLab URL to view a file on a branch, optionally anchored to line numbers.
     Returns None in case of error.
     """
-    branch, file = quote(branch, safe=''), quote(file, safe='/')
+    branch, file = quote(branch, safe=""), quote(file, safe="/")
     url_path = f"/-/blob/{branch}/{file}?ref_type=heads"
     if start_line is not None:
         url_path += f"#L{start_line}"

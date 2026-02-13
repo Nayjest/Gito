@@ -1,6 +1,7 @@
 """
 Gito core business logic.
 """
+
 import os
 import fnmatch
 import logging
@@ -26,7 +27,7 @@ from .gh_api import gh_api
 
 
 def review_subject_is_index(what):
-    return not what or what == 'INDEX'
+    return not what or what == "INDEX"
 
 
 def is_binary_file(repo: Repo, file_path: str) -> bool:
@@ -43,7 +44,7 @@ def is_binary_file(repo: Repo, file_path: str) -> bool:
     except KeyError:
         try:
             fs_path = Path(repo.working_tree_dir) / file_path
-            fs_path.read_text(encoding='utf-8')
+            fs_path.read_text(encoding="utf-8")
             return False
         except FileNotFoundError:
             logging.error(f"File {file_path} not found in the repository.")
@@ -63,7 +64,7 @@ def is_binary_file(repo: Repo, file_path: str) -> bool:
 def commit_in_branch(repo: Repo, commit: Commit, target_branch: str) -> bool:
     try:
         # exit code 0 if commit is ancestor of branch
-        repo.git.merge_base('--is-ancestor', commit.hexsha, target_branch)
+        repo.git.merge_base("--is-ancestor", commit.hexsha, target_branch)
         return True
     except GitCommandError:
         pass
@@ -71,12 +72,12 @@ def commit_in_branch(repo: Repo, commit: Commit, target_branch: str) -> bool:
 
 
 def get_base_branch(repo: Repo, pr: int | str = None):
-    if os.getenv('GITHUB_ACTIONS'):
+    if os.getenv("GITHUB_ACTIONS"):
 
         # triggered from PR
-        if base_ref := os.getenv('GITHUB_BASE_REF'):
+        if base_ref := os.getenv("GITHUB_BASE_REF"):
             logging.info(f"Using GITHUB_BASE_REF:{base_ref} as base branch")
-            return f'origin/{base_ref}'
+            return f"origin/{base_ref}"
         logging.info("GITHUB_BASE_REF is not available...")
         if pr:
             api = gh_api(repo=repo)
@@ -85,7 +86,7 @@ def get_base_branch(repo: Repo, pr: int | str = None):
                 f"Using 'origin/{pr_obj.base.ref}' as base branch "
                 f"(received via GH API for PR#{pr})"
             )
-            return f'origin/{pr_obj.base.ref}'
+            return f"origin/{pr_obj.base.ref}"
 
     try:
         logging.info(
@@ -100,9 +101,9 @@ def get_base_branch(repo: Repo, pr: int | str = None):
                 "Checking if repo has 'main' or 'master' branches to use as --against branch..."
             )
             remote_refs = repo.remotes.origin.refs
-            for branch_name in ['main', 'master']:
+            for branch_name in ["main", "master"]:
                 if hasattr(remote_refs, branch_name):
-                    return f'origin/{branch_name}'
+                    return f"origin/{branch_name}"
         except Exception:
             pass
 
@@ -115,7 +116,7 @@ def get_diff(
     what: str = None,
     against: str = None,
     use_merge_base: bool = True,
-    pr: str | int = None
+    pr: str | int = None,
 ) -> PatchSet | list[PatchedFile]:
     repo = repo or Repo(".")
     if what == REFS_VALUE_ALL:
@@ -136,9 +137,7 @@ def get_diff(
                 except TypeError:
                     # In detached HEAD state, use HEAD directly
                     current_ref = "HEAD"
-                    logging.info(
-                        "Detected detached HEAD state, using HEAD as current reference"
-                    )
+                    logging.info("Detected detached HEAD state, using HEAD as current reference")
             else:
                 current_ref = what
             merge_base = repo.merge_base(current_ref or repo.active_branch.name, against)[0]
@@ -153,12 +152,12 @@ def get_diff(
                     f"Branch is already merged. ({ui.green(current_ref)} vs {ui.yellow(against)})"
                 )
                 merge_sha = repo.git.log(
-                    '--merges',
-                    '--ancestry-path',
-                    f'{current_ref}..{against}',
-                    '-n',
-                    '1',
-                    '--pretty=format:%H'
+                    "--merges",
+                    "--ancestry-path",
+                    f"{current_ref}..{against}",
+                    "-n",
+                    "1",
+                    "--pretty=format:%H",
                 ).strip()
                 if merge_sha:
                     logging.info(f"Merge commit is {ui.cyan(merge_sha)}")
@@ -211,9 +210,7 @@ def get_diff(
                 )
         except Exception as e:
             logging.error(f"Error finding merge base: {e}")
-    logging.info(
-        f"Making diff: {ui.green(what or 'INDEX')} vs {ui.yellow(against)}"
-    )
+    logging.info(f"Making diff: {ui.green(what or 'INDEX')} vs {ui.yellow(against)}")
     diff_content = repo.git.diff(against, what)
     diff = PatchSet.from_string(diff_content)
 
@@ -259,7 +256,8 @@ def filter_diff(
         file
         for file in patch_set
         if (
-            not any(fnmatch.fnmatch(file.path, pattern) for pattern in filters) if exclude
+            not any(fnmatch.fnmatch(file.path, pattern) for pattern in filters)
+            if exclude
             else any(fnmatch.fnmatch(file.path, pattern) for pattern in filters)
         )
     ]
@@ -270,20 +268,15 @@ def read_file(repo: Repo, file: str, use_local_files: bool = False) -> str:
     if use_local_files:
         file_path = Path(repo.working_tree_dir) / file
         try:
-            return file_path.read_text(encoding='utf-8')
+            return file_path.read_text(encoding="utf-8")
         except (FileNotFoundError, UnicodeDecodeError) as e:
             logging.warning(f"Could not read file {file} from working directory: {e}")
 
     # Read from HEAD (committed version)
-    return repo.tree()[file].data_stream.read().decode('utf-8')
+    return repo.tree()[file].data_stream.read().decode("utf-8")
 
 
-def file_lines(
-    repo: Repo,
-    file: str,
-    max_tokens: int = None,
-    use_local_files: bool = False
-) -> str:
+def file_lines(repo: Repo, file: str, max_tokens: int = None, use_local_files: bool = False) -> str:
     """
     Read file content and return it with line numbers.
     If max_tokens is specified, trims the content to fit within the token limit.
@@ -300,9 +293,7 @@ def file_lines(
     if max_tokens:
         lines, removed_qty = mc.tokenizing.fit_to_token_size(lines, max_tokens)
         if removed_qty:
-            lines.append(
-                f"(!) DISPLAYING ONLY FIRST {len(lines)} LINES DUE TO LARGE FILE SIZE\n"
-            )
+            lines.append(f"(!) DISPLAYING ONLY FIRST {len(lines)} LINES DUE TO LARGE FILE SIZE\n")
     return "".join(lines)
 
 
@@ -361,7 +352,11 @@ def get_target_diff(
         PatchSet | Iterable[PatchedFile]: The filtered diff.
     """
     diff = get_diff(
-        repo=repo, what=what, against=against, use_merge_base=use_merge_base, pr=pr,
+        repo=repo,
+        what=what,
+        against=against,
+        use_merge_base=use_merge_base,
+        pr=pr,
     )
     diff = filter_diff(diff, filters)
     if config.exclude_files:
@@ -386,9 +381,8 @@ def get_target_lines(
             file_lines(
                 repo,
                 file_diff.path,
-                config.max_code_tokens
-                - mc.tokenizing.num_tokens_from_string(str(file_diff)),
-                use_local_files=review_subject_is_index(what) or what == REFS_VALUE_ALL
+                config.max_code_tokens - mc.tokenizing.num_tokens_from_string(str(file_diff)),
+                use_local_files=review_subject_is_index(what) or what == REFS_VALUE_ALL,
             )
             if file_diff.target_file != DEV_NULL or what == REFS_VALUE_ALL
             else ""
@@ -432,9 +426,7 @@ def get_affected_code_block(repo: Repo, file: str, start_line: int, end_line: in
         lines = file_lines(repo, file, max_tokens=None, use_local_files=True)
         if lines:
             lines = [""] + lines.splitlines()
-            return "\n".join(
-                lines[start_line: end_line + 1]
-            )
+            return "\n".join(lines[start_line : end_line + 1])
     except Exception as e:
         logging.error(
             f"Error getting affected code block for {file} from {start_line} to {end_line}: {e}"
@@ -442,11 +434,7 @@ def get_affected_code_block(repo: Repo, file: str, start_line: int, end_line: in
     return None
 
 
-def provide_affected_code_blocks(
-    issues: dict,
-    repo: Repo,
-    processing_warnings: list = None
-):
+def provide_affected_code_blocks(issues: dict, repo: Repo, processing_warnings: list = None):
     """
     For each issue, fetch the affected code text block
     and add it to the issue data.
@@ -457,10 +445,7 @@ def provide_affected_code_blocks(
                 for i in issue.get("affected_lines", []):
                     file_name = i.get("file", issue.get("file", file))
                     if block := get_affected_code_block(
-                        repo,
-                        file_name,
-                        i.get("start_line"),
-                        i.get("end_line")
+                        repo, file_name, i.get("start_line"), i.get("end_line")
                     ):
                         i["affected_code"] = block
             except Exception as e:
@@ -469,9 +454,7 @@ def provide_affected_code_blocks(
                     continue
                 processing_warnings.append(
                     ProcessingWarning(
-                        message=(
-                            f"Error fetching affected code blocks for file {file}: {e}"
-                        ),
+                        message=(f"Error fetching affected code blocks for file {file}: {e}"),
                         file=file,
                     )
                 )
@@ -525,7 +508,8 @@ async def review(
             mc.prompt(
                 cfg.prompt,
                 input=(
-                    file_diff if input_is_diff(file_diff)
+                    file_diff
+                    if input_is_diff(file_diff)
                     else str(file_diff.path) + ":\n" + lines[file_diff.path]
                 ),
                 file_lines=lines[file_diff.path] if input_is_diff(file_diff) else None,
@@ -547,8 +531,8 @@ async def review(
                     f"File {file.path} was skipped due to error: "
                     f"[{type(res_or_error).__name__}] {res_or_error}"
                 )
-                if not message.endswith('.'):
-                    message += '.'
+                if not message.endswith("."):
+                    message += "."
             processing_warnings.append(
                 ProcessingWarning(
                     message=message,
@@ -575,10 +559,7 @@ async def review(
         repo=repo,
     )
     if cfg.pipeline_steps:
-        pipe = Pipeline(
-            ctx=ctx,
-            steps=cfg.pipeline_steps
-        )
+        pipe = Pipeline(ctx=ctx, steps=cfg.pipeline_steps)
         pipe.run()
     else:
         logging.info("No pipeline steps defined, skipping pipeline execution")
@@ -614,30 +595,20 @@ def answer(
             against=against,
             filters=filters,
             use_merge_base=use_merge_base,
-            pr=pr
+            pr=pr,
         )
     except NoChangesInContextError:
         logging.error("No changes to review")
         return
 
-    ctx = Context(
-        repo=repo,
-        diff=diff,
-        config=config,
-        report=Report()
-    )
+    ctx = Context(repo=repo, diff=diff, config=config, report=Report())
     if use_pipeline:
-        pipe = Pipeline(
-            ctx=ctx,
-            steps=config.pipeline_steps
-        )
+        pipe = Pipeline(ctx=ctx, steps=config.pipeline_steps)
         pipe.run()
 
     if aux_files or config.aux_files:
         aux_files_dict = read_files(
-            repo,
-            (aux_files or []) + config.aux_files,
-            config.max_code_tokens // 2
+            repo, (aux_files or []) + config.aux_files, config.max_code_tokens // 2
         )
     else:
         aux_files_dict = {}

@@ -51,9 +51,9 @@ def convert_to_gitlab_code_quality_report(report: Report, **kwargs) -> str:
                 + (f":\n{issue.details}" if issue.details else "")
                 + (f"\n[Tags]: {', '.join(issue.tags)}" if issue.tags else "")
                 + (
-                    "\n[Proposed change]:"
-                    f"\n```{line.syntax_hint}\n{line.proposal.strip()}\n```"
-                    if line.proposal else ""
+                    "\n[Proposed change]:" f"\n```{line.syntax_hint}\n{line.proposal.strip()}\n```"
+                    if line.proposal
+                    else ""
                 )
             ),
             "fingerprint": _generate_fingerprint(

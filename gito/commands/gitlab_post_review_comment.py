@@ -1,6 +1,7 @@
 """
 Posting code review comments to GitLab Merge Requests.
 """
+
 import logging
 import os
 from time import sleep
@@ -56,9 +57,7 @@ def post_gl_comment(
     headers = {"PRIVATE-TOKEN": token}
     resp = requests.post(url, headers=headers, json={"body": body}, timeout=30)
     if resp.status_code != 201:
-        logging.error(
-            "Failed to post GitLab MR note: %s %s", resp.status_code, resp.text
-        )
+        logging.error("Failed to post GitLab MR note: %s %s", resp.status_code, resp.text)
         return False
     return True
 
@@ -82,9 +81,7 @@ def list_gl_mr_notes(
         )
         resp = requests.get(url, headers=headers, timeout=30)
         if resp.status_code != 200:
-            logging.error(
-                "Failed to list GitLab MR notes: %s %s", resp.status_code, resp.text
-            )
+            logging.error("Failed to list GitLab MR notes: %s %s", resp.status_code, resp.text)
             break
         notes = resp.json() or []
         all_notes.extend(notes)
@@ -185,9 +182,7 @@ def post_gitlab_cr_comment(
         default=None, help="GitLab project ID (numeric) or URL-encoded path"
     ),
     merge_request_iid: int = typer.Option(default=None, help="Merge Request IID"),
-    token: str = typer.Option(
-        "", help="GitLab access token (or set GITLAB_ACCESS_TOKEN env var)"
-    ),
+    token: str = typer.Option("", help="GitLab access token (or set GITLAB_ACCESS_TOKEN env var)"),
     base_url: Optional[str] = typer.Option(
         default=None, help="GitLab base URL (default env GITLAB_BASE_URL or https://gitlab.com)"
     ),

@@ -6,7 +6,7 @@ from ..gitlab import (
     is_running_in_gitlab_ci,
     gitlab_ci_src_branch,
     get_gitlab_create_mr_link,
-    get_gitlab_file_link
+    get_gitlab_file_link,
 )
 from .base import BaseGitPlatform
 

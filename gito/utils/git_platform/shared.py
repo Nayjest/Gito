@@ -22,11 +22,11 @@ def get_repo_domain_and_path(repo: Repo) -> tuple[str, str]:
         raise ValueError("Could not get remote URL from the repository.") from e
     if remote_url.endswith(".git"):
         remote_url = remote_url[:-4]
-    if remote_url.startswith('git@') and ':' in remote_url:
-        domain, path = remote_url[4:].split(':', 1)
+    if remote_url.startswith("git@") and ":" in remote_url:
+        domain, path = remote_url[4:].split(":", 1)
         return domain, path
-    elif remote_url.startswith('https://'):
-        domain, path = remote_url[8:].split('/', 1)
+    elif remote_url.startswith("https://"):
+        domain, path = remote_url[8:].split("/", 1)
         return domain, path
     else:
         raise ValueError("Unsupported git remote URL format")
@@ -48,10 +48,7 @@ def get_repo_base_web_url(repo: Repo) -> Optional[str]:
     return f"https://{domain}/{path}"
 
 
-def get_repo_web_url(
-    repo: Repo | str,
-    subpath: str
-) -> Optional[str]:
+def get_repo_web_url(repo: Repo | str, subpath: str) -> Optional[str]:
     """
     Get the web URL of the repository.
     Tested / supported platforms: GitHub, GitLab.
@@ -63,7 +60,7 @@ def get_repo_web_url(
     """
     if isinstance(repo, Repo):
         repo = get_repo_base_web_url(repo)
-    return (repo + "/" + subpath.lstrip('/')) if repo else None
+    return (repo + "/" + subpath.lstrip("/")) if repo else None
 
 
 def get_repo_owner_and_name(repo: Repo) -> tuple[str, str]:
@@ -76,5 +73,5 @@ def get_repo_owner_and_name(repo: Repo) -> tuple[str, str]:
         ValueError: If the remote URL format is unsupported.
     """
     domain, path = get_repo_domain_and_path(repo)
-    owner, repo_name = path.split('/', 1)
+    owner, repo_name = path.split("/", 1)
     return owner, repo_name

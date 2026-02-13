@@ -22,9 +22,7 @@ def post_github_cr_comment(
     md_report_file: str = typer.Option(default=None),
     pr: int = typer.Option(default=None),
     gh_repo: str = typer.Option(default=None, help="owner/repo"),
-    token: str = typer.Option(
-        "", help="GitHub token (or set GITHUB_TOKEN env var)"
-    ),
+    token: str = typer.Option("", help="GitHub token (or set GITHUB_TOKEN env var)"),
 ):
     """
     Leaves a comment with the review on the current GitHub pull request.
@@ -99,7 +97,7 @@ def collapse_gh_outdated_cr_comments(
     logging.info(f"Collapsing outdated comments in {gh_repository} #{pr_or_issue_number}...")
 
     token = resolve_gh_token(token)
-    owner, repo = gh_repository.split('/')
+    owner, repo = gh_repository.split("/")
     api = GhApi(owner, repo, token=token)
 
     comments = list(chain.from_iterable(paged(api.issues.list_comments, pr_or_issue_number)))
@@ -107,8 +105,7 @@ def collapse_gh_outdated_cr_comments(
     collapsed_title = "🗑️ Outdated Code Review by Gito"
     collapsed_marker = f"<summary>{collapsed_title}</summary>"
     outdated_comments = [
-        c for c in comments
-        if c.body and review_marker in c.body and collapsed_marker not in c.body
+        c for c in comments if c.body and review_marker in c.body and collapsed_marker not in c.body
     ][:-1]
     if not outdated_comments:
         logging.info("No outdated comments found.")

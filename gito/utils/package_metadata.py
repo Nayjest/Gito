@@ -1,6 +1,7 @@
 """
 Utility functions related to processing package metadata.
 """
+
 import importlib.metadata
 
 

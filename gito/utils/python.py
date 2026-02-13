@@ -1,6 +1,7 @@
 """
 Utilities specific to Python general functionality.
 """
+
 import logging
 from dataclasses import fields, is_dataclass
 
@@ -25,7 +26,5 @@ def filter_kwargs(cls, kwargs, log_warnings=True):
             filtered[k] = v
         else:
             if log_warnings:
-                logging.warning(
-                    f"Warning: field '{k}' not in {cls.__name__}, dropping."
-                )
+                logging.warning(f"Warning: field '{k}' not in {cls.__name__}, dropping.")
     return filtered

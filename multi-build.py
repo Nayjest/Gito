@@ -3,12 +3,13 @@ Multi-build script for delivering to PYPI with aliased names.
 
 (c) Vitalii Stepanenko (Nayjest) <mailto:mail@vitaliy.in>, 2025
 """
+
 import re
 from pathlib import Path
 import subprocess
 
 NAMES = [
-    ['gito.bot'],
+    ["gito.bot"],
     ["ai-code-review"],
     ["ai-cr"],
     ["github-code-review"],
@@ -27,11 +28,12 @@ def replace_name(old_names: list[str], new_names: list[str], files: list[str] = 
             p = Path(path)
             p.write_text(
                 re.sub(
-                    fr'(?<![\\/\w\-\_]){old_name}\b',
+                    rf"(?<![\\/\w\-\_]){old_name}\b",
                     new_name,
                     p.read_text(encoding="utf-8"),
-                    flags=re.M
-                ), encoding="utf-8"
+                    flags=re.M,
+                ),
+                encoding="utf-8",
             )
 
 

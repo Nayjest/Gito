@@ -20,11 +20,7 @@ class PipelineEnv(StrEnum):
 
     @staticmethod
     def current():
-        return (
-            PipelineEnv.CI
-            if is_running_in_ci()
-            else PipelineEnv.LOCAL
-        )
+        return PipelineEnv.CI if is_running_in_ci() else PipelineEnv.LOCAL
 
     @classmethod
     def _missing_(cls, value):
@@ -66,9 +62,7 @@ class Pipeline:
 
     @property
     def enabled_steps(self):
-        return {
-            k: v for k, v in self.steps.items() if v.enabled
-        }
+        return {k: v for k, v in self.steps.items() if v.enabled}
 
     def run(self, *args, **kwargs):
         cur_env = PipelineEnv.current()
@@ -82,12 +76,10 @@ class Pipeline:
                         self.ctx.pipeline_out.update(step_output)
                     self.ctx.pipeline_out[step_name] = step_output
                     if self.verbose and step_output:
-                        logging.info(
-                            f"Pipeline step {step_name} output: {repr(step_output)}"
-                        )
+                        logging.info(f"Pipeline step {step_name} output: {repr(step_output)}")
                     if not step_output:
                         logging.warning(
-                            f"Pipeline step \"{step_name}\" "
+                            f'Pipeline step "{step_name}" '
                             f"returned no result ({repr(step_output)})."
                         )
                 except Exception as e:
