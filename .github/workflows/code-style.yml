@@ -11,6 +11,6 @@ jobs:
         with:
           python-version: 3.13
       - name: Install dependencies
-        run: pip install --upgrade pip flake8 pylint
+        run: pip install --upgrade pip flake8 pylint flake8-pyproject
       - name: Run flake8
         run: flake8 .
