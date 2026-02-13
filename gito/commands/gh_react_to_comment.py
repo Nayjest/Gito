@@ -20,6 +20,7 @@ from ..constants import JSON_REPORT_FILE_NAME, HTML_TEXT_ICON
 from ..core import answer
 from ..gh_api import post_gh_comment, resolve_gh_token
 from ..project_config import ProjectConfig
+from ..utils.git_platform.github import is_running_in_github_action
 from ..utils.git_platform.shared import get_repo_owner_and_name
 from ..utils.git import get_cwd_repo_or_fail
 from .fix import fix
@@ -73,7 +74,13 @@ def react_to_comment(
     actions automatically to enable seamless code review workflow integration.
     """
     repo = get_cwd_repo_or_fail()
-    owner, repo_name = get_repo_owner_and_name(repo)
+    # When running in GitHub Actions, use GITHUB_REPOSITORY env var to get the base repo,
+    # not the fork. This is critical for PRs from forked repositories for posting comments.
+    if is_running_in_github_action() and (github_repo := os.environ.get("GITHUB_REPOSITORY")):
+        owner, repo_name = github_repo.split("/", 1)
+    else:
+        owner, repo_name = get_repo_owner_and_name(repo)
+
     logging.info(f"Using repository: {ui.yellow}{owner}/{repo_name}{ui.reset}")
     gh_token = resolve_gh_token(gh_token)
     api = GhApi(owner=owner, repo=repo_name, token=gh_token)
