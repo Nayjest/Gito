@@ -250,7 +250,9 @@ def filter_diff(
         PatchSet | Iterable[PatchedFile]: The filtered diff.
     """
     if not isinstance(filters, (list, str)):
-        raise ValueError("Filters must be a string or a list of strings")
+        raise ValueError(
+            "filter_diff: filters must be a list of strings or a comma-separated string"
+        )
     if not isinstance(filters, list):
         filters = [f.strip() for f in filters.split(",") if f.strip()]
     if not filters:

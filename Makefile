@@ -26,6 +26,10 @@ test:
 	pytest --log-cli-level=INFO
 tests: test
 
+# Generate Coverage Report
+coverage:
+	pytest --cov=gito --cov-report=xml
+
 # Generate CLI reference documentation
 # Does not work on Windows due to PYTHONUTF8 env var setting
 cli-reference:
