@@ -1,5 +1,6 @@
 from gito.report_struct import Issue
 
+
 def test_affected_lines_count():
     assert Issue.AffectedCode(start_line=1, end_line=2).affected_lines_count == 2
     assert Issue.AffectedCode(start_line=1, end_line=1).affected_lines_count == 1

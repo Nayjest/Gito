@@ -1,11 +1,11 @@
 import git
-from gito.utils.git_platform.platform_types import PlatformType
-from gito.report_struct import ReviewTarget
 from typer.testing import CliRunner
 from unittest.mock import AsyncMock
+
+from gito.report_struct import ReviewTarget
 from gito.cli import app_no_subcommand
 from gito.cli_base import app
-
+from gito.utils.git_platform import platform
 
 runner = CliRunner()
 
@@ -19,14 +19,15 @@ def test_review_command_calls_review(monkeypatch):
     )
     assert result.exit_code == 0
     repo = git.Repo(".", search_parent_directories=True)
+    git_platform = platform(repo)
     commit_sha = repo.head.commit.hexsha
     try:
         active_branch = repo.active_branch.name
     except TypeError:
         active_branch = None
     review_target = ReviewTarget(
-        git_platform_type=PlatformType.GITHUB,
-        repo_url="https://github.com/Nayjest/Gito",
+        git_platform_type=git_platform.type,
+        repo_url=git_platform.repo_base_url,
         what="HEAD",
         against="HEAD~1",
         commit_sha=commit_sha,
@@ -50,14 +51,15 @@ def test_calls_review(monkeypatch):
     )
     assert result.exit_code == 0
     repo = git.Repo(".", search_parent_directories=True)
+    git_platform = platform(repo)
     commit_sha = repo.head.commit.hexsha
     try:
         active_branch = repo.active_branch.name
     except TypeError:
         active_branch = None
     review_target = ReviewTarget(
-        git_platform_type=PlatformType.GITHUB,
-        repo_url="https://github.com/Nayjest/Gito",
+        git_platform_type=git_platform.type,
+        repo_url=git_platform.repo_base_url,
         what="HEAD",
         against=None,
         commit_sha=commit_sha,

@@ -1,4 +1,5 @@
 """Test the fix command functionality."""
+
 import tempfile
 
 import git
@@ -7,12 +8,15 @@ import pytest
 
 from gito.commands.fix import fix
 from gito.core import provide_affected_code_blocks
-from gito.report_struct import Report, Issue
+from gito.report_struct import Report
+
 
 @pytest.fixture()
 def temp_repo() -> tuple[mc.file_storage.Storage, git.Repo]:
+
     with tempfile.TemporaryDirectory() as tmpdir:
         yield mc.storage(tmpdir), git.Repo.init(tmpdir)
+
 
 def test_fix_all_issues(temp_repo: tuple[mc.file_storage.Storage, git.Repo]):
     """Test that fix command can fix all issues when no issue_number is provided."""
@@ -27,29 +31,31 @@ def test_fix_all_issues(temp_repo: tuple[mc.file_storage.Storage, git.Repo]):
             {
                 "title": "Issue 1",
                 # proposal adds 2 new lines after line 2
-                "affected_lines": [{"start_line": 2, "end_line": 2, "proposal": "fixed_line2\n\n"}]
+                "affected_lines": [{"start_line": 2, "end_line": 2, "proposal": "fixed_line2\n\n"}],
             },
             {
                 "title": "Issue 1.2",
-                "affected_lines": [{"start_line": 3, "end_line": 4, "proposal": "fixed_line3\nfixed_line4"}]
+                "affected_lines": [
+                    {"start_line": 3, "end_line": 4, "proposal": "fixed_line3\nfixed_line4"}
+                ],
             },
         ],
         file2: [
             {
                 "title": "Issue 2",
-                "affected_lines": [{"start_line": 1, "end_line": 1, "proposal": "fixed_lineA"}]
+                "affected_lines": [{"start_line": 1, "end_line": 1, "proposal": "fixed_lineA"}],
             }
         ],
         file3: [
             {
                 "title": "Empty file",
-                "affected_lines": [{"start_line": 1, "end_line": 1, "proposal": "#header"}]
+                "affected_lines": [{"start_line": 1, "end_line": 1, "proposal": "#header"}],
             },
         ],
         file4: [
             {
                 "title": "No newline at end of file",
-                "affected_lines": [{"start_line": 1, "end_line": 1, "proposal": "no-nl\n"}]
+                "affected_lines": [{"start_line": 1, "end_line": 1, "proposal": "no-nl\n"}],
             },
         ],
     }
@@ -81,51 +87,3 @@ def test_fix_all_issues(temp_repo: tuple[mc.file_storage.Storage, git.Repo]):
     assert storage.read(file2) == "fixed_lineA\nlineB\nlineC"
     assert storage.read(file3) == "#header"
     assert storage.read(file4) == "no-nl\n"
-
-#
-# def test_fix_single_issue():
-#     """Test that fix command can fix a single issue when issue_number is provided."""
-#     with tempfile.TemporaryDirectory() as tmpdir:
-#         tmpdir_path = Path(tmpdir)
-#
-#         # Create test file
-#         test_file = tmpdir_path / "test.py"
-#         test_file.write_text("line1\nline2\nline3\n")
-#
-#         # Create a report with a fixable issue
-#         report = Report(summary="Test report")
-#         report.register_issue("test.py", {
-#             "title": "Issue 1",
-#             "details": "Test issue",
-#             "severity": 1,
-#             "confidence": 1,
-#             "affected_lines": [{
-#                 "start_line": 2,
-#                 "end_line": 2,
-#                 "proposal": "fixed_line2\n"
-#             }]
-#         })
-#
-#         # Update file path to point to temporary file
-#         report.issues["test.py"][0].file = str(test_file)
-#
-#         # Save report
-#         report_path = tmpdir_path / "report.json"
-#         report.save(str(report_path))
-#
-#         # Test fixing a specific issue
-#         with patch('gito.commands.fix.commit_changes'):
-#             changed_files = fix(
-#                 issue_number=1,
-#                 report_path=str(report_path),
-#                 dry_run=False,
-#                 commit=False,
-#                 push=False
-#             )
-#
-#         # Verify the file was changed
-#         assert len(changed_files) == 1
-#         assert str(test_file) in changed_files or test_file.as_posix() in changed_files
-#
-#         # Verify the fix was applied
-#         assert test_file.read_text() == "line1\nfixed_line2\nline3\n"

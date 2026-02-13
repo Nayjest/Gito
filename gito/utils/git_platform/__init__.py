@@ -18,4 +18,5 @@ def platform(repo: git.Repo) -> BaseGitPlatform:
         ValueError: If the platform type is unsupported or if the input type is invalid.
     """
     platform_type: PlatformType = identify_git_platform(repo)
-    return get_platform_adapter(platform_type, repo=repo)
+    return get_platform_adapter(platform_type, repo_or_base_url=repo)
+    

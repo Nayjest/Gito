@@ -212,12 +212,12 @@ Confidence scale:
 
 (!) - If no issues found according to the criteria, respond with empty list: []
 """
-# Remove issues with confidence + severity > 3
+# Ignore issues with low confidence or severity
 post_process = """
 for fn in issues:
     issues[fn] = [
         i for i in issues[fn]
-        if i["confidence"] == 1 and i["severity"] <= 2
+        if i["confidence"] == 1 and i["severity"] <= 3
     ]
 """
 summary_prompt = """

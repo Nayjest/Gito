@@ -104,3 +104,5 @@ addopts = "-vv --capture=no --log-cli-level=INFO"
 testpaths = [
     "tests",
 ]
+[tool.black]
+line-length = 100
