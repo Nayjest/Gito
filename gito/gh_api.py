@@ -13,7 +13,7 @@ from .utils.git_platform.shared import get_repo_owner_and_name
 def gh_api(
     repo: git.Repo = None,  # used to resolve owner/repo
     config: ProjectConfig | None = None,  # used to resolve owner/repo
-    token: str | None = None
+    token: str | None = None,
 ) -> GhApi:
     if repo:
         # resolve owner/repo from repo.remotes.origin.url
@@ -26,7 +26,7 @@ def gh_api(
         gh_repo = gh_env.get("github_repo")
         if not gh_repo:
             raise ValueError("GitHub repository not specified and not found in project config.")
-        parts = gh_repo.split('/')
+        parts = gh_repo.split("/")
         if len(parts) != 2:
             raise ValueError(f"Invalid GitHub repository format: {gh_repo}. Expected 'owner/repo'.")
         owner, repo_name = parts
@@ -73,9 +73,7 @@ def post_gh_comment(
 
 
 def hide_gh_comment(
-    comment: dict | str | AttrDict,
-    token: str = None,
-    reason: str = "OUTDATED"
+    comment: dict | str | AttrDict, token: str = None, reason: str = "OUTDATED"
 ) -> bool:
     """
     Hide a GitHub comment using GraphQL API with specified reason.
@@ -99,10 +97,7 @@ def hide_gh_comment(
     response = requests.post(
         "https://api.github.com/graphql",
         headers={"Authorization": f"Bearer {token}"},
-        json={
-            "query": mutation,
-            "variables": {"commentId": comment_node_id, "reason": reason}
-        }
+        json={"query": mutation, "variables": {"commentId": comment_node_id, "reason": reason}},
     )
     success = (
         response.status_code == 200

@@ -11,6 +11,7 @@ class BaseGitPlatform(abc.ABC):
     """
     Base class for Git hosting platform interactions.
     """
+
     type: ClassVar[PlatformType]
     repo_base_url: str
 

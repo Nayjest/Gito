@@ -1,6 +1,7 @@
 """
 Fix issues from code review report
 """
+
 import json
 import logging
 from pathlib import Path
@@ -18,19 +19,18 @@ from ..utils.git import get_cwd_repo_or_fail
 
 @app.command(
     help="Fix issues from the code review report "
-         "(latest code review results will be used by default). "
-         "If no issue number is provided, attempts to fix all fixable issues."
+    "(latest code review results will be used by default). "
+    "If no issue number is provided, attempts to fix all fixable issues."
 )
 def fix(
     issue_numbers: Optional[list[int]] = typer.Argument(
-        None,
-        help="Issue number(s) to fix (separated by space, fixes all if omitted)"
+        None, help="Issue number(s) to fix (separated by space, fixes all if omitted)"
     ),
     report_path: Optional[str] = typer.Option(
         None,
         "--report",
         "-r",
-        help="Path to the code review report (default: code-review-report.json)"
+        help="Path to the code review report (default: code-review-report.json)",
     ),
     dry_run: bool = typer.Option(
         False, "--dry-run", "-d", help="Only print changes without applying them"
@@ -40,8 +40,8 @@ def fix(
     src_path: Optional[str] = typer.Option(
         None,
         "--src-path",
-        help="Base path to prepend to file paths in the report (if report paths are relative)"
-    )
+        help="Base path to prepend to file paths in the report (if report paths are relative)",
+    ),
 ) -> list[str]:
     """
     Apply fix proposals from a code review report to the affected source files.
@@ -134,7 +134,7 @@ def fix(
                 )
                 continue
 
-            actual_block = "\n".join(lines[code_block.start_line - 1:code_block.end_line])
+            actual_block = "\n".join(lines[code_block.start_line - 1 : code_block.end_line])
             reported_block = code_block.raw_code
             if reported_block != actual_block:
                 logging.warning(
@@ -147,7 +147,7 @@ def fix(
             print(f"Current content:\n{ui.red(actual_block)}")
             print(f"Proposed change:\n{ui.green(code_block.proposal)}")
 
-            lines[code_block.start_line - 1:code_block.end_line] = code_block.proposal.split("\n")
+            lines[code_block.start_line - 1 : code_block.end_line] = code_block.proposal.split("\n")
 
         if dry_run:
             print(f"{ui.yellow('Dry run')}: Changes not applied")
@@ -171,19 +171,12 @@ def fix(
                 issue_list = ", ".join(str(i.id) for i in issues)
                 commit_msg = f"[AI] Fix issues {issue_list} from code review"
             is_last = file_path == list(issues_by_file.keys())[-1]
-            commit_changes(
-                [file_path],
-                commit_message=commit_msg,
-                push=is_last and push
-            )
+            commit_changes([file_path], commit_message=commit_msg, push=is_last and push)
     return list(issues_by_file.keys())
 
 
 def commit_changes(
-    files: list[str],
-    repo: git.Repo = None,
-    commit_message: str = "fix by AI",
-    push: bool = True
+    files: list[str], repo: git.Repo = None, commit_message: str = "fix by AI", push: bool = True
 ) -> None:
     """
     Commit and optionally push changes to the remote repository.
@@ -199,9 +192,7 @@ def commit_changes(
         push_results = origin.push()
         for push_info in push_results:
             if push_info.flags & (
-                git.PushInfo.ERROR
-                | git.PushInfo.REJECTED
-                | git.PushInfo.REMOTE_REJECTED
+                git.PushInfo.ERROR | git.PushInfo.REJECTED | git.PushInfo.REMOTE_REJECTED
             ):
                 logging.error(f"Push failed: {push_info.summary}")
                 raise typer.Exit(code=1)

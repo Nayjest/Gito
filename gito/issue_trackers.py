@@ -29,8 +29,8 @@ def extract_issue_key(branch_name: str, min_len=2, max_len=10) -> str | None:
     Returns:
         str | None: The extracted issue key, or None if not found.
     """
-    boundary = r'\b|_|-|/|\\'
-    pattern = fr"(?:{boundary})([A-Z][A-Z0-9]{{{min_len - 1},{max_len - 1}}}-\d+)(?:{boundary})"
+    boundary = r"\b|_|-|/|\\"
+    pattern = rf"(?:{boundary})([A-Z][A-Z0-9]{{{min_len - 1},{max_len - 1}}}-\d+)(?:{boundary})"
     match = re.search(pattern, branch_name)
     return match.group(1) if match else None
 
@@ -42,7 +42,7 @@ def get_branch(repo: git.Repo):
         # @todo: consider using gitlab_ci_src_branch(),
         # test differences with variables used there for different workflows first
         # See: https://docs.gitlab.com/ci/variables/predefined_variables/
-        gitlab_ref = os.getenv('CI_COMMIT_REF_NAME')
+        gitlab_ref = os.getenv("CI_COMMIT_REF_NAME")
         if gitlab_ref:
             return gitlab_ref
     try:

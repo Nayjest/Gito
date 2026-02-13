@@ -116,8 +116,8 @@ def test_report_save_load(tmp_path):
             "commit_sha": "c254bd342d75fe6103eb9ef822d780a14abd2ef5",
             "filters": "",
             "use_merge_base": True,
-            "active_branch": "gitlab"
-        }
+            "active_branch": "gitlab",
+        },
     }
     file_name = tmp_path / "report.json"
     report = Report(**data)

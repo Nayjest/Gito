@@ -1,6 +1,7 @@
 """
 Utility functions for Git operations.
 """
+
 import git
 import typer
 from microcore import ui

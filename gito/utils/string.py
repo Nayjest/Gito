@@ -41,13 +41,13 @@ def block_wrap_lr(
     for line in lines:
         ln = left + line
         if ml <= max_rwrap:
-            ln += ' ' * (ml - len(line)) + right
+            ln += " " * (ml - len(line)) + right
         wrapped_lines.append(ln)
     return "\n".join(wrapped_lines)
 
 
 def parse_refs_pair(refs: str) -> tuple[str | None, str | None]:
-    SEPARATOR = '..'
+    SEPARATOR = ".."
     if not refs:
         return None, None
     if SEPARATOR not in refs:

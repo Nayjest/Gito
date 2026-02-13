@@ -21,7 +21,9 @@ class ProjectConfig:
     """Markdown report template"""
     report_template_cli: str = ""
     """Report template for CLI output"""
-    report_template_gitlab_code_quality: str = "fn:gito.gitlab:convert_to_gitlab_code_quality_report"  # noqa: E501
+    report_template_gitlab_code_quality: str = (
+        "fn:gito.gitlab:convert_to_gitlab_code_quality_report"
+    )
     post_process: str = ""
     retries: int = 3
     """LLM retries for one request"""
@@ -92,7 +94,8 @@ class ProjectConfig:
         config_path = Path(config_path or PROJECT_CONFIG_FILE_PATH)
         if config_path.exists():
             logging.info(
-                f"Loading project-specific configuration from {mc.utils.file_link(config_path)}...")
+                f"Loading project-specific configuration from {mc.utils.file_link(config_path)}..."
+            )
             default_prompt_vars = config["prompt_vars"]
             default_pipeline_steps = config["pipeline_steps"]
             with open(config_path, "rb") as f:
@@ -105,8 +108,6 @@ class ProjectConfig:
             # merge pipeline steps dict
             config["pipeline_steps"] = default_pipeline_steps | config["pipeline_steps"]
         else:
-            logging.info(
-                f"No project config found at {ui.blue(config_path)}, using defaults"
-            )
+            logging.info(f"No project config found at {ui.blue(config_path)}, using defaults")
 
         return ProjectConfig(**config)

@@ -38,6 +38,7 @@ from .project_config import ProjectConfig
 from .commands.gh_post_review_comment import post_github_cr_comment
 from .commands.gitlab_post_review_comment import post_gitlab_cr_comment
 from .commands.linear_comment import linear_comment
+
 # Imported for registering commands
 from .commands import fix, gh_react_to_comment, repl, deploy, version  # noqa
 
@@ -61,34 +62,33 @@ def main():
 @app.callback(
     invoke_without_command=True,
     help="\bGito is an open-source AI code reviewer that works with any language model provider."
-         "\nIt detects issues in GitHub pull requests or local codebase changes"
-         "—instantly, reliably, and without vendor lock-in."
+    "\nIt detects issues in GitHub pull requests or local codebase changes"
+    "—instantly, reliably, and without vendor lock-in.",
 )
 def cli(
     ctx: typer.Context,
     verbosity: int = typer.Option(
         None,
-        '--verbosity', '-v',
+        "--verbosity",
+        "-v",
         show_default=False,
         help="\b"
-             "Set verbosity level. Supported values: 0-3. Default: 1."
-             "\n [ 0 ]: no additional output, "
-             "\n [ 1 ]: normal mode, shows warnings, shortened LLM requests and logging.INFO"
-             "\n [ 2 ]: verbose mode, show full LLM requests"
-             "\n [ 3 ]: very verbose mode, also debug information"
+        "Set verbosity level. Supported values: 0-3. Default: 1."
+        "\n [ 0 ]: no additional output, "
+        "\n [ 1 ]: normal mode, shows warnings, shortened LLM requests and logging.INFO"
+        "\n [ 2 ]: verbose mode, show full LLM requests"
+        "\n [ 3 ]: very verbose mode, also debug information",
     ),
     verbose: bool = typer.Option(
         default=None,
         help="\b"
-             "--verbose is equivalent to -v2, "
-             "\n--no-verbose is equivalent to -v0. "
-             "\n(!) Can't be used together with -v or --verbosity."
+        "--verbose is equivalent to -v2, "
+        "\n--no-verbose is equivalent to -v0. "
+        "\n(!) Can't be used together with -v or --verbosity.",
     ),
 ):
     if verbose is not None and verbosity is not None:
-        raise typer.BadParameter(
-            "Please specify either --verbose or --verbosity, not both."
-        )
+        raise typer.BadParameter("Please specify either --verbose or --verbosity, not both.")
     if verbose is not None:
         verbosity = 2 if verbose else 0
     if verbosity is None:
@@ -127,16 +127,17 @@ def cmd_review(
     url: str = typer.Option("", "--url", help="Git repository URL"),
     path: str = typer.Option("", "--path", help="Git repository path"),  # @todo: implement
     post_comment: bool = typer.Option(
-        default=False,
-        help="Post review comment to git platform (GitHub, GitLab, etc.)"
+        default=False, help="Post review comment to git platform (GitHub, GitLab, etc.)"
     ),
     pr: int = typer.Option(
         default=None,
-        help=textwrap.dedent("""\n
+        help=textwrap.dedent(
+            """\n
         GitHub Pull Request number or GitLab Merge Request ID to post the comment to
         (for local usage together with --post-comment,
         in the GitHub/GitLab actions PR/MR is resolved from the environment)
-        """)
+        """
+        ),
     ),
     out: str = arg_out(),
     all: bool = arg_all(),
@@ -144,7 +145,7 @@ def cmd_review(
     refs, merge_base = _consider_arg_all(all, refs, merge_base)
     _what, _against = args_to_target(refs, what, against)
     pr = pr or os.getenv("PR_NUMBER_FROM_WORKFLOW_DISPATCH")
-    with (get_repo_context(url, _what) as (repo, out_folder)):
+    with get_repo_context(url, _what) as (repo, out_folder):
         commit_sha = repo.head.commit.hexsha
         try:
             active_branch = repo.active_branch.name
@@ -161,11 +162,13 @@ def cmd_review(
             commit_sha=commit_sha,
             active_branch=active_branch,
         )
-        asyncio.run(review(
-            repo=repo,
-            target=review_target,
-            out_folder=out or out_folder,
-        ))
+        asyncio.run(
+            review(
+                repo=repo,
+                target=review_target,
+                out_folder=out or out_folder,
+            )
+        )
         if post_comment:
 
             md_report_file = os.path.join(out or out_folder, GITHUB_MD_REPORT_FILE_NAME)
@@ -205,22 +208,12 @@ def cmd_answer(
     merge_base: bool = typer.Option(default=True, help="Use merge base for comparison"),
     use_pipeline: bool = typer.Option(default=True),
     post_to: str = typer.Option(
-        help="Post answer to ... Supported values: linear",
-        default=None,
-        show_default=False
+        help="Post answer to ... Supported values: linear", default=None, show_default=False
     ),
-    pr: int = typer.Option(
-        default=None,
-        help="GitHub Pull Request number"
-    ),
-    aux_files: list[str] = typer.Option(
-        default=None,
-        help="Auxiliary files that might be helpful"
-    ),
+    pr: int = typer.Option(default=None, help="GitHub Pull Request number"),
+    aux_files: list[str] = typer.Option(default=None, help="Auxiliary files that might be helpful"),
     save_to: str = typer.Option(
-        help="Write the answer to the target file",
-        default=None,
-        show_default=False
+        help="Write the answer to the target file", default=None, show_default=False
     ),
     all: bool = arg_all(),
 ):
@@ -243,7 +236,7 @@ def cmd_answer(
         pr=pr,
         aux_files=aux_files,
     )
-    if post_to == 'linear':
+    if post_to == "linear":
         logging.info("Posting answer to Linear...")
         linear_comment(remove_html_comments(out))
     if save_to:
@@ -264,23 +257,19 @@ def setup():
 @app.command(name="render", hidden=True)
 def render(
     format: str = typer.Argument(
-        default=Report.Format.CLI,
-        help="Report format: md (Markdown), cli (terminal)"
+        default=Report.Format.CLI, help="Report format: md (Markdown), cli (terminal)"
     ),
     source: str = typer.Option(
-        "",
-        "--src",
-        "--source",
-        help="Source file (json) to load the report from"
-    )
+        "", "--src", "--source", help="Source file (json) to load the report from"
+    ),
 ):
     Report.load(file_name=source).to_cli(report_format=format)
 
 
 @app.command(
     help="\bList files in the changeset. "
-         "\nMight be useful to check what will be reviewed if run `gito review` "
-         "with current CLI arguments and options."
+    "\nMight be useful to check what will be reviewed if run `gito review` "
+    "with current CLI arguments and options."
 )
 def files(
     refs: str = arg_refs(),

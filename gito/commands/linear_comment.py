@@ -28,24 +28,24 @@ def post_linear_comment(issue_key: str, text: str, api_key: str) -> dict:
     """
     try:
         response = requests.post(
-            'https://api.linear.app/graphql',
-            headers={'Authorization': api_key, 'Content-Type': 'application/json'},
+            "https://api.linear.app/graphql",
+            headers={"Authorization": api_key, "Content-Type": "application/json"},
             json={
-                'query': '''
+                "query": """
                     mutation($issueId: String!, $body: String!) {
                         commentCreate(input: {issueId: $issueId, body: $body}) {
                             comment { id }
                         }
                     }
-                ''',
-                'variables': {'issueId': issue_key, 'body': text}
-            }
+                """,
+                "variables": {"issueId": issue_key, "body": text},
+            },
         )
         response.raise_for_status()
         data = response.json()
 
         # Check for GraphQL-level errors
-        if 'errors' in data:
+        if "errors" in data:
             raise LinearAPIError(f"GraphQL error: {data['errors']}")
 
         return data
@@ -67,7 +67,7 @@ def _process_text_input(text: str | None) -> str:
             "Comment text is required. Provide text as argument or pipe from stdin."
         )
 
-    text = text.replace('\\n', '\n').replace('\\t', '\t')
+    text = text.replace("\\n", "\n").replace("\\t", "\t")
     return text
 
 

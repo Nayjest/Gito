@@ -78,6 +78,7 @@ fastcore= "~=1.11.3"
 
 [tool.poetry.group.dev.dependencies]
 flake8 = "*"
+flake8-pyproject = "*"
 black = "*"
 build = "*"
 twine = "*"
@@ -104,5 +105,10 @@ addopts = "-vv --capture=no --log-cli-level=INFO"
 testpaths = [
     "tests",
 ]
+
 [tool.black]
 line-length = 100
+
+[tool.flake8]
+extend-ignore = ["E203"]
+max-line-length = 100

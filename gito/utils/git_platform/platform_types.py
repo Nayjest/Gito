@@ -2,6 +2,7 @@
 Module to identify the Git platform/provider
 (GitHub, GitLab, Bitbucket, etc.) for a given repository.
 """
+
 import os
 from enum import StrEnum
 from typing import Optional
@@ -14,6 +15,7 @@ from git import Repo
 
 class PlatformType(StrEnum):
     """Enumeration of supported Git provider/platform types."""
+
     GITHUB = "GitHub"
     GITLAB = "GitLab"
     BITBUCKET = "Bitbucket"
@@ -65,9 +67,11 @@ def identify_git_platform(repo: Repo) -> Optional[PlatformType]:
     """
     Identify the Git provider/platform type using multiple strategies.
     """
-    return identify_git_platform_by_ci_env() or \
-        identify_git_platform_from_remotes(repo) or \
-        identify_git_platform_from_files(repo)
+    return (
+        identify_git_platform_by_ci_env()
+        or identify_git_platform_from_remotes(repo)
+        or identify_git_platform_from_files(repo)
+    )
 
 
 @lru_cache()

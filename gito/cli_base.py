@@ -1,6 +1,7 @@
 """
 Common CLI arguments and utilities for Gito commands.
 """
+
 import contextlib
 import logging
 import tempfile
@@ -57,7 +58,10 @@ def arg_what() -> typer.Option:
 
 def arg_filters() -> typer.Option:
     return typer.Option(
-        "", "--filter", "-f", "--filters",
+        "",
+        "--filter",
+        "-f",
+        "--filters",
         help="""
             filter reviewed files by glob / fnmatch pattern(s),
             e.g. 'src/**/*.py', may be comma-separated
@@ -67,18 +71,12 @@ def arg_filters() -> typer.Option:
 
 def arg_out() -> typer.Option:
     return typer.Option(
-        None,
-        "--out", "-o", "--output",
-        help="Output folder for the code review report"
+        None, "--out", "-o", "--output", help="Output folder for the code review report"
     )
 
 
 def arg_against() -> typer.Option:
-    return typer.Option(
-        None,
-        "--against", "-vs", "--vs",
-        help="Git ref to compare against"
-    )
+    return typer.Option(None, "--against", "-vs", "--vs", help="Git ref to compare against")
 
 
 def arg_all() -> typer.Option:
@@ -86,10 +84,7 @@ def arg_all() -> typer.Option:
 
 
 @contextlib.contextmanager
-def get_repo_context(
-    url: str | None,
-    branch: str | None
-) -> Iterator[tuple[Repo, str]]:
+def get_repo_context(url: str | None, branch: str | None) -> Iterator[tuple[Repo, str]]:
     """
     Context manager for handling both local and remote repositories.
     Yields a tuple of (Repo object, path to the repository)

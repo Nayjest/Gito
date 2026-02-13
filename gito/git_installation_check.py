@@ -1,6 +1,7 @@
 """
 Checks if Git is installed; if not, provides installation instructions.
 """
+
 import platform
 import sys
 

@@ -1,6 +1,7 @@
 """
 Utilities for generating Markdown.
 """
+
 from pathlib import Path
 
 

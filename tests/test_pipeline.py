@@ -28,9 +28,7 @@ def patch_resolve_callable(dummy_callable):
 def patch_github_action_env(monkeypatch):
     # Monkeypatch is_running_in_github_action to return True (GH_ACTION) or False (LOCAL)
     def _patch(is_gh_action):
-        monkeypatch.setattr(
-            "gito.pipeline.is_running_in_ci", lambda: is_gh_action
-        )
+        monkeypatch.setattr("gito.pipeline.is_running_in_ci", lambda: is_gh_action)
 
     return _patch
 

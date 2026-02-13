@@ -1,6 +1,7 @@
 """
 Utilities for interacting with various Git hosting platforms.
 """
+
 import git
 
 from .platform_types import PlatformType, identify_git_platform
@@ -19,4 +20,3 @@ def platform(repo: git.Repo) -> BaseGitPlatform:
     """
     platform_type: PlatformType = identify_git_platform(repo)
     return get_platform_adapter(platform_type, repo_or_base_url=repo)
-    

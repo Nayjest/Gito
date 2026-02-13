@@ -8,10 +8,7 @@ from gito.issue_trackers import IssueTrackerIssue, resolve_issue_key
 
 
 def fetch_issue(
-    issue_key: str,
-    jira_url: str,
-    username: str,
-    api_token: str
+    issue_key: str, jira_url: str, username: str, api_token: str
 ) -> IssueTrackerIssue | None:
     """
     Fetch a Jira issue by its key.
@@ -29,12 +26,10 @@ def fetch_issue(
         return IssueTrackerIssue(
             title=issue.fields.summary,
             description=issue.fields.description or "",
-            url=f"{jira_url.rstrip('/')}/browse/{issue_key}"
+            url=f"{jira_url.rstrip('/')}/browse/{issue_key}",
         )
     except JIRAError as e:
-        logging.error(
-            f"Failed to fetch Jira issue {issue_key}: code {e.status_code} :: {e.text}"
-        )
+        logging.error(f"Failed to fetch Jira issue {issue_key}: code {e.status_code} :: {e.text}")
         return None
     except Exception as e:
         logging.error(f"Failed to fetch Jira issue {issue_key}: {e}")
@@ -42,11 +37,7 @@ def fetch_issue(
 
 
 def fetch_associated_issue(
-    repo: git.Repo,
-    jira_url=None,
-    jira_username=None,
-    jira_api_token=None,
-    **kwargs
+    repo: git.Repo, jira_url=None, jira_username=None, jira_api_token=None, **kwargs
 ):
     """
     Pipeline step to fetch a Jira issue based on the current branch name.
@@ -72,6 +63,8 @@ def fetch_associated_issue(
         logging.error(f"Jira configuration error: {e}")
         return None
     issue_key = resolve_issue_key(repo)
-    return dict(
-        associated_issue=fetch_issue(issue_key, jira_url, jira_username, jira_token)
-    ) if issue_key else None
+    return (
+        dict(associated_issue=fetch_issue(issue_key, jira_url, jira_username, jira_token))
+        if issue_key
+        else None
+    )

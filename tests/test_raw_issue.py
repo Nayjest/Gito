@@ -13,6 +13,7 @@ def test_raw_issue():
             "confidence": 1,
             "affected_lines": [],
         }
+
     raw = [base_data(), base_data()]
     assert _llm_response_validator(raw) is True
     issue1 = RawIssue(**raw[0])

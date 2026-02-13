@@ -1,6 +1,7 @@
 """
 Utilities for working with GitHub platform.
 """
+
 import os
 import re
 from typing import Optional
@@ -25,7 +26,7 @@ def get_gh_create_pr_link(repo_or_base_url: git.Repo | str, branch: str) -> Opti
     """
     Return a GitHub URL to create a pull request for the given branch.
     """
-    branch = quote(branch, safe='')
+    branch = quote(branch, safe="")
     return get_repo_web_url(repo_or_base_url, f"/compare/{branch}?expand=1")
 
 
@@ -44,7 +45,7 @@ def gh_ci_src_branch() -> Optional[str]:
     """
     # https://docs.github.com/en/actions/reference/workflows-and-actions/variables
 
-    if branch_name := os.getenv('GITHUB_HEAD_REF'):
+    if branch_name := os.getenv("GITHUB_HEAD_REF"):
         # GITHUB_HEAD_REF — The source branch of a pull request
         # Push: empty
         # PR: feature-branch (just the branch name, no refs/heads/ prefix)
@@ -52,7 +53,7 @@ def gh_ci_src_branch() -> Optional[str]:
 
     ref = os.getenv("GITHUB_REF", "")
     if ref.startswith("refs/heads/"):
-        return ref[len("refs/heads/"):]
+        return ref[len("refs/heads/") :]
     return None
 
 
@@ -63,7 +64,7 @@ def get_gh_file_link(
     start_line: Optional[int] = None,
     end_line: Optional[int] = None,
 ) -> Optional[str]:
-    branch, file = quote(branch, safe=''), quote(file, safe='/')
+    branch, file = quote(branch, safe=""), quote(file, safe="/")
     url_path = f"/blob/{branch}/{file}"
     if start_line:
         url_path += f"#L{start_line}"
@@ -87,7 +88,7 @@ def detect_github_env() -> dict:
     if "GITHUB_HEAD_REF" in os.environ:
         branch = os.environ["GITHUB_HEAD_REF"]
     elif ref.startswith("refs/heads/"):
-        branch = ref[len("refs/heads/"):]
+        branch = ref[len("refs/heads/") :]
     elif ref.startswith("refs/pull/"):
         # for pull_request events
         branch = ref

@@ -30,23 +30,23 @@ def cleanup_comment_addressed_to_gito(text: Optional[str]) -> Optional[str]:
     if not text:
         return text
     patterns = [
-        r'^\s*gito\b',
-        r'^\s*ai\b',
-        r'^\s*bot\b',
-        r'^\s*@gito\b',
-        r'^\s*@ai\b',
-        r'^\s*@bot\b'
+        r"^\s*gito\b",
+        r"^\s*ai\b",
+        r"^\s*bot\b",
+        r"^\s*@gito\b",
+        r"^\s*@ai\b",
+        r"^\s*@bot\b",
     ]
     result = text
     # Remove each pattern from the beginning
     for pattern in patterns:
-        result = re.sub(pattern, '', result, flags=re.IGNORECASE)
+        result = re.sub(pattern, "", result, flags=re.IGNORECASE)
 
     # Remove leading comma and spaces that may be left after prefix removal
-    result = re.sub(r'^\s*,\s*', '', result)
+    result = re.sub(r"^\s*,\s*", "", result)
 
     # Clean up extra whitespace
-    result = re.sub(r'\s+', ' ', result).strip()
+    result = re.sub(r"\s+", " ", result).strip()
     return result
 
 
@@ -92,9 +92,7 @@ def react_to_comment(
     )
 
     cfg = ProjectConfig.load_for_repo(repo)
-    if not any(
-        trigger.lower() in comment.body.lower() for trigger in cfg.mention_triggers
-    ):
+    if not any(trigger.lower() in comment.body.lower() for trigger in cfg.mention_triggers):
         ui.error("No mention trigger found in comment, no reaction added.")
         return
     try:
@@ -137,7 +135,7 @@ def react_to_comment(
                 gh_repository=f"{owner}/{repo_name}",
                 pr_or_issue_number=pr,
                 gh_token=gh_token,
-                text=HTML_TEXT_ICON+response,
+                text=HTML_TEXT_ICON + response,
             )
         else:
             ui.error("Can't identify target command in the text.")
@@ -156,10 +154,7 @@ def last_code_review_run(api: GhApi, pr_number: int) -> AttrDict | None:
             r
             for r in runs  # r['head_sha'] == sha and
             if (
-                any(
-                    marker in r["path"].lower()
-                    for marker in ["code-review", "code_review", "cr"]
-                )
+                any(marker in r["path"].lower() for marker in ["code-review", "code_review", "cr"])
                 or "gito.yml" in r["name"].lower()
             )
             and r["status"] == "completed"
@@ -218,7 +213,7 @@ def extract_fix_args(text: str) -> list[int] | str:
 
 def is_review_request(text: str) -> bool:
     text = text.lower().strip()
-    trigger_words = ['review', 'run', 'code-review']
+    trigger_words = ["review", "run", "code-review"]
     if any(f"/{word}" in text for word in trigger_words):
         return True
     parts = text.split()
