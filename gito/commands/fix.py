@@ -142,7 +142,7 @@ def fix(
                     f"lines {code_block.start_line}-{code_block.end_line}, skipping change"
                 )
                 continue
-            print(f"\nFile: {ui.blue(issue.file)}")
+            print(f"\nFile: {ui.blue(file_path)}")
             print(f"Lines: {code_block.start_line}-{code_block.end_line}")
             print(f"Current content:\n{ui.red(actual_block)}")
             print(f"Proposed change:\n{ui.green(code_block.proposal)}")
