@@ -1,8 +1,8 @@
 import git
-from gito.utils.git_platform.platform_types import PlatformType
-from gito.report_struct import ReviewTarget
 from typer.testing import CliRunner
 from unittest.mock import AsyncMock
+
+from gito.report_struct import ReviewTarget
 from gito.cli import app_no_subcommand
 from gito.cli_base import app
 from gito.utils.git_platform import platform

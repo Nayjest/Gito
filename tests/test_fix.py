@@ -1,4 +1,5 @@
 """Test the fix command functionality."""
+
 import tempfile
 
 import git
@@ -7,13 +8,15 @@ import pytest
 
 from gito.commands.fix import fix
 from gito.core import provide_affected_code_blocks
-from gito.report_struct import Report, Issue
+from gito.report_struct import Report
+
 
 @pytest.fixture()
 def temp_repo() -> tuple[mc.file_storage.Storage, git.Repo]:
 
     with tempfile.TemporaryDirectory() as tmpdir:
         yield mc.storage(tmpdir), git.Repo.init(tmpdir)
+
 
 def test_fix_all_issues(temp_repo: tuple[mc.file_storage.Storage, git.Repo]):
     """Test that fix command can fix all issues when no issue_number is provided."""
@@ -28,29 +31,31 @@ def test_fix_all_issues(temp_repo: tuple[mc.file_storage.Storage, git.Repo]):
             {
                 "title": "Issue 1",
                 # proposal adds 2 new lines after line 2
-                "affected_lines": [{"start_line": 2, "end_line": 2, "proposal": "fixed_line2\n\n"}]
+                "affected_lines": [{"start_line": 2, "end_line": 2, "proposal": "fixed_line2\n\n"}],
             },
             {
                 "title": "Issue 1.2",
-                "affected_lines": [{"start_line": 3, "end_line": 4, "proposal": "fixed_line3\nfixed_line4"}]
+                "affected_lines": [
+                    {"start_line": 3, "end_line": 4, "proposal": "fixed_line3\nfixed_line4"}
+                ],
             },
         ],
         file2: [
             {
                 "title": "Issue 2",
-                "affected_lines": [{"start_line": 1, "end_line": 1, "proposal": "fixed_lineA"}]
+                "affected_lines": [{"start_line": 1, "end_line": 1, "proposal": "fixed_lineA"}],
             }
         ],
         file3: [
             {
                 "title": "Empty file",
-                "affected_lines": [{"start_line": 1, "end_line": 1, "proposal": "#header"}]
+                "affected_lines": [{"start_line": 1, "end_line": 1, "proposal": "#header"}],
             },
         ],
         file4: [
             {
                 "title": "No newline at end of file",
-                "affected_lines": [{"start_line": 1, "end_line": 1, "proposal": "no-nl\n"}]
+                "affected_lines": [{"start_line": 1, "end_line": 1, "proposal": "no-nl\n"}],
             },
         ],
     }
@@ -82,5 +87,3 @@ def test_fix_all_issues(temp_repo: tuple[mc.file_storage.Storage, git.Repo]):
     assert storage.read(file2) == "fixed_lineA\nlineB\nlineC"
     assert storage.read(file3) == "#header"
     assert storage.read(file4) == "no-nl\n"
-
-
