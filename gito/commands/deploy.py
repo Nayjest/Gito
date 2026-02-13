@@ -298,11 +298,11 @@ def deploy(
                         )
                     )
                 else:
+                    msg = f"Please merge branch named '{to_branch}' to your main branch."
                     console.print(
                         Panel(
                             title="Next step",
-                            renderable=
-                            f"Please merge branch named '{to_branch}' to your main branch.",
+                            renderable=msg,
                             border_style="yellow",
                             expand=False,
                         )
