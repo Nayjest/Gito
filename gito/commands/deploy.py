@@ -301,7 +301,8 @@ def deploy(
                     console.print(
                         Panel(
                             title="Next step",
-                            renderable=f"Please merge branch named '{to_branch}' to your main branch.",
+                            renderable=
+                            f"Please merge branch named '{to_branch}' to your main branch.",
                             border_style="yellow",
                             expand=False,
                         )
