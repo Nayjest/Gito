@@ -11,6 +11,7 @@ from gito.report_struct import Report, Issue
 
 @pytest.fixture()
 def temp_repo() -> tuple[mc.file_storage.Storage, git.Repo]:
+    # left-over comment
     with tempfile.TemporaryDirectory() as tmpdir:
         yield mc.storage(tmpdir), git.Repo.init(tmpdir)
 
@@ -82,4 +83,4 @@ def test_fix_all_issues(temp_repo: tuple[mc.file_storage.Storage, git.Repo]):
     assert storage.read(file3) == "#header"
     assert storage.read(file4) == "no-nl\n"
 
-#
+# left-over comment
