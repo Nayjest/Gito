@@ -39,16 +39,12 @@ jobs:
         # LLM_API_TYPE: openai
         # LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
         # MODEL: "gpt-4.1"
-        LLM_API_TYPE: anthropic
-        LLM_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        MODEL: claude-opus-4-6
-        JIRA_TOKEN: ${{ secrets.JIRA_TOKEN }}
-        JIRA_URL: ${{ secrets.JIRA_URL }}
-        JIRA_USER: ${{ secrets.JIRA_USER }}
-        LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+        LLM_API_TYPE: openai
+        LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+        MODEL: gpt-5.3-codex
         CRACK_DEBUG: "1"
         PR_NUMBER_FROM_WORKFLOW_DISPATCH: ${{ github.event.inputs.pr_number || github.event.pull_request.number }}
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
       run: |
         CRACK --verbose review
         # alternative way to capture PR base
