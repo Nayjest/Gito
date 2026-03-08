@@ -1,12 +1,3 @@
-<p align="center">
-<a href="https://pypi.org/project/CRACK.bot/" target="_blank"><img src="https://img.shields.io/pypi/v/CRACK.bot" alt="PYPI Release"></a>
-<a href="https://github.com/Dishank422/CRACK/actions/workflows/code-style.yml" target="_blank"><img src="https://github.com/Dishank422/CRACK/actions/workflows/code-style.yml/badge.svg" alt="PyLint"></a>
-<a href="https://github.com/Dishank422/CRACK/actions/workflows/tests.yml" target="_blank"><img src="https://github.com/Dishank422/CRACK/actions/workflows/tests.yml/badge.svg" alt="Tests"></a>
-<img src="https://raw.githubusercontent.com/Dishank422/CRACK/main/coverage.svg" alt="Code Coverage">
-<a href="https://github.com/vshymanskyy/StandWithUkraine/blob/main/README.md" target="_blank"><img src="https://raw.githubusercontent.com/vshymanskyy/StandWithUkraine/refs/heads/main/badges/StandWithUkraine.svg" alt="Stand With Ukraine"></a>
-<a href="https://github.com/Dishank422/CRACK/blob/main/LICENSE" target="_blank"><img src="https://img.shields.io/static/v1?label=license&message=MIT&color=d08aff" alt="License"></a>
-</p>
-
 **CRACK** is an open-source **AI code reviewer** that works with any language model provider.
 It detects issues in GitHub pull requests or local codebase changes—instantly, reliably, and without vendor lock-in.
 
