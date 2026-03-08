@@ -6,9 +6,9 @@ import git
 import microcore as mc
 import pytest
 
-from gito.commands.fix import fix
-from gito.core import provide_affected_code_blocks
-from gito.report_struct import Report
+from CRACK.commands.fix import fix
+from CRACK.core import provide_affected_code_blocks
+from CRACK.report_struct import Report
 
 
 @pytest.fixture()

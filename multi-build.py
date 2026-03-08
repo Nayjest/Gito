@@ -1,7 +1,5 @@
 """
 Multi-build script for delivering to PYPI with aliased names.
-
-(c) Vitalii Stepanenko (Nayjest) <mailto:mail@vitaliy.in>, 2025
 """
 
 import re
@@ -9,7 +7,7 @@ from pathlib import Path
 import subprocess
 
 NAMES = [
-    ["gito.bot"],
+    ["CRACK.bot"],
     ["ai-code-review"],
     ["ai-cr"],
     ["github-code-review"],

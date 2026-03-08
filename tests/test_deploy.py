@@ -1,13 +1,13 @@
-"""Tests for Gito CI deployment."""
+"""Tests for CRACK CI deployment."""
 
 from pathlib import Path
 
 import pytest
 from git import Repo
 
-from gito.commands.deploy import deploy
-from gito.bootstrap import bootstrap
-from gito.utils.git_platform.platform_types import PlatformType
+from CRACK.commands.deploy import deploy
+from CRACK.bootstrap import bootstrap
+from CRACK.utils.git_platform.platform_types import PlatformType
 
 
 @pytest.fixture
@@ -45,27 +45,27 @@ def test_deploy_github_creates_workflow_files(github_repo, monkeypatch):
     """Deploying to GitHub creates expected workflow files."""
     bootstrap()
     monkeypatch.setattr("builtins.input", lambda _: "")
-    monkeypatch.setattr("gito.commands.deploy.identify_git_platform", lambda _: PlatformType.GITHUB)
+    monkeypatch.setattr("CRACK.commands.deploy.identify_git_platform", lambda _: PlatformType.GITHUB)
 
     deploy(api_type="anthropic", commit=False, model="claude-opus-4-6")
 
-    workflow = Path(".github/workflows/gito-code-review.yml")
+    workflow = Path(".github/workflows/CRACK-code-review.yml")
     assert workflow.exists()
 
     content = workflow.read_text(encoding="utf-8")
     assert "ANTHROPIC_API_KEY" in content
-    assert "gito" in content.lower()
+    assert "CRACK" in content.lower()
 
 
 def test_deploy_gitlab_creates_workflow_files(gitlab_repo, monkeypatch):
     """Deploying to GitLab creates expected workflow files."""
     bootstrap()
     monkeypatch.setattr("builtins.input", lambda _: "")
-    monkeypatch.setattr("gito.commands.deploy.identify_git_platform", lambda _: PlatformType.GITLAB)
+    monkeypatch.setattr("CRACK.commands.deploy.identify_git_platform", lambda _: PlatformType.GITLAB)
 
     deploy(api_type="anthropic", commit=False, model="claude-opus-4-6")
 
-    workflow = Path(".gitlab/ci/gito-code-review.yml")
+    workflow = Path(".gitlab/ci/CRACK-code-review.yml")
     gitlab_ci = Path(".gitlab-ci.yml")
 
     assert workflow.exists()
@@ -98,7 +98,7 @@ def test_deploy_rewrite_overwrites_existing(github_repo, monkeypatch):
     deploy(api_type="anthropic", commit=False, model="claude-opus-4-6")
     deploy(api_type="openai", commit=False, rewrite=True, model="gpt-3.5-turbo")
 
-    workflow = Path(".github/workflows/gito-code-review.yml")
+    workflow = Path(".github/workflows/CRACK-code-review.yml")
     content = workflow.read_text(encoding="utf-8")
 
     assert "OPENAI_API_KEY" in content

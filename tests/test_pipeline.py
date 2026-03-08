@@ -1,10 +1,10 @@
 import pytest
 from unittest.mock import patch, MagicMock
 import microcore as mc
-from gito.pipeline import Pipeline, PipelineStep, PipelineEnv
-from gito.context import Context
-from gito.project_config import ProjectConfig
-from gito.report_struct import Report
+from CRACK.pipeline import Pipeline, PipelineStep, PipelineEnv
+from CRACK.context import Context
+from CRACK.project_config import ProjectConfig
+from CRACK.report_struct import Report
 
 
 # --- Fixtures and helpers ---
@@ -20,7 +20,7 @@ def dummy_callable():
 
 @pytest.fixture
 def patch_resolve_callable(dummy_callable):
-    with patch("gito.pipeline.resolve_callable", return_value=dummy_callable):
+    with patch("CRACK.pipeline.resolve_callable", return_value=dummy_callable):
         yield
 
 
@@ -28,7 +28,7 @@ def patch_resolve_callable(dummy_callable):
 def patch_github_action_env(monkeypatch):
     # Monkeypatch is_running_in_github_action to return True (GH_ACTION) or False (LOCAL)
     def _patch(is_gh_action):
-        monkeypatch.setattr("gito.pipeline.is_running_in_ci", lambda: is_gh_action)
+        monkeypatch.setattr("CRACK.pipeline.is_running_in_ci", lambda: is_gh_action)
 
     return _patch
 
@@ -114,6 +114,6 @@ def test_pipeline_multiple_steps(monkeypatch, patch_github_action_env):
 
 def test_get_callable():
     callable_fn = PipelineStep(
-        call="gito.pipeline_steps.jira.fetch_associated_issue"
+        call="CRACK.pipeline_steps.jira.fetch_associated_issue"
     ).get_callable()
     assert callable(callable_fn), "Expected a callable function"

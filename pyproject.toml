@@ -1,12 +1,12 @@
 [tool.poetry]
-name = "gito.bot"
+name = "CRACK.bot"
 version = "4.0.3"
 description = "AI code review tool that works with any language model provider. It detects issues in GitHub pull requests or local changes—instantly, reliably, and without vendor lock-in."
 readme = "README.md"
 license = "MIT"
-homepage = "https://github.com/Nayjest/Gito"
-repository = "https://github.com/Nayjest/Gito"
-documentation = "https://github.com/Nayjest/Gito#readme"
+homepage = "https://github.com/Dishank422/CRACK"
+repository = "https://github.com/Dishank422/CRACK"
+documentation = "https://github.com/Dishank422/CRACK#readme"
 keywords = [
     "static code analysis",
     "code review",
@@ -48,19 +48,11 @@ classifiers = [
     "Development Status :: 5 - Production/Stable",
     "License :: OSI Approved :: MIT License",
 ]
-authors = [
-    "Vitalii Stepanenko <mail@vitaliy.in>"
-]
-maintainers = [
-    "Vitalii Stepanenko <mail@vitaliy.in>",
-    "Nikita Sahaidachnyi <nikita.sahaidachnyi@gmail.com>",
-    "Dariia Stepanenko <zozulinadarina97@gmail.com>"
-]
 packages = [
-    { include = "gito" }
+    { include = "CRACK" }
 ]
 [tool.poetry.urls]
-"Bug Tracker" = "https://github.com/Nayjest/Gito/issues"
+"Bug Tracker" = "https://github.com/Dishank422/CRACK/issues"
 [tool.poetry.dependencies]
 python = "^3.11"
 ai-microcore = "~5.0.0"
@@ -97,7 +89,7 @@ requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
-gito = "gito.entrypoint:main"
+CRACK = "CRACK.entrypoint:main"
 
 [tool.pytest.ini_options]
 minversion = "6.0"

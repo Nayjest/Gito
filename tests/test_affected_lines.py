@@ -1,4 +1,4 @@
-from gito.report_struct import Issue
+from CRACK.report_struct import Issue
 
 
 def test_affected_lines_count():

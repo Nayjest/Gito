@@ -2,17 +2,17 @@ import git
 from typer.testing import CliRunner
 from unittest.mock import AsyncMock
 
-from gito.report_struct import ReviewTarget
-from gito.cli import app_no_subcommand
-from gito.cli_base import app
-from gito.utils.git_platform import platform
+from CRACK.report_struct import ReviewTarget
+from CRACK.cli import app_no_subcommand
+from CRACK.cli_base import app
+from CRACK.utils.git_platform import platform
 
 runner = CliRunner()
 
 
 def test_review_command_calls_review(monkeypatch):
     mock_review = AsyncMock()
-    monkeypatch.setattr("gito.cli.review", mock_review)
+    monkeypatch.setattr("CRACK.cli.review", mock_review)
     result = runner.invoke(
         app,
         ["review", "--what", "HEAD", "--against", "HEAD~1"],
@@ -44,7 +44,7 @@ def test_review_command_calls_review(monkeypatch):
 
 def test_calls_review(monkeypatch):
     mock_review = AsyncMock()
-    monkeypatch.setattr("gito.cli.review", mock_review)
+    monkeypatch.setattr("CRACK.cli.review", mock_review)
     result = runner.invoke(
         app_no_subcommand,
         ["HEAD", "--filters", "*.py,*.md"],

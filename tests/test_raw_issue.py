@@ -1,6 +1,6 @@
 import pytest
-from gito.report_struct import RawIssue
-from gito.core import _llm_response_validator
+from CRACK.report_struct import RawIssue
+from CRACK.core import _llm_response_validator
 
 
 def test_raw_issue():

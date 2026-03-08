@@ -1,6 +1,6 @@
 from pathlib import Path
-from gito.bootstrap import bootstrap
-from gito.report_struct import Report
+from CRACK.bootstrap import bootstrap
+from CRACK.report_struct import Report
 
 
 def validate(out):

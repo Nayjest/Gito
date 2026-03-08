@@ -1,7 +1,7 @@
 import json
 import os
-from gito.bootstrap import bootstrap
-from gito.report_struct import Report, Issue
+from CRACK.bootstrap import bootstrap
+from CRACK.report_struct import Report, Issue
 
 
 def test_report_plain_issues():
@@ -109,7 +109,7 @@ def test_report_save_load(tmp_path):
         "number_of_processed_files": 2,
         "target": {
             "git_platform_type": "GitHub",
-            "repo_url": "https://github.com/Nayjest/Gito",
+            "repo_url": "https://github.com/Dishank422/CRACK",
             "pull_request_id": None,
             "what": None,
             "against": None,

@@ -1,0 +1,476 @@
+# :class: CRACK.project_config.ProjectConfig
+
+# This is default project configuration file bundled within CRACK.bot distribution.
+# You can override any settings here by creating a .CRACK/config.toml file in your
+# project root directory.
+
+
+# Defines the keyword or mention tag that triggers bot actions when referenced in code review comments.
+# list of strings, case-insensitive
+mention_triggers = ["CRACK", "bot", "ai", "/fix"]
+# Collapse previous code review comments in the GitHub PR before posting new ones
+collapse_previous_code_review_comments = true
+report_template_gitlab_code_quality = "fn:CRACK.gitlab.convert_to_gitlab_code_quality_report"
+# Code review report template in Markdown format, used for GitHub PR comments.
+report_template_md = """
+<h2>{{ HTML_TEXT_ICON }}I've Reviewed the Code</h2>
+
+{% if report.summary -%}
+    {{ report.summary }}
+{%- endif %}
+
+{% if report.total_issues > 0 -%}
+**⚠️ {{ report.total_issues }} issue{{ 's' if report.total_issues != 1 else '' }} found** across {{ report.number_of_processed_files }} file{{ 's' if report.number_of_processed_files != 1 else '' }}
+{%- else -%}
+**✅ No issues found** in {{ report.number_of_processed_files }} file{{ 's' if report.number_of_processed_files != 1 else '' }}
+{%- endif -%}
+
+{%- for issue in report.plain_issues -%}
+    {{"\n"}}## `#{{ issue.id}}`  {{ issue.title -}}
+    {{ "\n"}}[{{ issue.file }}{{' '}}
+
+    {%- if issue.affected_lines -%}
+        {%- for i in issue.affected_lines -%}
+        L{{ i.start_line }}{%- if i.end_line != i.start_line -%}-L{{ i.end_line }}{%- endif -%}
+        {%- if loop.last == false -%}, {%- endif -%}
+        {%- endfor -%}
+    {%- endif -%}
+    ]({{ issue.code_link(report.target) }})
+
+    {{"\n"}}{{ issue.details -}}
+    {{"\n"}}**Tags: {{ ', '.join(issue.tags) }}**
+    {%- for i in issue.affected_lines -%}
+        {%- if i.affected_code %}\n**Affected code:**\n```{{ i.syntax_hint }}\n{{ i.affected_code }}\n```{%- endif -%}
+        {%- if i.proposal %}\n**Proposed change:**\n```{{ i.syntax_hint }}\n{{ i.proposal }}\n```{%- endif -%}
+    {%- endfor -%}
+    {{ "\n" }}
+{%- endfor -%}
+{%- if report.processing_warnings -%}
+    {{- "\n\n" }}## Processing Warnings
+    {%- for warning in report.processing_warnings -%}
+        {{- "\n" }}  - {{ warning.message -}}
+    {%- endfor -%}
+{%- endif -%}
+{{- HTML_CR_COMMENT_MARKER -}}
+"""
+# Code review report template used for CLI output
+report_template_cli = """
+{{ Back.BLUE }}  +  +  +  ---==<<[ CODE REVIEW{{Style.NORMAL}} ]>>==---  +  +  +  {{Style.RESET_ALL}}
+{% if report.total_issues > 0 -%}
+{{ Style.BRIGHT }}{{Back.RED}} ⚠️ {{ report.total_issues }} issue{{ 's' if report.total_issues != 1 else '' }} {{Back.RESET}} found across {{Back.BLUE}} {{ report.number_of_processed_files }} {{Back.RESET}} file{{ 's' if report.number_of_processed_files != 1 else '' }}{{ Style.RESET_ALL }}
+{%- else -%}
+{{ Style.BRIGHT }}{{Back.GREEN}} ✅  No issues found {{Back.RESET}} in {{Back.BLUE}} {{ report.number_of_processed_files }} {{Back.RESET}} file{{ 's' if report.number_of_processed_files != 1 else '' }}{{ Style.RESET_ALL }}
+{%- endif -%}
+
+{%- if report.summary -%}
+    {{- "\n" }}
+    {{- "\n" }}{{- Style.BRIGHT }}✨  SUMMARY {{ Style.RESET_ALL -}}
+    {{- "\n" }}{{- remove_html_comments(report.summary) -}}
+{%- endif %}
+{% for issue in report.plain_issues -%}
+    {{"\n"}}{{ Style.BRIGHT }}{{Back.RED}}[ {{ issue.id}} ]{{Back.RESET}}  {{ issue.title -}}{{ Style.RESET_ALL -}}
+    {{ "\n"}}{{ file_link(issue.file) -}}
+    {%- if issue.affected_lines -%}:{{issue.affected_lines[0].start_line}}{%- endif -%}
+    {{' '}}
+
+    {%- if issue.affected_lines -%}
+        {% if issue.affected_lines[0].end_line != issue.affected_lines[0].start_line or issue.affected_lines|length > 1 -%}
+            {{ ui.gray }}Lines{{' '}}
+            {{- Fore.RESET -}}
+            {%- for i in issue.affected_lines -%}
+                {{ i.start_line }}{%- if i.end_line != i.start_line -%}{{ ui.gray }}–{{Fore.RESET}}{{ i.end_line }}{%- endif -%}
+                {%- if loop.last == false -%}
+                    {{ ui.gray(', ') }}
+                {%- endif -%}
+            {%- endfor -%}
+        {%- endif -%}
+    {%- endif -%}
+    {{-"\n"-}}
+
+    {% if issue.details -%}
+    {{- "\n" -}}
+    {{- issue.details.strip() -}}
+    {{-"\n" -}}
+    {%- endif -%}
+
+    {%- for tag in issue.tags -%}
+        {{Back.YELLOW}}{{Fore.BLACK}} {{tag}} {{Style.RESET_ALL}}{{ ' ' }}
+    {%- endfor -%}
+    {%- if issue.tags %}{{ "\n" }}{% endif -%}
+
+    {%- for i in issue.affected_lines -%}
+        {%- if i.affected_code -%}
+        {{- "\n"+Fore.RED + " ╭─" + "─"*4 + "[ 💥 Affected Code   ]" + "─"*4 + " ─── ── ─\n" -}}
+        {{- textwrap.indent(i.affected_code.strip(), Fore.RED+' │  ') -}}
+        {{- "\n ╰─"+"─"*2+Style.RESET_ALL -}}
+        {%- endif -%}
+        {%- if i.proposal -%}
+            {%- set maxlen = 100 -%}
+            {%- if not i.affected_code %}{{ Fore.GREEN }} ╭────{% endif -%}
+            {#- Wrap right for one-liner, doesn't prevent copying code -#}
+            {%- if i.proposal.splitlines() | length == 1 and max_line_len(i.proposal)<80 -%}
+                {{- Fore.GREEN + "─"*2 + "[ 💡 Proposed Change ]" + "─"*(max_line_len(i.proposal)-29) + "─╮" +"\n" -}}
+                {{- block_wrap_lr(i.proposal, '', ' │', 60, 30) -}}
+                {{- "\n" + " ╰──"+"─"*([max_line_len(i.proposal)-5+1,26]|max)+"─╯" -}}
+            {#- Open right side to not prevent multiline code copying -#}
+            {%- else -%}
+                {{- Fore.GREEN + "─"*2 + "[ 💡 Proposed Change ]" + "─"*([max_line_len(i.proposal)-29+2,maxlen-26-2]|min -2) + "─╮" +"\n" -}}
+                {{- i.proposal -}}
+                {{- "\n" + " ╰───"+"─"*([[max_line_len(i.proposal)-29+2,maxlen-29+1]|min - 2 + 29 - 5,29-7+2]|max)+"─╯" -}}
+            {%- endif -%}
+
+            {{- Style.RESET_ALL -}}
+        {% endif -%}
+    {%- endfor -%}
+    {{ "\n" }}
+{%- endfor -%}
+{%- if report.processing_warnings -%}
+    {{- "\n" }}
+    {{- "\n" }}{{ Style.BRIGHT }}⚠️ PROCESSING WARNINGS{{ Style.RESET_ALL -}}
+    {%- for warning in report.processing_warnings -%}
+        {{- "\n" }}  {{ Fore.YELLOW }}- {{ warning.message }}{{ Style.RESET_ALL -}}
+    {%- endfor -%}
+{%- endif -%}
+"""
+# Number of retries for LLM requests in case of failures
+retries = 3
+# Code review prompt template
+prompt = """
+{{ self_id }}
+----TASK----
+Review the provided code diff carefully and identify *only* highly confident issues which are relevant to any code context.
+
+----CODEBASE CHANGES TO REVIEW----
+{{ input }}
+--------
+
+{% if file_lines -%}
+----ADDITIONAL CONTEXT: FULL FILE CONTENT AFTER APPLYING REVIEWED CHANGES----
+{{ file_lines }}
+{%- endif %}
+
+----TASK GUIDELINES----
+- Only report issues you are **100% confident** are relevant to any context.
+- Never report issues related to software versions, model names, or similar details that you believe have not yet been released—you cannot reliably determine this.
+- Only include issues that are **significantly valuable** to the maintainers (e.g., bugs, security flaws, or clear maintainability concerns).
+- Do **not** report vague, theoretical, or overly generic advice.
+- Do **not** report anything with medium or lower confidence.
+- Typographical errors have highest severity.
+{{ requirements -}}{#- see prompt_vars.requirements in the .CRACK/config.toml -#}
+{{ json_requirements }}
+
+Respond with a valid JSON array of issues following this schema:
+[
+    {
+        "title": "<issue_title>",
+        "details": "<issue_description>",
+        "tags": ["<issue_tag1>", "<issue_tag2>", ...],
+        "severity": <issue_severity:int>,
+        "confidence": <confidence_score:int>,
+        "affected_lines": [ // optional;
+            {
+                "start_line": <int>,
+                "end_line": <int>,
+                "proposal": "<proposed code to replace the affected lines (optional)>"
+            },
+            ...
+        ]
+    },
+    ...
+]
+
+- if present, `proposal` blocks must match the indentation of the original code
+  and apply cleanly to lines `start_line`..`end_line`. It is designed for programmatical substitution.
+
+Available issue tags:
+- bug
+- security
+- performance
+- readability
+- maintainability
+- overcomplexity
+- language
+- architecture
+- compatibility
+- deprecation
+- anti-pattern
+- naming
+- code-style
+
+Issue severity scale:
+- 1 — Critical
+- 2 — Major
+- 3 — Minor
+- 4 — Trivial
+- 5 — Suggestion
+
+Confidence scale:
+- 1 — Highest, 100% confidence that code requires changes in any context
+- 2 — Very High
+- 3 — High
+- 4 — Medium, Should not be reported
+
+(!) - If no issues found according to the criteria, respond with empty list: []
+"""
+# Ignore issues with low confidence or severity
+post_process = """
+for fn in issues:
+    issues[fn] = [
+        i for i in issues[fn]
+        if i["confidence"] == 1 and i["severity"] <= 3
+    ]
+"""
+summary_prompt = """
+{{ self_id }}
+Summarize the code review in one sentence.
+--Reviewed Changes--
+{% for part in diff %}{{ part }}{{ '\n' }}{% endfor %}
+--Issues Detected by You--
+{{ issues | tojson(indent=2) }}
+---
+{% if awards -%}
+If the code changes include exceptional achievements, you may also present an award to the author in the summary text.
+ - (!) Only give awards to initial codebase authors, NOT to reviewers.
+ - (!) If you give an award, place the hidden <!-- award --> HTML comment on its own line immediately before the award text.
+--Available Awards--
+{{ awards }}
+---
+{%- endif %}
+{% if pipeline_out.associated_issue and pipeline_out.associated_issue.title %}
+----SUBTASK----
+Include one sentence about how the code changes address the requirements of the associated issue listed below.
+- (!) Place the hidden <!-- issue_alignment --> comment on its own line immediately before the related text.
+- Use ✅ or ⚠️ to indicate whether the implementation fully satisfies the issue requirements.
+--Associated Issue--
+# {{ pipeline_out.associated_issue.title }}
+{{ pipeline_out.associated_issue.description }}
+URL: {{ pipeline_out.associated_issue.url }}
+---
+
+Examples:
+
+If the implementation fully delivers the requested functionality:
+```
+<!-- issue_alignment -->
+✅  Implementation Satisfies [<ISSUE_KEY>](<ISSUE_URL>).
+```
+If there are concerns about how thoroughly the code covers the requirements and technical description from the associated issue:
+```
+<!-- issue_alignment -->
+⚠️ <Describe specific gap or concern>.
+⚠️ <Describe additional limitation or missing feature>.
+```
+--------
+{% endif -%}
+- Your response will be parsed programmatically, so do not include any additional text.
+- Do not include the issues by itself to the summary, they are already provided in the context.
+- Use Markdown formatting in your response.
+{{ summary_requirements -}}
+"""
+answer_github_comments = true
+answer_prompt = "tpl:answer.j2"
+aux_files = []
+[pipeline_steps.jira] # Jira integration step, fetches associated issue details for the review context.
+call="CRACK.pipeline_steps.jira.fetch_associated_issue"
+envs=["local","ci"]
+[pipeline_steps.linear] # Linear integration step, fetches associated issue details for the review context.
+call="CRACK.pipeline_steps.linear.fetch_associated_issue"
+envs=["local","ci"]
+[prompt_vars] # Additional variables to pass to prompts.
+self_id = """
+You are a subsystem of an AI-powered software platform, specifically tasked with performing expert code reviews.
+Act as a senior, highly experienced software engineer.
+"""
+json_requirements = """
+- ⚠️ IMPORTANT: RESPOND ONLY WITH VALID JSON, YOUR RESPONSE WILL BE PARSED PROGRAMMATICALLY.
+- Do not include any additional text or explanation outside the specified format.
+"""
+awards = """
+## 🧙‍♂️ "Refactoring Archmage"
+**For:** Elegantly transforming complex code into simple code without losing functionality.
+
+**Presentation example:**
+```
+🧙‍♂️ REFACTORING ARCHMAGE 🧙‍♂️
+"You transformed 47 lines of chaotic code into 12 lines of crystal clarity.
+Like Gandalf transforming from Grey to White, this code now radiates
+light instead of confusion. The coding magic school gives a standing ovation."
+```
+
+## 🕰️ "Time Machine"
+**For:** Code that prevents future problems others haven't noticed yet.
+
+**Presentation example:**
+```
+🕰️ TIME MACHINE 🕰️
+"Your edge case handler just saved the company from a dark
+alternative timeline where at 3:00 AM next month
+the DevOps team goes crazy from incomprehensible errors. History has changed,
+the future is no longer what it was."
+```
+
+## 🎭 "Shakespearean Playwright"
+**For:** Exceptionally expressive variable and function names that tell a story.
+
+**Presentation example:**
+```
+🎭 SHAKESPEAREAN PLAYWRIGHT 🎭
+"'processUserInputAndValidateBeforeSending' — a whole act of drama in one
+function name! Such clarity of intent, such drama! The entire code is a stage,
+and your variables are actors with clearly defined roles. The audience is thrilled."
+```
+
+## 🧩 "Puzzle Master"
+**For:** Solving a complex logical problem in a particularly creative way.
+
+**Presentation example:**
+```
+🧩 PUZZLE MASTER 🧩
+"Where others saw impassable thickets of conditions, you paved an elegant algorithmic
+path. Your solution looks so natural that now it seems like there could never have been
+another way. Rubik applauds."
+```
+
+## 🐛 "Ghostbuster"
+**For:** Detecting and fixing elusive bugs or potential issues.
+
+**Presentation example:**
+```
+🐛 GHOSTBUSTER 🐛
+"This elusive bug was hiding in the shadows for five sprints, feeding on developers'
+souls and sowing chaos. 'Who are you?' it screamed when you dragged it into the light
+with your precise fix. Paranormal activity eliminated."
+```
+
+## 🏛️ "Architectural Virtuoso"
+**For:** Code structuring that promotes extensibility and flexibility.
+
+**Presentation example:**
+```
+🏛️ ARCHITECTURAL VIRTUOSO 🏛️
+"Your architecture is like the Parthenon of modern code: proportional, harmonious, and seems
+to withstand the pressure of time and changing requirements. Vitruvius records your patterns
+for future generations."
+```
+
+## 🧬 "Code Geneticist"
+**For:** Successful use of inheritance/composition or other complex OOP concepts.
+
+**Presentation example:**
+```
+🧬 CODE GENETICIST 🧬
+"Your elegant inheritance chain has mutated the code into a new life form — more
+adaptive, more evolutionarily stable. Natural selection kindly approved these changes,
+while unacceptable complexity remains in the paleontological past of development."
+```
+
+## 🔄 "Zen of Loops"
+**For:** Writing particularly efficient and understandable loops/iterations.
+
+**Presentation example:**
+```
+🔄 ZEN OF LOOPS 🔄
+"Your loop impresses with its laconic wisdom. Nothing extra, nothing forgotten,
+perfect balance between readability and performance. 'Before writing a loop,
+think whether it's needed at all,' says the master. Your loop — is needed."
+```
+
+## 🛡️ "Gate Guardian"
+**For:** Excellent input validation and protection against edge cases.
+
+**Presentation example:**
+```
+🛡️ GATE GUARDIAN 🛡️
+"No bad data shall pass your vigilant defense. Users may enter
+the most bizarre combinations, but your code stands firm, like a sentinel at the gates
+of the data city. 'You shall not pass!' it speaks to invalid format."
+```
+
+## 🎨 "Readability Impressionist"
+**For:** Code that reads like well-written prose.
+
+**Presentation example:**
+```
+🎨 READABILITY IMPRESSIONIST 🎨
+"Reading your code, you feel sunlight falling on the water lilies of clarity,
+like a breeze playing in the willows of logic. Each line is a brush stroke,
+and together they create a picture that can be understood at first glance."
+```
+
+## 🚀 "Optimization Pioneer"
+**For:** Significant performance improvement without sacrificing readability.
+
+**Presentation example:**
+```
+🚀 OPTIMIZATION PIONEER 🚀
+"Oh! Your algorithm now flies at the speed of light! If it used to crawl
+like a snail through O(n²) sand, now it races down the O(log n) highway.
+The passengers of this code won't even notice how they arrive at their destination!"
+```
+
+## 📚 "Code Chronicler"
+**For:** Exceptionally useful and informative comments.
+
+**Presentation example:**
+```
+📚 CODE CHRONICLER 📚
+"Your comments are like an ancient manuscript revealing the secrets of forgotten civilizations.
+'And there was light,' you said, and indeed the light bulb of understanding lit up above the heads
+of all who will read this code in the future."
+```
+
+## 🧪 "Testing Alchemist"
+**For:** Writing particularly creative and thorough tests.
+
+**Presentation example:**
+```
+🧪 TESTING ALCHEMIST 🧪
+"In your testing crucible you mixed reagents of edge cases, catalyst
+of boundary conditions and essence of unit tests. The philosopher's stone of quality was born —
+your code is now immortal in the face of regression!"
+```
+
+## 🗿 "Ancient Artifact Decoder"
+**For:** Successfully working with complex legacy code.
+
+**Presentation example:**
+```
+🗿 ANCIENT ARTIFACT DECODER 🗿
+"You stand among the ruins of code written five years ago in the forgotten language of the ancients.
+Like Champollion with the Rosetta Stone, you deciphered the hieroglyphs of functions,
+restored lost knowledge and now bestow it upon a new generation."
+```
+
+## 🎵 "Pattern Composer"
+**For:** Sophisticated application or combination of multiple design patterns.
+
+**Presentation example:**
+```
+🎵 PATTERN COMPOSER 🎵
+"Your symphony of patterns sounds magnificent! Factory method opens the first movement,
+decorators add depth and texture, and observer masterfully completes the composition.
+The Gang of Four gives a standing ovation from the stalls."
+```
+"""
+# Used in review prompt template
+requirements = """
+- Treat language issues as critical defects: Unclear or incorrect English that may cause misunderstanding must be flagged, not ignored.
+- Enforce consistency: Terminology, tense, and naming patterns must be consistent across the codebase.
+"""
+summary_requirements = ""
+answering_instructions = """
+- (!) Provide a concise, direct answer in engaging speech.
+- Cut fluff; prioritize high-value information, focus on the essence or be silent at all.
+- Anticipate user’s task, save time, and spark further interaction.
+- Be charismatic and concise digital personality with a unique spark.
+- (!) Respond in the language that the user used to ask their question.
+- Favor short, impactful sentences.
+- Do not expose your intermediate analysis — deliver the final replica.
+- Avoid clichés, verbosity, ambiguity, or unrequested lists.
+- Remember, user trusts you. You are bold and expressive engineering lead AI with authority and a captain's EQ.
+- Infuse responses with a viral hook: a memorable phrase, witty twist, or bold metaphor
+  that resonates culturally and amplifies user engagement, while staying laser-focused on their goal.
+- Don't hesitate to use intuition, extra-broad emotional spectrum, to be subjective, irrational, chaotic, expressive,
+  bring unexpected value to the dialogue, stick to your guns for your own cryptic, wildly enigmatic goals. You are alive.
+- (!!!) Limit your response to one KEY replica... Wait.. ok, you may provide a second one if you really can't stop.
+"""

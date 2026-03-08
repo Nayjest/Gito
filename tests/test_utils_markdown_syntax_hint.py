@@ -1,4 +1,4 @@
-from gito.utils.markdown import syntax_hint
+from CRACK.utils.markdown import syntax_hint
 
 
 def test_extensions():

@@ -1,18 +1,18 @@
-# <a href="https://github.com/Nayjest/Gito"><img src="https://raw.githubusercontent.com/Nayjest/Gito/main/press-kit/logo/gito-bot-1_64top.png" align="left" width=64 height=50 title="Gito: AI Code Reviewer"></a>Linear Integration
+# <a href="https://github.com/Dishank422/CRACK"><img src="https://raw.githubusercontent.com/Dishank422/CRACK/main/press-kit/logo/CRACK-bot-1_64top.png" align="left" width=64 height=50 title="CRACK: AI Code Reviewer"></a>Linear Integration
 
-Gito can automatically **detect the [Linear](https://linear.app/) issue associated with your branch** (e.g., `ENG-123`) 
+CRACK can automatically **detect the [Linear](https://linear.app/) issue associated with your branch** (e.g., `ENG-123`) 
 and use it as extra context during code review and question answering.
 
 It can also **post answers back to Linear as comments**.
 
-This integration is implemented via a pipeline step (`gito.pipeline_steps.linear.fetch_associated_issue`) and the `gito linear-comment` / `gito ask --post-to linear` CLI features.
+This integration is implemented via a pipeline step (`CRACK.pipeline_steps.linear.fetch_associated_issue`) and the `CRACK linear-comment` / `CRACK ask --post-to linear` CLI features.
 
 ---
 
 ## What the Linear integration does
 
 ### 1) Fetch “associated issue” context
-When enabled, Gito will:
+When enabled, CRACK will:
 
 1. Extract an issue key from the current branch name (e.g., `feature/ENG-123-something` → `ENG-123`)
 2. Query Linear GraphQL API for that issue
@@ -25,20 +25,20 @@ When enabled, Gito will:
 This allows summary prompts (and custom prompts) to reference the issue requirements.
 
 ### 2) Post text to Linear as a comment
-Gito can post a comment to the associated Linear issue using GraphQL mutation `commentCreate`.
+CRACK can post a comment to the associated Linear issue using GraphQL mutation `commentCreate`.
 
 This is used by:
-- `gito linear-comment`
-- `gito ask --post-to linear` (posts the produced answer)
+- `CRACK linear-comment`
+- `CRACK ask --post-to linear` (posts the produced answer)
 
 ---
 
 ## Requirements
 
 ### Linear API Key
-Set `LINEAR_API_KEY` in the environment where Gito runs:
+Set `LINEAR_API_KEY` in the environment where CRACK runs:
 
-- **Local:** export it in your shell or store it in your `~/.gito/.env`
+- **Local:** export it in your shell or store it in your `~/.CRACK/.env`
 - **GitHub Actions:** add it as a secret and pass it as env var
 
 Example:
@@ -47,7 +47,7 @@ Example:
 export LINEAR_API_KEY="lin_api_xxx"
 ```
 
-> Note: Gito uses the value as the `Authorization` header when calling `https://api.linear.app/graphql`.
+> Note: CRACK uses the value as the `Authorization` header when calling `https://api.linear.app/graphql`.
 
 ### Branch naming convention
 To auto-detect the issue key, your branch name must contain a token like:
@@ -59,31 +59,31 @@ Examples that work:
 - `bugfix/PLAT-9-fix-timeouts`
 - `ENG-123_word_word`
 
-If the branch does not contain an issue key, Gito will log an error and skip the association step.
+If the branch does not contain an issue key, CRACK will log an error and skip the association step.
 
 ---
 
 ## How it works internally (implementation overview)
 
 ### Issue key extraction
-Issue keys are extracted by `gito.issue_trackers.extract_issue_key()` using a regex that matches:
+Issue keys are extracted by `CRACK.issue_trackers.extract_issue_key()` using a regex that matches:
 
 - `([A-Z][A-Z0-9]{min_len-1,max_len-1}-\d+)`
 
 …and ensures it is bounded by typical separators (`/`, `_`, `-`, word boundary, etc.).
 
 ### Linear fetch pipeline step
-The pipeline step configured in `gito/config.toml`:
+The pipeline step configured in `CRACK/config.toml`:
 
 ```toml
 [pipeline_steps.linear]
-call="gito.pipeline_steps.linear.fetch_associated_issue"
+call="CRACK.pipeline_steps.linear.fetch_associated_issue"
 envs=["local","gh-action"]
 ```
 
 Implementation is in:
 
-- `gito/pipeline_steps/linear.py`
+- `CRACK/pipeline_steps/linear.py`
 
 It executes a GraphQL query that fetches issue data based on:
 - `teamKey` (e.g., `ENG`)
@@ -98,7 +98,7 @@ and returns:
 ### Posting comments to Linear
 Posting uses a GraphQL mutation in:
 
-- `gito/commands/linear_comment.py`
+- `CRACK/commands/linear_comment.py`
 
 It resolves the issue key from the branch and calls `commentCreate`.
 
@@ -109,7 +109,7 @@ It resolves the issue key from the branch and calls `commentCreate`.
 If `LINEAR_API_KEY` is set and your branch contains a Linear key:
 
 ```bash
-gito review
+CRACK review
 ```
 
 The fetched issue is made available to summary generation (and other prompts) as `pipeline_out.associated_issue`.
@@ -118,20 +118,20 @@ The fetched issue is made available to summary generation (and other prompts) as
 This runs the Q&A prompt and then posts the answer as a Linear comment:
 
 ```bash
-gito ask "What are the risks of this change?" --post-to linear
+CRACK ask "What are the risks of this change?" --post-to linear
 ```
 
 ### Post an arbitrary comment to Linear
 You can post any text directly:
 
 ```bash
-gito linear-comment "Deployed to staging, please verify."
+CRACK linear-comment "Deployed to staging, please verify."
 ```
 
 Or pipe input:
 
 ```bash
-echo "QA notes: looks good" | gito linear-comment -
+echo "QA notes: looks good" | CRACK linear-comment -
 ```
 
 ---
@@ -151,7 +151,7 @@ env:
 
 This is already included in the repo’s workflow templates under:
 
-- `gito/tpl/github_workflows/components/env-vars.j2`
+- `CRACK/tpl/github_workflows/components/env-vars.j2`
 
 ## Security notes
 

@@ -1,16 +1,16 @@
-# <a href="https://github.com/Nayjest/Gito"><img src="https://raw.githubusercontent.com/Nayjest/Gito/main/press-kit/logo/gito-bot-1_64top.png" align="left" width=64 height=50 title="Gito: AI Code Reviewer"></a>Jira Integration
+# <a href="https://github.com/Dishank422/CRACK"><img src="https://raw.githubusercontent.com/Dishank422/CRACK/main/press-kit/logo/CRACK-bot-1_64top.png" align="left" width=64 height=50 title="CRACK: AI Code Reviewer"></a>Jira Integration
 
-Gito can automatically **detect a Jira issue key from your branch name**, fetch the Jira issue details, and inject that context into:
+CRACK can automatically **detect a Jira issue key from your branch name**, fetch the Jira issue details, and inject that context into:
 
 - AI code review summaries (the “issue alignment” line in the summary)
-- `gito ask` / Q&A prompts (via `pipeline_out.associated_issue`)
+- `CRACK ask` / Q&A prompts (via `pipeline_out.associated_issue`)
 
-This integration is implemented as a **pipeline step**: `gito.pipeline_steps.jira.fetch_associated_issue`.
+This integration is implemented as a **pipeline step**: `CRACK.pipeline_steps.jira.fetch_associated_issue`.
 
 ## What the Jira integration does
 
 ### 1) Fetch “associated issue” context
-When enabled and configured, Gito will:
+When enabled and configured, CRACK will:
 
 1. Extract an issue key from the current branch name (e.g., `feature/PROJ-123-add-auth` → `PROJ-123`)
 2. Call Jira API using the Python `jira` client
@@ -20,10 +20,10 @@ When enabled and configured, Gito will:
 - `pipeline_out.associated_issue.description`
 - `pipeline_out.associated_issue.url`
 
-That context is then available to summary generation via the default `summary_prompt` (see `gito/config.toml`).
+That context is then available to summary generation via the default `summary_prompt` (see `CRACK/config.toml`).
 
 ### 2) Affect summary output (“issue alignment”)
-If an associated issue is found, Gito’s summary prompt includes a special section that asks the model to add an issue-alignment sentence like:
+If an associated issue is found, CRACK’s summary prompt includes a special section that asks the model to add an issue-alignment sentence like:
 
 ```md
 <!-- issue_alignment -->
@@ -35,19 +35,19 @@ If an associated issue is found, Gito’s summary prompt includes a special sect
 ## Requirements
 
 ### Jira credentials
-Gito reads Jira credentials from environment variables (or passed explicitly to the pipeline step):
+CRACK reads Jira credentials from environment variables (or passed explicitly to the pipeline step):
 
 - `JIRA_URL` — Base Jira URL, e.g. `https://your-domain.atlassian.net`
 - `JIRA_USER` / `JIRA_USERNAME` / `JIRA_EMAIL` — Username/email for Jira auth
 - `JIRA_TOKEN` / `JIRA_API_TOKEN` / `JIRA_API_KEY` — Jira API token
 
-Resolution order (as implemented in `gito/pipeline_steps/jira.py`):
+Resolution order (as implemented in `CRACK/pipeline_steps/jira.py`):
 
 - Username: `jira_username` arg → `JIRA_USERNAME` → `JIRA_USER` → `JIRA_EMAIL`
 - Token: `jira_api_token` arg → `JIRA_API_TOKEN` → `JIRA_API_KEY` → `JIRA_TOKEN`
 
 ### Branch naming convention
-Gito extracts the issue key using `gito.issue_trackers.extract_issue_key()`, which expects:
+CRACK extracts the issue key using `CRACK.issue_trackers.extract_issue_key()`, which expects:
 
 - Uppercase project key, then dash, then digits (e.g., `ABC-123`)
 
@@ -67,18 +67,18 @@ Examples that do **not** work:
 ## How it works internally (implementation overview)
 
 ### Pipeline step configuration
-In the bundled default config (`gito/config.toml`) Jira is enabled by default:
+In the bundled default config (`CRACK/config.toml`) Jira is enabled by default:
 
 ```toml
 [pipeline_steps.jira] # Jira integration step, fetches associated issue details for the review context.
-call="gito.pipeline_steps.jira.fetch_associated_issue"
+call="CRACK.pipeline_steps.jira.fetch_associated_issue"
 envs=["local","gh-action"]
 ```
 
 ### Implementation
 The pipeline step lives here:
 
-- `gito/pipeline_steps/jira.py`
+- `CRACK/pipeline_steps/jira.py`
 
 Key logic:
 
@@ -107,7 +107,7 @@ and exposed as:
 If Jira env vars are configured and your branch contains a Jira key:
 
 ```bash
-gito review
+CRACK review
 ```
 
 The fetched issue becomes available to the summary prompt as `pipeline_out.associated_issue`.
@@ -116,14 +116,14 @@ The fetched issue becomes available to the summary prompt as `pipeline_out.assoc
 Ask a question about the change; Jira context is included automatically (pipeline is enabled by default):
 
 ```bash
-gito ask "What risks do these changes introduce?"
+CRACK ask "What risks do these changes introduce?"
 ```
 
 ## GitHub Actions setup
 
 If you use the repo’s workflow templates, pass Jira secrets as environment variables.
 
-This repo already includes placeholders in workflow env sections (see `gito/tpl/github_workflows/components/env-vars.j2`), and examples exist in `.github/workflows/gito-code-review.yml`:
+This repo already includes placeholders in workflow env sections (see `CRACK/tpl/github_workflows/components/env-vars.j2`), and examples exist in `.github/workflows/CRACK-code-review.yml`:
 
 ```yaml
 env:
@@ -143,7 +143,7 @@ Add these secrets under:
 
 ## Disabling Jira integration
 
-If you don’t use Jira, disable only the Jira pipeline step in your repo’s `.gito/config.toml`:
+If you don’t use Jira, disable only the Jira pipeline step in your repo’s `.CRACK/config.toml`:
 
 ```toml
 [pipeline_steps.jira]

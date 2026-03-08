@@ -22,7 +22,7 @@ jobs:
         pip install pyinstaller
     
     - name: Build with PyInstaller
-      run: pyinstaller gito.spec
+      run: pyinstaller CRACK.spec
     
     - name: Install Inno Setup
       run: |

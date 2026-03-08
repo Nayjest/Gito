@@ -23,7 +23,7 @@ jobs:
             README.md -o index.html
             --standalone
             --from gfm
-            --metadata title="Gito: AI Code Reviewer"
+            --metadata title="CRACK: AI Code Reviewer"
             --css documentation/assets/gh-pages/style.css
             --include-in-header documentation/assets/gh-pages/header-include.html
       - uses: actions/upload-pages-artifact@v3

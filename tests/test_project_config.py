@@ -2,7 +2,7 @@ import logging
 import textwrap
 from pathlib import Path
 
-from gito.project_config import ProjectConfig
+from CRACK.project_config import ProjectConfig
 
 
 def test_load_defaults(monkeypatch):

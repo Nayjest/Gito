@@ -1,0 +1,33 @@
+name: "CRACK: AI Code Reviewer"
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "Pull Request number"
+        required: true
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    permissions: { contents: read, pull-requests: write } # 'write' for leaving the summary comment
+    steps:
+    - uses: actions/checkout@v6
+      with: { fetch-depth: 0 }
+
+    {%- include("workflows/github/components/installs.j2") %}
+
+    - name: Run AI code review
+      env:
+        {%- include("workflows/github/components/env-vars.j2") %}
+        PR_NUMBER_FROM_WORKFLOW_DISPATCH: {% raw %}${{ github.event.inputs.pr_number }}{% endraw %}
+      run: |{% raw %}
+        CRACK --verbose review
+        CRACK github-comment{% endraw %}
+
+    - uses: actions/upload-artifact@v6
+      with:
+        name: CRACK-code-review-results
+        path: |
+          code-review-report.md
+          code-review-report.json

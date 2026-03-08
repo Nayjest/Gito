@@ -1,7 +1,7 @@
 # GitHub Pages configuration
 theme: jekyll-theme-dinky
-title: "Gito: AI Code Reviewer"
-description: Gito is an open-source AI code reviewer that works with any language model provider. It detects issues in GitHub pull requests or local codebase changes—instantly, reliably, and without vendor lock-in.
+title: "CRACK: AI Code Reviewer"
+description: CRACK is an open-source AI code reviewer that works with any language model provider. It detects issues in GitHub pull requests or local codebase changes—instantly, reliably, and without vendor lock-in.
 
 # Use GitHub Flavored Markdown for proper table rendering
 kramdown:

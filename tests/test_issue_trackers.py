@@ -1,4 +1,4 @@
-from gito.issue_trackers import extract_issue_key
+from CRACK.issue_trackers import extract_issue_key
 
 
 def test_extract_issue_key():

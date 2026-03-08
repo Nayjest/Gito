@@ -56,7 +56,7 @@ jobs:
         LLM_API_TYPE: openai
         MODEL: "gpt-5.2"
       run: |
-        pytest --cov=gito --cov-report=xml
+        pytest --cov=CRACK --cov-report=xml
     - name: Generate coverage badge
       if: |
         matrix.python-version == '3.13' && (

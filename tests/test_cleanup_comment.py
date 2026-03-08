@@ -1,21 +1,21 @@
-from gito.commands.gh_react_to_comment import cleanup_comment_addressed_to_gito
+from CRACK.commands.gh_react_to_comment import cleanup_comment_addressed_to_CRACK
 
 
 def test_remove_comment_prefixes():
     test_cases = [
-        "gito please help me with this",
+        "CRACK please help me with this",
         "AI, can you assist?",
         "Bot what should I do?",
-        "@gito please check this out",
+        "@CRACK please check this out",
         "@ai please review",
         "@bot, run the tests",
-        "GITO, this is urgent ",
+        "CRACK, this is urgent ",
         "@AI help needed",
-        " gito, please fix the bug",
+        " CRACK, please fix the bug",
         "Normal text without prefixes",
-        "gito,    extra spaces here",
+        "CRACK,    extra spaces here",
         "  AI  ,  with leading spaces",
-        "This has @gito in the middle",  # Should NOT be removed
+        "This has @CRACK in the middle",  # Should NOT be removed
         "Text with @ai somewhere",  # Should NOT be removed
         "",
     ]
@@ -32,9 +32,9 @@ def test_remove_comment_prefixes():
         "Normal text without prefixes",
         "extra spaces here",
         "with leading spaces",
-        "This has @gito in the middle",  # Should NOT be removed
+        "This has @CRACK in the middle",  # Should NOT be removed
         "Text with @ai somewhere",  # Should NOT be removed
         "",
     ]
     for text, expected in zip(test_cases, expected_outputs):
-        assert cleanup_comment_addressed_to_gito(text) == expected, f"Failed for: {text}"
+        assert cleanup_comment_addressed_to_CRACK(text) == expected, f"Failed for: {text}"

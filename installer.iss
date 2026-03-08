@@ -1,25 +1,23 @@
-#define MyAppName "Gito AI Code Reviewer"
+#define MyAppName "CRACK AI Code Reviewer"
 ; NOTE: Keep version in sync with pyproject.toml
 #define MyAppVersion "4.0.3"
-#define MyAppPublisher "Vitalii Stepanenko"
-#define MyAppURL "https://github.com/Nayjest/Gito"
-#define MyAppExeName "gito.exe"
+#define MyAppURL "https://github.com/Dishank422/CRACK"
+#define MyAppExeName "CRACK.exe"
 
 [Setup]
 ; NOTE: The value of AppId uniquely identifies this application.
 AppId={{B8E3F2A1-5C7D-4E9F-A2B1-3D6E8F0C9A4B}}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
-AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
-DefaultDirName={autopf}\Gito
-DefaultGroupName=Gito
+DefaultDirName={autopf}\CRACK
+DefaultGroupName=CRACK
 AllowNoIcons=yes
 LicenseFile=LICENSE
 OutputDir=installer_output
-OutputBaseFilename=gito-setup-{#MyAppVersion}
+OutputBaseFilename=CRACK-setup-{#MyAppVersion}
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
@@ -34,15 +32,15 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Name: "addtopath"; Description: "Add to PATH environment variable"; GroupDescription: "Additional options:"; Flags: checkedonce
 
 [Files]
-Source: "dist\gito.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "dist\CRACK.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "README.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]
-Name: "{group}\Gito AI Code Reviewer"; Filename: "{app}\{#MyAppExeName}"
+Name: "{group}\CRACK AI Code Reviewer"; Filename: "{app}\{#MyAppExeName}"
 Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\Gito AI Code Reviewer"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+Name: "{autodesktop}\CRACK AI Code Reviewer"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Parameters: "--help"; Description: "Show help"; Flags: postinstall shellexec skipifsilent
