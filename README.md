@@ -59,11 +59,12 @@ Get consistent, thorough code reviews in seconds—no waiting for human availabi
 ## 🌐 Supported Platforms & Integrations<a id="-supported-platforms--integrations"></a>
 
 ### 🧩 Git Platforms
-| Platform  | Status               |
-|-----------|----------------------|
-| GitHub    | ✅ Supported         |
-| GitLab    | 🧪 Supported (Beta)  |
-| Bitbucket | 🛠️ Planned           |
+| Platform    | Status               |
+|-------------|----------------------|
+| GitHub      | ✅ Supported         |
+| GitLab      | 🧪 Supported (Beta)  |
+| Bitbucket   | 🛠️ Planned           |
+| Local / CLI | ✅ Supported         |
 
 > ℹ️ Gito ships ready-to-use CI/CD workflows for these platforms, 
 > with full support for triggering actions via PR comments, automatic review posting, and PR lifecycle integration.  
