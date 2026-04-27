@@ -1,22 +1,25 @@
 name: Tests
 
+permissions:
+  contents: read
+
 on:
   push:
     branches: [ "main" ]
-  pull_request_target:  # to allow testing from forks
+  pull_request:  # to allow testing from forks
     branches: [ "main" ]
   workflow_call:  # for triggering from pypi-release.yml
     secrets:
       LLM_API_KEY:
         required: false # or true if you always need it
 
-permissions:
-  contents: write
-
 jobs:
   build:
-    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    # Do not collapse to only contains(head_commit.message): on pull_request / workflow_call head_commit
+    # is absent; GitHub short-circuits || so .message is never evaluated unless event_name is push.
+    if: "github.event_name != 'push' || !contains(github.event.head_commit.message, '[skip ci]')"
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -25,13 +28,14 @@ jobs:
     steps:
     - uses: actions/checkout@v6
       with:
-        # Checkout PR head to process actual changes (including forks).
+        # Default ref for the event (merge commit for pull_request). Fork PRs run without base-repo secrets.
         #
-        # ⚠️ SECURITY: This exposes secrets to fork code. Mitigate by:
+        # ⚠️ SECURITY (esp. if you ever switch back to pull_request_target + PR head ref): that pattern
+        # exposes secrets to fork code. Mitigate by:
         #   1. Requiring approval for running fork pull request workflows from all external contributors
         #      (Settings → Actions → General → Approval for running fork pull request workflows from contributors)
         #   2. Reviewing PRs for secret exfiltration and other malicious code before approving workflow runs.
-        ref: ${{ github.event.pull_request.head.sha }}
+        persist-credentials: false
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v6
       with:
@@ -58,31 +62,64 @@ jobs:
       run: |
         pytest --cov=gito --cov-report=xml
     - name: Generate coverage badge
-      if: |
-        matrix.python-version == '3.13' && (
-          github.event_name == 'push' ||
-          (github.event_name == 'pull_request_target'
-            && github.event.pull_request.head.repo.full_name == github.repository
-          )
-        )
+      if: matrix.python-version == '3.13' && github.event_name == 'push' && github.ref == 'refs/heads/main'
       run: |
         pip install genbadge[coverage]
         genbadge coverage -i coverage.xml -o coverage.svg
-    - name: Commit coverage badge
-      if: |
-        matrix.python-version == '3.13' && (
-          github.event_name == 'push' ||
-          (github.event_name == 'pull_request_target'
-            && github.event.pull_request.head.repo.full_name == github.repository
-          )
-        )
+    - name: Validate coverage badge output
+      if: matrix.python-version == '3.13' && github.event_name == 'push' && github.ref == 'refs/heads/main'
       run: |
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        git fetch origin
-        git checkout ${{ github.head_ref || github.ref_name }} --
-        git add coverage.svg
-        git commit -m "Update coverage badge [skip ci]" || echo "No changes to commit"
-        git push
+        python3 <<'PY'
+        import os, sys
+        p = "coverage.svg"
+        if not os.path.isfile(p):
+            sys.exit("coverage.svg missing")
+        n = os.path.getsize(p)
+        if n < 120:
+            sys.exit(f"coverage.svg too small ({n} bytes), genbadge likely failed silently")
+        with open(p, "rb") as f:
+            head = f.read(4096)
+        if b"<svg" not in head.lower():
+            sys.exit("coverage.svg does not start with an SVG document")
+        PY
+    - name: Upload coverage badge artifact
+      if: success() && matrix.python-version == '3.13' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-badge
+        path: coverage.svg
+        if-no-files-found: error
+        retention-days: 1
+
+  # Isolated job: no checkout of main, no push from PRs — token write only to publish orphan branch.
+  update-coverage-badge:
+    needs: build
+    if: >-
+      github.event_name == 'push' && github.ref == 'refs/heads/main'
+      && needs.build.result == 'success'
+      && !contains(github.event.head_commit.message, '[skip ci]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        name: coverage-badge
+        path: badge
+    - name: Push coverage.svg to orphan branch coverage-badge
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        set -e
+        gh auth setup-git
+        mkdir -p /tmp/coverage-badge-publish
+        cd /tmp/coverage-badge-publish
+        git init
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git config user.name "github-actions[bot]"
+        cp "${GITHUB_WORKSPACE}/badge/coverage.svg" .
+        git add coverage.svg
+        git commit -m "Update coverage badge [skip ci]"
+        git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+        git push -f origin HEAD:coverage-badge
