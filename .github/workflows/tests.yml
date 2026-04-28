@@ -3,15 +3,15 @@ name: Tests
 on:
   push:
     branches: [ "main" ]
-  pull_request_target:  # to allow testing from forks
-    branches: [ "main" ]
+#  pull_request_target:  # to allow testing from forks
+#    branches: [ "main" ]
   workflow_call:  # for triggering from pypi-release.yml
     secrets:
       LLM_API_KEY:
         required: false # or true if you always need it
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
@@ -68,21 +68,21 @@ jobs:
       run: |
         pip install genbadge[coverage]
         genbadge coverage -i coverage.xml -o coverage.svg
-    - name: Commit coverage badge
-      if: |
-        matrix.python-version == '3.13' && (
-          github.event_name == 'push' ||
-          (github.event_name == 'pull_request_target'
-            && github.event.pull_request.head.repo.full_name == github.repository
-          )
-        )
-      run: |
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        git fetch origin
-        git checkout ${{ github.head_ref || github.ref_name }} --
-        git add coverage.svg
-        git commit -m "Update coverage badge [skip ci]" || echo "No changes to commit"
-        git push
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    # - name: Commit coverage badge
+    #   if: |
+    #     matrix.python-version == '3.13' && (
+    #       github.event_name == 'push' ||
+    #       (github.event_name == 'pull_request_target'
+    #         && github.event.pull_request.head.repo.full_name == github.repository
+    #       )
+    #     )
+    #   run: |
+    #     git config --local user.email "action@github.com"
+    #     git config --local user.name "GitHub Action"
+    #     git fetch origin
+    #     git checkout ${{ github.head_ref || github.ref_name }} --
+    #     git add coverage.svg
+    #     git commit -m "Update coverage badge [skip ci]" || echo "No changes to commit"
+    #     git push
+    #  env:
+    #    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
