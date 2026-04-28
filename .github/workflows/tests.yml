@@ -115,6 +115,7 @@ jobs:
         name: coverage-badge
         path: badge
     - name: Push coverage.svg to orphan branch coverage-badge
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
       run: |
         set -e
         git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -122,4 +123,4 @@ jobs:
         cp badge/coverage.svg coverage.svg
         git add coverage.svg
         git diff --cached --quiet || git commit -m "Update coverage badge [skip ci]"
-        git push origin coverage-badge
+        git push origin HEAD:coverage-badge
