@@ -6,7 +6,7 @@ permissions:
 on:
   push:
     branches: [ "main" ]
-  pull_request:  # to allow testing from forks
+  pull_request_target:  # to allow testing from forks
     branches: [ "main" ]
   workflow_call:  # for triggering from pypi-release.yml
     secrets:
@@ -45,16 +45,26 @@ jobs:
         pip install poetry
         poetry install
         echo "$(poetry env info --path)/bin" >> $GITHUB_PATH
-    - name: Test with pytest
-      if: matrix.python-version != '3.13'
+    # Intentionally split into 4 steps: on pull_request_target we run without secrets,
+    # and on trusted events we run with secrets. This avoids brittle inline env conditionals.
+    - name: Test with pytest (fork PR - no secrets)
+      if: matrix.python-version != '3.13' && github.event_name == 'pull_request_target'
+      run: |
+        pytest
+    - name: Test with pytest (trusted - with secrets)
+      if: matrix.python-version != '3.13' && github.event_name != 'pull_request_target'
       env:
         LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
         LLM_API_TYPE: openai
         MODEL: "gpt-5.2"
       run: |
         pytest
-    - name: Test with pytest +coverage
-      if: matrix.python-version == '3.13'
+    - name: Test with pytest +coverage (fork PR - no secrets)
+      if: matrix.python-version == '3.13' && github.event_name == 'pull_request_target'
+      run: |
+        pytest --cov=gito --cov-report=xml
+    - name: Test with pytest +coverage (trusted - with secrets)
+      if: matrix.python-version == '3.13' && github.event_name != 'pull_request_target'
       env:
         LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
         LLM_API_TYPE: openai
@@ -69,19 +79,10 @@ jobs:
     - name: Validate coverage badge output
       if: matrix.python-version == '3.13' && github.event_name == 'push' && github.ref == 'refs/heads/main'
       run: |
-        python3 <<'PY'
-        import os, sys
-        p = "coverage.svg"
-        if not os.path.isfile(p):
-            sys.exit("coverage.svg missing")
-        n = os.path.getsize(p)
-        if n < 120:
-            sys.exit(f"coverage.svg too small ({n} bytes), genbadge likely failed silently")
-        with open(p, "rb") as f:
-            head = f.read(4096)
-        if b"<svg" not in head.lower():
-            sys.exit("coverage.svg does not start with an SVG document")
-        PY
+        f=coverage.svg
+        s=$(wc -c < "$f" 2>/dev/null) || s=0
+        [ "$s" -ge 120 ] || { echo "$f missing or too small ($s B)"; exit 1; }
+        head -c 4096 "$f" | grep -qiF '<svg' || { echo "$f: not an SVG"; exit 1; }
     - name: Upload coverage badge artifact
       if: success() && matrix.python-version == '3.13' && github.event_name == 'push' && github.ref == 'refs/heads/main'
       uses: actions/upload-artifact@v4
@@ -103,23 +104,22 @@ jobs:
     permissions:
       contents: write
     steps:
+    - uses: actions/checkout@v6
+      with:
+        ref: coverage-badge
+        fetch-depth: 1
+        token: ${{ secrets.GITHUB_TOKEN }}
+        # persist-credentials intentionally true (default) - git push relies on it
     - uses: actions/download-artifact@v4
       with:
         name: coverage-badge
         path: badge
     - name: Push coverage.svg to orphan branch coverage-badge
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         set -e
-        gh auth setup-git
-        mkdir -p /tmp/coverage-badge-publish
-        cd /tmp/coverage-badge-publish
-        git init
         git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
         git config user.name "github-actions[bot]"
-        cp "${GITHUB_WORKSPACE}/badge/coverage.svg" .
+        cp badge/coverage.svg coverage.svg
         git add coverage.svg
-        git commit -m "Update coverage badge [skip ci]"
-        git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
-        git push -f origin HEAD:coverage-badge
+        git diff --cached --quiet || git commit -m "Update coverage badge [skip ci]"
+        git push origin coverage-badge
