@@ -335,6 +335,13 @@ class NoChangesInContextError(Exception):
     """
 
 
+class AllChangesExcludedError(NoChangesInContextError):
+    """
+    Exception raised when changes exist but all belong to excluded/ignored files.
+    This is not an error condition - the workflow should succeed gracefully.
+    """
+
+
 def get_target_diff(
     repo: Repo,
     config: ProjectConfig,
@@ -359,9 +366,12 @@ def get_target_diff(
         pr=pr,
     )
     diff = filter_diff(diff, filters)
+    has_changes_before_exclude = bool(diff)
     if config.exclude_files:
         diff = filter_diff(diff, config.exclude_files, exclude=True)
     if not diff:
+        if has_changes_before_exclude:
+            raise AllChangesExcludedError()
         raise NoChangesInContextError()
     return diff
 
@@ -491,6 +501,9 @@ async def review(
             use_merge_base=target.use_merge_base,
             pr=target.pull_request_id,
         )
+    except AllChangesExcludedError:
+        logging.info("All changes belong to excluded files, nothing to review")
+        return
     except NoChangesInContextError:
         logging.error("No changes to review")
         return
@@ -597,6 +610,9 @@ def answer(
             use_merge_base=use_merge_base,
             pr=pr,
         )
+    except AllChangesExcludedError:
+        logging.info("All changes belong to excluded files, nothing to review")
+        return
     except NoChangesInContextError:
         logging.error("No changes to review")
         return
