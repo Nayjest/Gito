@@ -117,3 +117,64 @@ def test_get_callable():
         call="gito.pipeline_steps.jira.fetch_associated_issue"
     ).get_callable()
     assert callable(callable_fn), "Expected a callable function"
+
+
+def test_pipeline_step_scope_matches_path():
+    repo_wide = PipelineStep(call="x")
+    scoped = PipelineStep(call="x", scope="frontend")
+    assert repo_wide.matches_path("anything/here.py")
+    assert scoped.matches_path("frontend/app.tsx")
+    assert scoped.matches_path("frontend/sub/dir/x.ts")
+    assert not scoped.matches_path("backend/app.py")
+    # Prefix-only match must respect path boundaries.
+    assert not scoped.matches_path("frontend2/app.tsx")
+
+
+def test_pipeline_run_filters_diff_by_scope(monkeypatch, patch_github_action_env):
+    """A scoped step only sees diff entries under its scope."""
+    mc.configure(LLM_API_TYPE=mc.ApiType.NONE)
+    patch_github_action_env(False)
+
+    class _F:
+        def __init__(self, path):
+            self.path = path
+
+    diff = [_F("frontend/a.tsx"), _F("backend/b.py")]
+    seen = {}
+
+    def _fake_step_run(*args, **kwargs):
+        seen["diff"] = list(kwargs.get("diff") or [])
+        return {"ran": True}
+
+    step = PipelineStep(call="x", envs=[PipelineEnv.LOCAL], scope="frontend")
+    step.run = _fake_step_run
+
+    ctx = Context(report=Report(), config=ProjectConfig.load(), diff=diff, repo=None)
+    Pipeline(ctx, steps={"scoped": step}).run()
+
+    assert len(seen["diff"]) == 1
+    assert seen["diff"][0].path == "frontend/a.tsx"
+
+
+def test_pipeline_run_skips_scoped_step_with_no_matching_files(
+    monkeypatch, patch_github_action_env
+):
+    """If nothing in the diff falls under the step's scope, the step is skipped."""
+    mc.configure(LLM_API_TYPE=mc.ApiType.NONE)
+    patch_github_action_env(False)
+
+    class _F:
+        def __init__(self, path):
+            self.path = path
+
+    step = PipelineStep(call="x", envs=[PipelineEnv.LOCAL], scope="frontend")
+    step.run = MagicMock()
+
+    ctx = Context(
+        report=Report(),
+        config=ProjectConfig.load(),
+        diff=[_F("backend/only.py")],
+        repo=None,
+    )
+    Pipeline(ctx, steps={"scoped": step}).run()
+    step.run.assert_not_called()
