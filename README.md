@@ -159,7 +159,7 @@ See [GitHub Setup Guide](https://github.com/Nayjest/Gito/blob/main/documentation
 - [Python](https://www.python.org/downloads/) 3.11 / 3.12 / 3.13  
 - [Git](https://git-scm.com)
 
-#### Option A: Install via pip (recommended)
+#### Option A: Install via pip
 
 **Step 1:** Install [gito.bot](https://github.com/Nayjest/Gito) using [pip](https://en.wikipedia.org/wiki/Pip_(package_manager)).
 ```bash
@@ -173,7 +173,21 @@ To install from repository source / specific branch:
 ```bash
 pip install git+https://github.com/Nayjest/Gito.git@<branch-or-tag>
 ```
-#### Option B: Windows Standalone Installer
+
+#### Option B: Run via `uvx` (no permanent install)
+
+Use [`uvx`](https://docs.astral.sh/uv/guides/tools/) when you want to run Gito without installing it globally:
+```bash
+uvx --from gito.bot gito setup
+uvx --from gito.bot gito review
+```
+
+> **Important:**  
+> Do not run `uvx gito review` unless you also pass `--from gito.bot`.  
+> The published package name is `gito.bot`, while the executable name is `gito`.  
+> Without `--from`, `uvx` will try to install an unrelated package named `gito` from PyPI.
+
+#### Option C: Windows Standalone Installer
 
 Download the latest Windows installer from [Releases](https://github.com/Nayjest/Gito/releases).
 

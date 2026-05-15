@@ -1,9 +1,11 @@
 """Bootstrap module for initializing the Gito application environment."""
 
+import atexit
 import os
 import sys
 import io
 import logging
+import tempfile
 from datetime import datetime
 from pathlib import Path
 
@@ -13,6 +15,48 @@ from .utils.git_platform.gitlab import is_running_in_gitlab_ci
 from .utils.git_platform.github import is_running_in_github_action
 from .constants import HOME_ENV_PATH, EXECUTABLE, PROJECT_GITO_FOLDER, DEFAULT_MAX_CONCURRENT_TASKS
 from .env import Env
+
+
+def _is_empty_sentinel(value: str | None) -> bool:
+    """Return True when an env value is the string form of a missing value."""
+    if value is None:
+        return False
+    return value.strip().strip("\"'").lower() in {"none", "null"}
+
+
+def _sanitize_env_vars() -> None:
+    """Remove invalid shell env values that should behave like 'unset'."""
+    if _is_empty_sentinel(os.environ.get("LLM_API_PLATFORM")):
+        logging.warning("Ignoring invalid LLM_API_PLATFORM shell value.")
+        os.environ.pop("LLM_API_PLATFORM", None)
+
+
+def _sanitized_home_env_path(home_env_path: Path) -> Path:
+    """Return a temp env file path when persisted config contains invalid sentinels."""
+    if not home_env_path.exists():
+        return home_env_path
+
+    changed = False
+    sanitized_lines: list[str] = []
+    for line in home_env_path.read_text(encoding="utf-8").splitlines(keepends=True):
+        stripped = line.strip()
+        if stripped.startswith("LLM_API_PLATFORM="):
+            _, value = stripped.split("=", 1)
+            if _is_empty_sentinel(value):
+                changed = True
+                continue
+        sanitized_lines.append(line)
+
+    if not changed:
+        return home_env_path
+
+    logging.warning("Ignoring invalid LLM_API_PLATFORM value in %s.", home_env_path)
+    with tempfile.NamedTemporaryFile(
+        mode="w", encoding="utf-8", suffix=".env", prefix="gito-", delete=False
+    ) as temp_file:
+        temp_file.writelines(sanitized_lines)
+    atexit.register(lambda path=temp_file.name: os.path.exists(path) and os.unlink(path))
+    return Path(temp_file.name)
 
 
 def setup_logging(log_level: int = logging.INFO):
@@ -59,8 +103,9 @@ def bootstrap(verbosity: int = 1):
         sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 
     try:
+        _sanitize_env_vars()
         mc.configure(
-            DOT_ENV_FILE=HOME_ENV_PATH,
+            DOT_ENV_FILE=_sanitized_home_env_path(HOME_ENV_PATH),
             USE_LOGGING=verbosity >= 1,
             EMBEDDING_DB_TYPE=mc.EmbeddingDbType.NONE,
             PROMPT_TEMPLATES_PATH=[PROJECT_GITO_FOLDER, Path(__file__).parent / "tpl"],
