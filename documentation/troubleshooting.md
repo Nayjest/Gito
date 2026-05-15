@@ -62,6 +62,26 @@ MAX_CONCURRENT_TASKS=20
 
 For more details, refer to the [microcore configuration reference](https://ai-microcore.github.io/api-reference/microcore/configuration.html#Config.MAX_CONCURRENT_TASKS).
 
+## 3. `uvx gito ...` installs the wrong package
+
+If you run:
+```bash
+uvx gito review
+```
+
+`uvx` will try to install a package named `gito` from PyPI. Gito is published under the package name `gito.bot`, while its CLI executable is named `gito`.
+
+Use one of these commands instead:
+```bash
+uvx --from gito.bot gito setup
+uvx --from gito.bot gito review
+```
+
+You can also pin a specific version:
+```bash
+uvx --from "gito.bot==4.0.3" gito review
+```
+
 
 ## Getting Help
 
