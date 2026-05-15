@@ -153,18 +153,23 @@ See [GitHub Setup Guide](https://github.com/Nayjest/Gito/blob/main/documentation
 
 ### 2. Running Code Analysis Locally<a id="2-running-code-analysis-locally"></a>
 
-#### Initial Local Setup
+#### 2.1 Install Gito locally
+
+> **Note:** If you use [uvx](https://docs.astral.sh/uv/guides/tools/), you can skip this step.  
+> When using commands like `uvx gito.bot setup`, `uvx gito.bot review`, uvx will install everything required on demand.  
+
+
+**Option 1:** Install [gito.bot](https://github.com/Nayjest/Gito) using [pip](https://en.wikipedia.org/wiki/Pip_(package_manager)).
 
 **Prerequisites:** 
 - [Python](https://www.python.org/downloads/) 3.11 / 3.12 / 3.13  
 - [Git](https://git-scm.com)
 
-#### Option A: Install via pip (recommended)
-
-**Step 1:** Install [gito.bot](https://github.com/Nayjest/Gito) using [pip](https://en.wikipedia.org/wiki/Pip_(package_manager)).
+Run the following command to install the latest stable release from PyPI:
 ```bash
 pip install gito.bot
 ```
+
 
 > **Troubleshooting:**  
 > pip may also be available via CLI as `pip3` depending on your Python installation.
@@ -173,7 +178,7 @@ To install from repository source / specific branch:
 ```bash
 pip install git+https://github.com/Nayjest/Gito.git@<branch-or-tag>
 ```
-#### Option B: Windows Standalone Installer
+**Option 2:** Windows Standalone Installer
 
 Download the latest Windows installer from [Releases](https://github.com/Nayjest/Gito/releases).
 
@@ -183,7 +188,7 @@ The installer includes:
 - Start Menu shortcuts
 - Easy uninstallation
 
-**Step 2:** Perform initial setup
+#### 2.2 Configure LLM connection
 
 The following command will perform one-time setup using an interactive wizard.
 You will be prompted to enter LLM configuration details (API type, API key, etc).
@@ -191,13 +196,17 @@ Configuration will be saved to `~/.gito/.env`.
 ```bash
 gito setup
 ```
+Alternatively, if you have `uvx` installed, you can run the setup command via `uvx`:
+```bash
+uvx gito.bot setup
+```
 
 > **Troubleshooting:**  
 > On some systems, `gito` command may not become available immediately after installation.  
 > Try restarting your terminal or running `python -m gito` instead.
 
 
-#### Perform your first AI code review locally
+#### 2.3 Perform your first AI code review locally
 
 **Step 1:** Navigate to your repository root directory.  
 **Step 2:** Switch to the branch you want to review.  
