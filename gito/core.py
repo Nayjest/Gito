@@ -502,7 +502,7 @@ async def review(
             pr=target.pull_request_id,
         )
     except AllChangesExcludedError:
-        logging.info("All changes belong to excluded files, nothing to review")
+        print("All changes belong to excluded files, nothing to review")
         return
     except NoChangesInContextError:
         logging.error("No changes to review")
@@ -611,7 +611,7 @@ def answer(
             pr=pr,
         )
     except AllChangesExcludedError:
-        logging.info("All changes belong to excluded files, nothing to review")
+        print("All changes belong to excluded files, nothing to review")
         return
     except NoChangesInContextError:
         logging.error("No changes to review")
