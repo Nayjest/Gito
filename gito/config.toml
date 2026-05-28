@@ -144,6 +144,12 @@ Review the provided code diff carefully and identify *only* highly confident iss
 {{ input }}
 --------
 
+{% if pr_context -%}
+----PULL REQUEST CONTEXT----
+{{ pr_context }}
+--------
+{%- endif %}
+
 {% if file_lines -%}
 ----ADDITIONAL CONTEXT: FULL FILE CONTENT AFTER APPLYING REVIEWED CHANGES----
 {{ file_lines }}
