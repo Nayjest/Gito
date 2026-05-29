@@ -13,7 +13,8 @@ collapse_previous_code_review_comments = true
 report_template_gitlab_code_quality = "fn:gito.gitlab.convert_to_gitlab_code_quality_report"
 # Code review report template in Markdown format, used for GitHub PR comments.
 report_template_md = """
-<h2>{{ HTML_TEXT_ICON }}I've Reviewed the Code</h2>
+{{ HTML_TEXT_ICON }}
+## I've Reviewed the Code
 
 {% if report.summary -%}
     {{ report.summary }}
