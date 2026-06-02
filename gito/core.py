@@ -314,6 +314,8 @@ def read_files(repo: Repo, files: list[str], max_tokens: int = None) -> dict:
 
 
 async def make_cr_summary(ctx: Context, **kwargs) -> str:
+    if not ctx.config.summary_prompt:
+        return ""
     return (
         await mc.prompt(
             ctx.config.summary_prompt,
@@ -324,8 +326,6 @@ async def make_cr_summary(ctx: Context, **kwargs) -> str:
             **ctx.config.prompt_vars,
             **kwargs,
         ).to_allm()
-        if ctx.config.summary_prompt
-        else ""
     )
 
 
