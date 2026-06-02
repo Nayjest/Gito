@@ -313,9 +313,9 @@ def read_files(repo: Repo, files: list[str], max_tokens: int = None) -> dict:
     return out
 
 
-def make_cr_summary(ctx: Context, **kwargs) -> str:
+async def make_cr_summary(ctx: Context, **kwargs) -> str:
     return (
-        mc.prompt(
+        await mc.prompt(
             ctx.config.summary_prompt,
             diff=mc.tokenizing.fit_to_token_size(ctx.diff, ctx.config.max_code_tokens)[0],
             issues=ctx.report.issues,
@@ -323,7 +323,7 @@ def make_cr_summary(ctx: Context, **kwargs) -> str:
             env=Env,
             **ctx.config.prompt_vars,
             **kwargs,
-        ).to_llm()
+        ).to_allm()
         if ctx.config.summary_prompt
         else ""
     )
@@ -564,7 +564,7 @@ async def review(
     else:
         logging.info("No pipeline steps defined, skipping pipeline execution")
 
-    report.summary = make_cr_summary(ctx)
+    report.summary = await make_cr_summary(ctx)
     report.save(file_name=out_folder / JSON_REPORT_FILE_NAME)
     report_text = report.render(cfg, Report.Format.MARKDOWN)
     text_report_path = out_folder / "code-review-report.md"
