@@ -1,0 +1,41 @@
+# Gito: AI Code Reviewer
+
+> Gito is an open-source (MIT) AI code reviewer that works with any large language model provider. It reviews GitHub/GitLab pull requests and local git changes in seconds—flagging bugs, security vulnerabilities, performance problems, and maintainability issues—reliably and without vendor lock-in. Installed from PyPI as `gito.bot` and run with the `gito` command.
+
+Gito is a stateless, client-side CLI and CI/CD bot written in Python (3.11–3.14). Your code diff is sent directly to the LLM provider you choose—nothing is stored, logged, or routed through any intermediary server (zero-retention by design); with a local model your code never leaves your network. Reviews are parallelized across files, so a full review finishes in seconds. It fits solo developers, teams wanting a pre-human-review pass, open-source maintainers, and automated CI/CD quality gates.
+
+Install with `pip install gito.bot` (or run on demand via `uvx gito.bot review`; a standalone Windows installer is also available). Configure your LLM once with `gito setup`, then run `gito review` inside any git repository. By default it reviews the current changes against the repository's main branch; `gito review --all` reviews the entire codebase, and a remote repository can be reviewed with `gito review --url <repo-url>`.
+
+Capabilities:
+
+- **Vendor-agnostic LLM access** (via the [ai-microcore](https://github.com/Nayjest/ai-microcore) library): OpenAI, Anthropic (Claude), Google (Gemini), local runtimes (Ollama, LM Studio, vLLM), embedded inference (PyTorch/Transformers), and any OpenAI-compatible API (Mistral, xAI, Azure, Amazon Bedrock, OpenRouter, Fireworks, and more).
+- **Runs locally and in CI/CD:** GitHub (fully supported), GitLab (beta), and local CLI; Bitbucket planned. Ships ready-to-use GitHub Actions and GitLab CI workflows that post the review as a PR/MR comment automatically.
+- **Interactive PR/MR bot:** mention Gito in a pull-request comment (configurable triggers such as `gito` or `/fix`) to auto-apply fix proposals or answer questions about the changes inline.
+- **Key commands:** `gito review` (review a diff, the whole codebase, or a remote repo), `gito ask` (Q&A over your code; also generates documentation, release notes, and test cases), `gito fix` (apply fix proposals from a report), `gito setup` (interactive LLM config), `gito deploy` (wizard that scaffolds CI workflows), `gito files`, `gito report`.
+- **Per-repository configuration** via `.gito/config.toml` (merged over bundled defaults): review prompts and custom rules, severity and confidence thresholds, issue tags, output templates, Python post-processing snippets, comment mention triggers, and pipeline steps.
+- **Issue-tracker integrations:** Jira and Linear—auto-detect the issue key from the branch name, inject issue context into review summaries and answers, and post answers or release notes back as comments.
+- **Output formats:** colored CLI output, Markdown (for PR/MR comments), structured JSON, and GitLab Code Quality reports.
+
+## Documentation
+
+- [README / Overview](https://raw.githubusercontent.com/Nayjest/Gito/main/README.md): Full project overview—features, supported LLM providers and git platforms, security/privacy model, and quickstart for GitHub Actions and local use.
+- [CLI Reference](https://raw.githubusercontent.com/Nayjest/Gito/main/documentation/command_line_reference.md): Complete reference for every `gito` command, argument, and option.
+- [Configuration Cookbook](https://raw.githubusercontent.com/Nayjest/Gito/main/documentation/config_cookbook.md): How to customize review behavior in `.gito/config.toml`—custom rules, prompt variables, and LLM settings.
+- [Bundled Configuration Defaults](https://raw.githubusercontent.com/Nayjest/Gito/main/gito/config.toml): Authoritative source for Gito's default review prompts, report templates, issue tags, and severity/confidence scales.
+
+## Guides & Integrations
+
+- [GitHub Setup Guide](https://raw.githubusercontent.com/Nayjest/Gito/main/documentation/github_setup.md): Step-by-step setup for continuous, automated AI PR reviews via GitHub Actions.
+- [Jira Integration](https://raw.githubusercontent.com/Nayjest/Gito/main/documentation/jira_integration.md): Detect a Jira issue key from the branch name and inject issue context into reviews and answers.
+- [Linear Integration](https://raw.githubusercontent.com/Nayjest/Gito/main/documentation/linear_integration.md): Use the associated Linear issue as review context and post answers/release notes back to Linear as comments.
+- [Documentation & Release-Notes Generation](https://raw.githubusercontent.com/Nayjest/Gito/main/documentation/documentation_generation.md): Use `gito ask` to generate documentation, release notes, and migration guides from repository context.
+- [Troubleshooting](https://raw.githubusercontent.com/Nayjest/Gito/main/documentation/troubleshooting.md): Solutions to common setup and runtime problems.
+
+## Optional
+
+- [Homepage](https://gito.bot): Project landing page.
+- [GitHub Repository](https://github.com/Nayjest/Gito): Source code, issue tracker, and releases.
+- [PyPI Package (`gito.bot`)](https://pypi.org/project/gito.bot/): Installation and release history.
+- [ai-microcore](https://github.com/Nayjest/ai-microcore): The vendor-agnostic LLM library powering Gito; lists all supported providers and environment-variable settings.
+- [GitLab CI Workflow Templates](https://github.com/Nayjest/Gito/tree/main/gito/tpl/workflows/gitlab): Ready-to-use templates for GitLab Merge Request reviews.
+- [License (MIT)](https://github.com/Nayjest/Gito/blob/main/LICENSE): Open-source license terms.
