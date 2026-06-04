@@ -154,7 +154,7 @@ See [GitHub Setup Guide](https://github.com/Nayjest/Gito/blob/main/documentation
 Alternatively, install Gito locally and run `gito deploy` from your repository root.
 The deployment wizard will guide you through setting up AI-powered code reviews and automatically generate or update the required workflow files. GitHub Actions and GitLab CI are both supported.
 For manual GitLab configuration, refer to the [GitLab workflow templates](https://github.com/Nayjest/Gito/tree/main/gito/tpl/workflows/gitlab).
-<img width="615" height="606" alt="image" src="https://github.com/user-attachments/assets/4f6d8301-928d-45b3-8d26-f480735662e2" />
+<img width="893" height="833" alt="image" src="https://github.com/user-attachments/assets/4bdfe954-9c0e-4df1-8e9c-4ea8b43b4f79" />
 
 
 ### 2. Running Code Analysis Locally<a id="2-running-code-analysis-locally"></a>
