@@ -353,7 +353,7 @@ git clone https://github.com/Nayjest/Gito.git
 cd Gito
 ```
 
-<div><img align="right" width="460" src="https://raw.githubusercontent.com/Nayjest/Gito/4_0_1/press-kit/character/gito_fullbody_1.jpg">
+<div><img align="right" width="460" src="https://raw.githubusercontent.com/Nayjest/Gito/main/press-kit/character/gito_fullbody_1.jpg">
 
 Install dependencies:
 
