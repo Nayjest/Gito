@@ -14,7 +14,7 @@ on:
         required: false # or true if you always need it
 
 jobs:
-  build:
+  tests:
     # Skip workflow if it is push with [skip ci] in last commit message
     if: "!(github.event_name == 'push' && contains(github.event.head_commit.message, '[skip ci]'))"
     runs-on: ubuntu-latest
