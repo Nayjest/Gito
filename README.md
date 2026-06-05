@@ -126,12 +126,12 @@ jobs:
       uses: actions/setup-python@v6
       with: { python-version: "3.13" }
     - name: Install AI Code Review tool
-      run: pip install gito.bot~=4.0
+      run: pip install gito.bot~=4.1
     - name: Run AI code analysis
       env:
         LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
         LLM_API_TYPE: openai
-        MODEL: "gpt-5.2"
+        MODEL: "gpt-5.5"
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         PR_NUMBER_FROM_WORKFLOW_DISPATCH: ${{ github.event.inputs.pr_number }}
       run: |
@@ -150,6 +150,12 @@ jobs:
 💪 Done!  
 PRs to your repository will now receive AI code reviews automatically. ✨  
 See [GitHub Setup Guide](https://github.com/Nayjest/Gito/blob/main/documentation/github_setup.md) for more details.
+
+Alternatively, install Gito locally and run `gito deploy` from your repository root.
+The deployment wizard will guide you through setting up AI-powered code reviews and automatically generate or update the required workflow files. GitHub Actions and GitLab CI are both supported.
+For manual GitLab configuration, refer to the [GitLab workflow templates](https://github.com/Nayjest/Gito/tree/main/gito/tpl/workflows/gitlab).
+<img width="893" height="833" alt="image" src="https://github.com/user-attachments/assets/4bdfe954-9c0e-4df1-8e9c-4ea8b43b4f79" />
+
 
 ### 2. Running Code Analysis Locally<a id="2-running-code-analysis-locally"></a>
 
@@ -254,7 +260,7 @@ Gito uses [ai-microcore](https://github.com/Nayjest/ai-microcore) for vendor-agn
 LLM_API_TYPE=openai
 LLM_API_KEY=sk-...
 LLM_API_BASE=https://api.openai.com/v1/
-MODEL=gpt-5.2
+MODEL=gpt-5.5
 MAX_CONCURRENT_TASKS=20
 ```
 
@@ -347,7 +353,7 @@ git clone https://github.com/Nayjest/Gito.git
 cd Gito
 ```
 
-<div><img align="right" width="460" src="https://raw.githubusercontent.com/Nayjest/Gito/4_0_1/press-kit/character/gito_fullbody_1.jpg">
+<div><img align="right" width="460" src="https://raw.githubusercontent.com/Nayjest/Gito/main/press-kit/character/gito_fullbody_1.jpg">
 
 Install dependencies:
 
