@@ -260,7 +260,7 @@ Gito uses [ai-microcore](https://github.com/Nayjest/ai-microcore) for vendor-agn
 LLM_API_TYPE=openai
 LLM_API_KEY=sk-...
 LLM_API_BASE=https://api.openai.com/v1/
-MODEL=gpt-5.2
+MODEL=gpt-5.5
 MAX_CONCURRENT_TASKS=20
 ```
 
