@@ -13,7 +13,7 @@ from microcore.utils import file_link
 from colorama import Fore, Style, Back
 from pydantic.dataclasses import dataclass
 
-from .constants import JSON_REPORT_FILE_NAME, HTML_TEXT_ICON, HTML_TEXT_ICON_INLINE, HTML_CR_COMMENT_MARKER, REFS_VALUE_ALL
+from .constants import JSON_REPORT_FILE_NAME, HTML_TEXT_ICON, HTML_CR_COMMENT_MARKER, REFS_VALUE_ALL
 from .project_config import ProjectConfig
 from .utils.string import block_wrap_lr, max_line_len
 from .utils.html import remove_html_comments
@@ -246,7 +246,6 @@ class Report:
             block_wrap_lr=block_wrap_lr,
             max_line_len=max_line_len,
             HTML_TEXT_ICON=HTML_TEXT_ICON,
-            HTML_TEXT_ICON_INLINE=HTML_TEXT_ICON_INLINE,
             HTML_CR_COMMENT_MARKER=HTML_CR_COMMENT_MARKER,
             remove_html_comments=remove_html_comments,
             **config.prompt_vars,

@@ -46,11 +46,6 @@ class ProjectConfig:
     If True, previously added code review comments in the pull request
     will be collapsed automatically when a new comment is added.
     """
-    include_pr_context: bool = field(default=True)
-    """
-    If True, the PR description and comments will be fetched and included
-    in the review prompt context. Set to False to save tokens.
-    """
 
     def __post_init__(self):
         self.pipeline_steps = {

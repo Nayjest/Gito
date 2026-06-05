@@ -13,12 +13,7 @@ collapse_previous_code_review_comments = true
 report_template_gitlab_code_quality = "fn:gito.gitlab.convert_to_gitlab_code_quality_report"
 # Code review report template in Markdown format, used for GitHub PR comments.
 report_template_md = """
-<table>
-<tr>
-<td valign="middle">{{ HTML_TEXT_ICON_INLINE }}</td>
-<td valign="middle"><h2>I've Reviewed the Code</h2></td>
-</tr>
-</table>
+<h2>{{ HTML_TEXT_ICON }}I've Reviewed the Code</h2>
 
 {% if report.summary -%}
     {{ report.summary }}
@@ -148,12 +143,6 @@ Review the provided code diff carefully and identify *only* highly confident iss
 ----CODEBASE CHANGES TO REVIEW----
 {{ input }}
 --------
-
-{% if pr_context -%}
-----PULL REQUEST CONTEXT----
-{{ pr_context }}
---------
-{%- endif %}
 
 {% if file_lines -%}
 ----ADDITIONAL CONTEXT: FULL FILE CONTENT AFTER APPLYING REVIEWED CHANGES----

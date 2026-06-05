@@ -24,7 +24,6 @@ from .utils.cli import make_streaming_function
 from .pipeline import Pipeline
 from .env import Env
 from .gh_api import gh_api
-from .pr_context import _fetch_pr_context
 
 
 def review_subject_is_index(what):
@@ -504,12 +503,6 @@ async def review(
         """
         return not target.is_full_codebase_review() and not file_diff.is_added_file
 
-    pr_context = _fetch_pr_context(target, repo, cfg)
-
-    prompt_extra = cfg.prompt_vars.copy()
-    if pr_context:
-        prompt_extra["pr_context"] = pr_context
-
     responses = await mc.llm_parallel(
         [
             mc.prompt(
@@ -520,7 +513,7 @@ async def review(
                     else str(file_diff.path) + ":\n" + lines[file_diff.path]
                 ),
                 file_lines=lines[file_diff.path] if input_is_diff(file_diff) else None,
-                **prompt_extra,
+                **cfg.prompt_vars,
             )
             for file_diff in diff
         ],
@@ -620,15 +613,6 @@ def answer(
     else:
         aux_files_dict = {}
 
-    pr_context = _fetch_pr_context(
-        target=ReviewTarget(pull_request_id=str(pr) if pr else None),
-        repo=repo,
-        config=config,
-    )
-    prompt_vars = config.prompt_vars.copy()
-    if pr_context:
-        prompt_vars["pr_context"] = pr_context
-
     if not prompt_file and config.answer_prompt.startswith("tpl:"):
         prompt_file = str(config.answer_prompt)[4:]
 
@@ -642,7 +626,7 @@ def answer(
         all_file_lines=lines,
         pipeline_out=ctx.pipeline_out,
         aux_files=aux_files_dict,
-        **prompt_vars,
+        **config.prompt_vars,
     )
     response = mc.llm(
         prompt,
