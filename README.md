@@ -131,7 +131,7 @@ jobs:
       env:
         LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
         LLM_API_TYPE: openai
-        MODEL: "gpt-5.2"
+        MODEL: "gpt-5.5"
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         PR_NUMBER_FROM_WORKFLOW_DISPATCH: ${{ github.event.inputs.pr_number }}
       run: |
