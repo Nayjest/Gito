@@ -15,9 +15,8 @@ on:
 
 jobs:
   build:
-    # Do not collapse to only contains(head_commit.message): on pull_request / workflow_call head_commit
-    # is absent; GitHub short-circuits || so .message is never evaluated unless event_name is push.
-    if: "github.event_name != 'push' || !contains(github.event.head_commit.message, '[skip ci]')"
+    # Skip workflow if it is push with [skip ci] in last commit message
+    if: "!(github.event_name == 'push' && contains(github.event.head_commit.message, '[skip ci]'))"
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
