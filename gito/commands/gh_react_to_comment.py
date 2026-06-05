@@ -135,7 +135,7 @@ def react_to_comment(
                 gh_repository=f"{owner}/{repo_name}",
                 pr_or_issue_number=pr,
                 gh_token=gh_token,
-                text=HTML_TEXT_ICON + response,
+                text=HTML_TEXT_ICON + ("\n" if response.startswith("#") else "") + response,
             )
         else:
             ui.error("Can't identify target command in the text.")
