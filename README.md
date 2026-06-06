@@ -73,12 +73,12 @@ Get consistent, thorough code reviews in seconds—no waiting for human availabi
 ### 🤖 LLM Providers / Runtimes
 | Provider / Runtime                                                                              | Status        |
 |-------------------------------------------------------------------------------------------------|---------------|
-| OpenAI API                                                                                      | ✅ Supported  |
-| Anthropic API                                                                                      | ✅ Supported  |
-| Google API                                                                                       | ✅ Supported  |
-| Local LLM Services<br/>`Ollama, LM Studio, vLLM, etc.`                                          | ✅ Supported  |
-| Embedded Inference<br/>`PyTorch / Transformers`                                                 | ✅ Supported  |
-| Any OpenAI-compatible API<br>`Mistral, xAI, Azure, Amazon Bedrock, OpenRouter, Fireworks, etc.` | ✅ Supported  |
+| OpenAI-compatible APIs <br>`Mistral, xAI, Azure, Amazon Bedrock, OpenRouter, Fireworks, and much more` | ✅ Supported  |
+| Anthropic API                                                                                          | ✅ Supported  |
+| Google API                                                                                             | ✅ Supported  |
+| Local LLM Services<br/>`Ollama, vLLM, llama.cpp, SGLang, LM Studio,  etc.`                             | ✅ Supported  |
+| Embedded Inference<br/> using `PyTorch / Transformers` or custom python inference function                  | ✅ Supported  |
+| Working on top of CLI-based LLM Tools / Coding Agent CLIs <br>`Claude Code, Gemini CLI, etc.`          | ✅ Supported  |
 
 ### 🗂️ Issue Trackers
 | Tool   | Status        | Documentation |
