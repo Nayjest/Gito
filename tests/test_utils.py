@@ -3,6 +3,7 @@ import sys
 from dataclasses import dataclass
 
 import typer
+import pytest
 
 from gito.utils.python import filter_kwargs
 from gito.utils.cli import no_subcommand
@@ -63,3 +64,9 @@ def test_filter_kwargs(caplog):
         "b": "test",
     }
     assert caplog.text == ""
+
+    class NotADataclass:
+        pass
+
+    with pytest.raises(TypeError):
+        filter_kwargs(NotADataclass, {"a": 1})
