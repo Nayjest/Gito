@@ -117,3 +117,22 @@ def test_get_callable():
         call="gito.pipeline_steps.jira.fetch_associated_issue"
     ).get_callable()
     assert callable(callable_fn), "Expected a callable function"
+
+
+def test_pipeline_enabled_steps_filters_disabled():
+    steps = {
+        "on": PipelineStep(call="a", enabled=True),
+        "off": PipelineStep(call="b", enabled=False),
+    }
+    pipeline = Pipeline(ctx=None, steps=steps)
+    assert list(pipeline.enabled_steps) == ["on"]
+
+
+def test_pipelineenv_unknown_value_raises():
+    with pytest.raises(ValueError):
+        PipelineEnv("not-a-real-env")
+
+
+def test_pipelineenv_gh_action_warns():
+    with pytest.warns(DeprecationWarning):
+        assert PipelineEnv("gh-action") == PipelineEnv.CI
