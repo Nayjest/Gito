@@ -1,4 +1,4 @@
-name: Fast Tests
+name: Tests:Fast
 
 permissions:
   contents: read
@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  fast-tests:
+  tests-fast:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
