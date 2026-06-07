@@ -6,9 +6,12 @@ permissions:
 on:
   pull_request:
 
+concurrency:
+  group: fast-tests-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   fast-tests:
-    if: "!contains(github.event.head_commit.message, '[skip ci]')"
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -19,14 +22,14 @@ jobs:
     - uses: actions/checkout@v6
       with:
         persist-credentials: false
+    - name: Install poetry
+      run: pipx install poetry
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v6
       with:
         python-version: ${{ matrix.python-version }}
+        cache: poetry
     - name: Install dependencies
-      run: |
-        pip install poetry
-        poetry install
-        echo "$(poetry env info --path)/bin" >> $GITHUB_PATH
+      run: poetry install
     - name: Test with pytest
       run: pytest
