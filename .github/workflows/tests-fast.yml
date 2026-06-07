@@ -5,6 +5,7 @@ permissions:
 
 on:
   pull_request:
+  workflow_dispatch:
 
 jobs:
   tests-fast:
@@ -26,8 +27,6 @@ jobs:
         python-version: ${{ matrix.python-version }}
         cache: poetry
     - name: Install Dependencies (Poetry)
-      run: |
-        poetry install
-        echo "$(poetry env info --path)/bin" >> "$GITHUB_PATH"
+      run: poetry install
     - name: Run Pytest
-      run: pytest
+      run: poetry run pytest
