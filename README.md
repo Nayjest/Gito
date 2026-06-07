@@ -73,12 +73,12 @@ Get consistent, thorough code reviews in seconds—no waiting for human availabi
 ### 🤖 LLM Providers / Runtimes
 | Provider / Runtime                                                                              | Status        |
 |-------------------------------------------------------------------------------------------------|---------------|
-| OpenAI API                                                                                      | ✅ Supported  |
-| Anthropic API                                                                                      | ✅ Supported  |
-| Google API                                                                                       | ✅ Supported  |
-| Local LLM Services<br/>`Ollama, LM Studio, vLLM, etc.`                                          | ✅ Supported  |
-| Embedded Inference<br/>`PyTorch / Transformers`                                                 | ✅ Supported  |
-| Any OpenAI-compatible API<br>`Mistral, xAI, Azure, Amazon Bedrock, OpenRouter, Fireworks, etc.` | ✅ Supported  |
+| OpenAI-compatible APIs <br>`Mistral, xAI, Azure, Amazon Bedrock, OpenRouter, Fireworks, and much more` | ✅ Supported  |
+| Anthropic API                                                                                          | ✅ Supported  |
+| Google API                                                                                             | ✅ Supported  |
+| Local LLM Services<br/>`Ollama, vLLM, llama.cpp, SGLang, LM Studio,  etc.`                             | ✅ Supported  |
+| Embedded Inference<br/> using `PyTorch / Transformers` or custom python inference function                  | ✅ Supported  |
+| Working on top of CLI-based LLM Tools / Coding Agent CLIs <br>`Claude Code, Gemini CLI, etc.`          | ✅ Supported  |
 
 ### 🗂️ Issue Trackers
 | Tool   | Status        | Documentation |
@@ -126,12 +126,12 @@ jobs:
       uses: actions/setup-python@v6
       with: { python-version: "3.13" }
     - name: Install AI Code Review tool
-      run: pip install gito.bot~=4.0
+      run: pip install gito.bot~=4.1
     - name: Run AI code analysis
       env:
         LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
         LLM_API_TYPE: openai
-        MODEL: "gpt-5.2"
+        MODEL: "gpt-5.5"
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         PR_NUMBER_FROM_WORKFLOW_DISPATCH: ${{ github.event.inputs.pr_number }}
       run: |
@@ -151,20 +151,31 @@ jobs:
 PRs to your repository will now receive AI code reviews automatically. ✨  
 See [GitHub Setup Guide](https://github.com/Nayjest/Gito/blob/main/documentation/github_setup.md) for more details.
 
+Alternatively, install Gito locally and run `gito deploy` from your repository root.
+The deployment wizard will guide you through setting up AI-powered code reviews and automatically generate or update the required workflow files. GitHub Actions and GitLab CI are both supported.
+For manual GitLab configuration, refer to the [GitLab workflow templates](https://github.com/Nayjest/Gito/tree/main/gito/tpl/workflows/gitlab).
+<img width="893" height="833" alt="image" src="https://github.com/user-attachments/assets/4bdfe954-9c0e-4df1-8e9c-4ea8b43b4f79" />
+
+
 ### 2. Running Code Analysis Locally<a id="2-running-code-analysis-locally"></a>
 
-#### Initial Local Setup
+#### 2.1 Install Gito locally
+
+> **Note:** If you use [uvx](https://docs.astral.sh/uv/guides/tools/), you can skip this step.  
+> When using commands like `uvx gito.bot setup`, `uvx gito.bot review`, uvx will install everything required on demand.  
+
+
+**Option 1:** Install [gito.bot](https://github.com/Nayjest/Gito) using [pip](https://en.wikipedia.org/wiki/Pip_(package_manager)).
 
 **Prerequisites:** 
 - [Python](https://www.python.org/downloads/) 3.11 / 3.12 / 3.13  
 - [Git](https://git-scm.com)
 
-#### Option A: Install via pip (recommended)
-
-**Step 1:** Install [gito.bot](https://github.com/Nayjest/Gito) using [pip](https://en.wikipedia.org/wiki/Pip_(package_manager)).
+Run the following command to install the latest stable release from PyPI:
 ```bash
 pip install gito.bot
 ```
+
 
 > **Troubleshooting:**  
 > pip may also be available via CLI as `pip3` depending on your Python installation.
@@ -173,7 +184,7 @@ To install from repository source / specific branch:
 ```bash
 pip install git+https://github.com/Nayjest/Gito.git@<branch-or-tag>
 ```
-#### Option B: Windows Standalone Installer
+**Option 2:** Windows Standalone Installer
 
 Download the latest Windows installer from [Releases](https://github.com/Nayjest/Gito/releases).
 
@@ -183,7 +194,7 @@ The installer includes:
 - Start Menu shortcuts
 - Easy uninstallation
 
-**Step 2:** Perform initial setup
+#### 2.2 Configure LLM connection
 
 The following command will perform one-time setup using an interactive wizard.
 You will be prompted to enter LLM configuration details (API type, API key, etc).
@@ -191,13 +202,17 @@ Configuration will be saved to `~/.gito/.env`.
 ```bash
 gito setup
 ```
+Alternatively, if you have `uvx` installed, you can run the setup command via `uvx`:
+```bash
+uvx gito.bot setup
+```
 
 > **Troubleshooting:**  
 > On some systems, `gito` command may not become available immediately after installation.  
 > Try restarting your terminal or running `python -m gito` instead.
 
 
-#### Perform your first AI code review locally
+#### 2.3 Perform your first AI code review locally
 
 **Step 1:** Navigate to your repository root directory.  
 **Step 2:** Switch to the branch you want to review.  
@@ -245,7 +260,7 @@ Gito uses [ai-microcore](https://github.com/Nayjest/ai-microcore) for vendor-agn
 LLM_API_TYPE=openai
 LLM_API_KEY=sk-...
 LLM_API_BASE=https://api.openai.com/v1/
-MODEL=gpt-5.2
+MODEL=gpt-5.5
 MAX_CONCURRENT_TASKS=20
 ```
 
@@ -338,7 +353,7 @@ git clone https://github.com/Nayjest/Gito.git
 cd Gito
 ```
 
-<div><img align="right" width="460" src="https://raw.githubusercontent.com/Nayjest/Gito/4_0_1/press-kit/character/gito_fullbody_1.jpg">
+<div><img align="right" width="460" src="https://raw.githubusercontent.com/Nayjest/Gito/main/press-kit/character/gito_fullbody_1.jpg">
 
 Install dependencies:
 

@@ -1,0 +1,68 @@
+name: Tests::Code-Coverage
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  GenerateCovBadge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        persist-credentials: false
+    - run: pipx install poetry genbadge[coverage]
+    - name: Set up Python 3.13
+      uses: actions/setup-python@v6
+      with:
+        python-version: "3.13"
+        cache: poetry
+    - run: poetry install --no-interaction
+    - run: poetry run pytest --cov=gito --cov-report=xml
+    - run: genbadge coverage -i coverage.xml -o coverage.svg
+    - name: Validate coverage badge output
+      run: |
+        f=coverage.svg
+        s=$(wc -c < "$f" 2>/dev/null) || s=0
+        [ "$s" -ge 120 ] || { echo "$f missing or too small ($s B)"; exit 1; }
+        head -c 4096 "$f" | grep -qiF '<svg' || { echo "$f: not an SVG"; exit 1; }
+    - name: Upload coverage badge artifact
+      if: success()
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-badge
+        path: coverage.svg
+        if-no-files-found: error
+        retention-days: 1
+
+  UploadCovBadge:
+    needs: GenerateCovBadge
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        ref: coverage-badge
+        fetch-depth: 1
+        token: ${{ secrets.GITHUB_TOKEN }}
+        persist-credentials: true  # `git push` relies on it on next step
+    - uses: actions/download-artifact@v4
+      with:
+        name: coverage-badge
+        path: badge
+    - name: Push coverage.svg to orphan branch coverage-badge
+      run: |
+        set -e
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git config user.name "github-actions[bot]"
+        cp badge/coverage.svg coverage.svg
+        git add coverage.svg
+        git diff --cached --quiet || git commit -m "Update coverage badge [skip ci]"
+        git push origin HEAD:coverage-badge

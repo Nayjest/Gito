@@ -7,8 +7,6 @@ on:
 jobs:
   call-tests:
     uses: ./.github/workflows/tests.yml
-    secrets:
-      LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
 
   build-and-publish:
     needs: call-tests
