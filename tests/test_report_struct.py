@@ -182,3 +182,18 @@ def test_from_raw_issue():
     assert issue.id == 5
     assert issue.file == "X.py"
     assert isinstance(issue.affected_lines[0], Issue.AffectedCode)
+
+
+def test_have_fix_proposal():
+    with_proposal = Issue(**get_issue_with_affected_lines())
+    assert with_proposal.have_fix_proposal() is True
+    assert Issue(id="x", title="T", tags=[], file="X.py").have_fix_proposal() is False
+
+
+def test_get_issue_by_id():
+    report = Report()
+    report.register_issue("file.py", get_issue_with_affected_lines())
+    found = report.get_issue_by_id(1)
+    assert found is not None
+    assert found.id == 1
+    assert report.get_issue_by_id(999) is None
