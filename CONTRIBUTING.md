@@ -14,6 +14,20 @@ To contribute to this project, please note the following steps:
 
 More information can be found in the [GitHub documentation](https://docs.github.com/en/get-started/quickstart/contributing-to-projects).
 
+## Tips
+#### Enabling GitHub Workflows in your Fork
+If you'd like to validate your changes privately on your own fork before opening a PR to Nayjest/Gito, you can.
+GitHub disables Actions on new forks by default, so you'll need to turn them on first:
+
+1. Go to the **Actions** tab of your forked repository and click the button to enable workflows.
+
+   <img width="560" alt="Enabling workflows in the Actions tab of a fork" src="https://github.com/user-attachments/assets/d37eac21-4aaf-4013-b24f-be5f8ec5a063" />
+
+2. Push your feature branch to your fork, or open an internal pull request from your feature branch to your fork's `main` branch.
+3. Watch the test results on your fork's Actions or pull request page, and iterate until everything is green.
+
+This lets you catch failures early and keep your upstream PR clean.
+
 ## Guidelines
 
 - Please ensure to respect the existing style in the codebase and to include tests that cover your changes.
