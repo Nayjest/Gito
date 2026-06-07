@@ -3,6 +3,7 @@ import textwrap
 from pathlib import Path
 
 from gito.project_config import ProjectConfig
+from gito.pipeline import PipelineStep
 
 
 def test_load_defaults(monkeypatch):
@@ -39,3 +40,16 @@ def test_merge_pipeline_steps():
     assert "jira" in cfg.pipeline_steps
     assert cfg.pipeline_steps["linear"].enabled
     assert not cfg.pipeline_steps["jira"].enabled
+
+
+def test_post_init_coerces_dict_steps_to_pipeline_step():
+    existing = PipelineStep(call="already")
+    cfg = ProjectConfig(
+        pipeline_steps={
+            "from_dict": {"call": "x"},
+            "kept": existing,
+        }
+    )
+    assert isinstance(cfg.pipeline_steps["from_dict"], PipelineStep)
+    assert cfg.pipeline_steps["from_dict"].call == "x"
+    assert cfg.pipeline_steps["kept"] is existing
