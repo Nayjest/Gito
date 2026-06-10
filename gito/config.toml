@@ -11,6 +11,17 @@ mention_triggers = ["gito", "bot", "ai", "/fix"]
 # Collapse previous code review comments in the GitHub PR before posting new ones
 collapse_previous_code_review_comments = true
 report_template_gitlab_code_quality = "fn:gito.gitlab.convert_to_gitlab_code_quality_report"
+# Single-issue template for inline MR diff comments, used by `gito gitlab-comment --inline`
+report_template_gitlab_mr_inline_issue = """
+### `#{{ issue.id }}`  {{ issue.title }}
+
+{{ issue.details -}}
+{%- if issue.tags %}{{"\n"}}**Tags: {{ ', '.join(issue.tags) }}**{%- endif -%}
+{%- for i in issue.affected_lines -%}
+    {%- if i.proposal %}\n**Proposed change:**\n```{{ i.syntax_hint }}\n{{ i.proposal }}\n```{%- endif -%}
+{%- endfor %}
+{{- HTML_INLINE_CR_COMMENT_MARKER -}}
+"""
 # Code review report template in Markdown format, used for GitHub PR comments.
 report_template_md = """
 <h2>{{ HTML_TEXT_ICON }}I've Reviewed the Code</h2>
@@ -25,7 +36,9 @@ report_template_md = """
 **✅ No issues found** in {{ report.number_of_processed_files }} file{{ 's' if report.number_of_processed_files != 1 else '' }}
 {%- endif -%}
 
-{%- for issue in report.plain_issues -%}
+{#- include_issues=false leaves only the overview in this report,
+    keeping issues that cannot be posted as inline comments (unanchored_issues) -#}
+{%- for issue in (report.plain_issues if include_issues | default(true) else unanchored_issues | default([])) -%}
     {{"\n"}}## `#{{ issue.id}}`  {{ issue.title -}}
     {{ "\n"}}[{{ issue.file }}{{' '}}
 
