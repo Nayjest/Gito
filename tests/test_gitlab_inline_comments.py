@@ -3,15 +3,16 @@ import json
 import pytest
 
 import gito.commands.gitlab_post_review_comment as gl_cmd
+import gito.gitlab_api as gl_api
 from gito.bootstrap import bootstrap
 from gito.constants import HTML_CR_COMMENT_MARKER, HTML_INLINE_CR_COMMENT_MARKER
 from gito.project_config import ProjectConfig
-from gito.report_struct import Report
-from gito.commands.gitlab_post_review_comment import (
+from gito.report_struct import Issue, Report
+from gito.commands.gitlab_post_review_comment import post_gitlab_cr_comment
+from gito.gitlab_api import (
     build_gl_mr_line_maps,
     gl_issue_position,
     parse_unified_diff_line_map,
-    post_gitlab_cr_comment,
 )
 
 DIFF_REFS = {
@@ -60,7 +61,7 @@ def test_gl_issue_position_anchoring():
     assert list(line_maps) == ["src/app.py"]
 
     def issue(file, start_line):
-        return gl_cmd.Issue(
+        return Issue(
             id=1,
             title="T",
             tags=[],
@@ -225,9 +226,9 @@ def test_post_gitlab_inline_review(monkeypatch, report_file):
         calls.append(("PUT", url, json))
         return FakeResponse(200, {"resolved": True})
 
-    monkeypatch.setattr(gl_cmd.requests, "get", fake_get)
-    monkeypatch.setattr(gl_cmd.requests, "post", fake_post)
-    monkeypatch.setattr(gl_cmd.requests, "put", fake_put)
+    monkeypatch.setattr(gl_api.requests, "get", fake_get)
+    monkeypatch.setattr(gl_api.requests, "post", fake_post)
+    monkeypatch.setattr(gl_api.requests, "put", fake_put)
     monkeypatch.setattr(gl_cmd, "sleep", lambda seconds: None)
 
     post_gitlab_cr_comment(
