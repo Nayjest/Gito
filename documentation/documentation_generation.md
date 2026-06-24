@@ -152,7 +152,7 @@ jobs:
         with: { python-version: "3.13" }
 
       - name: Install Gito
-        run: pip install gito.bot~=4.1.0
+        run: pip install gito.bot~=4.2.0
 
       - name: Generate and post release notes
         env:
