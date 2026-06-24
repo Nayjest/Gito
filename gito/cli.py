@@ -25,6 +25,8 @@ from .cli_base import (
     arg_against,
     arg_all,
     get_repo_context,
+    command_requires_llm,
+    runs_without_llm,
 )
 from .report_struct import Report, ReviewTarget
 from .constants import HOME_ENV_PATH, GITHUB_MD_REPORT_FILE_NAME, REFS_VALUE_ALL
@@ -95,7 +97,9 @@ def cli(
         verbosity = 1
 
     if ctx.invoked_subcommand != "setup":
-        bootstrap(verbosity)
+        # Commands marked with @runs_without_llm (e.g. `deploy`) only manipulate
+        # local/CI files and must run without LLM API credentials configured.
+        bootstrap(verbosity, require_llm_config=command_requires_llm(ctx))
 
 
 def _consider_arg_all(all: bool, refs: str, merge_base: bool) -> tuple[str, bool]:
@@ -255,6 +259,7 @@ def setup():
 
 @app.command(name="report", help="Render and display code review report.")
 @app.command(name="render", hidden=True)
+@runs_without_llm
 def render(
     format: str = typer.Argument(
         default=Report.Format.CLI, help="Report format: md (Markdown), cli (terminal)"
@@ -271,6 +276,7 @@ def render(
     "\nMight be useful to check what will be reviewed if run `gito review` "
     "with current CLI arguments and options."
 )
+@runs_without_llm
 def files(
     refs: str = arg_refs(),
     what: str = arg_what(),

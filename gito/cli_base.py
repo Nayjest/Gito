@@ -19,6 +19,28 @@ from .env import Env
 app = typer.Typer(pretty_exceptions_show_locals=False)
 
 
+_RUNS_WITHOUT_LLM_ATTR = "_gito_runs_without_llm"
+
+
+def runs_without_llm(func):
+    """
+    Mark a CLI command as able to run without LLM credentials (e.g. `deploy`, which
+    only writes CI workflow files). The root callback reads this marker to decide
+    whether LLM configuration is required during bootstrap.
+    """
+    setattr(func, _RUNS_WITHOUT_LLM_ATTR, True)
+    return func
+
+
+def command_requires_llm(ctx: typer.Context) -> bool:
+    """Return whether the invoked subcommand needs LLM credentials configured."""
+    subcommand = ctx.invoked_subcommand
+    if not subcommand:
+        return True
+    command = ctx.command.commands.get(subcommand)
+    return not getattr(getattr(command, "callback", None), _RUNS_WITHOUT_LLM_ATTR, False)
+
+
 def args_to_target(refs, what, against) -> tuple[str | None, str | None]:
     """Convert CLI arguments to target WHAT and AGAINST refs."""
     if refs == REFS_VALUE_ALL:

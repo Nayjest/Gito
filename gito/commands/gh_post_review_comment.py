@@ -7,7 +7,7 @@ import typer
 from ghapi.core import GhApi
 from ghapi.page import paged
 
-from ..cli_base import app
+from ..cli_base import app, runs_without_llm
 from ..constants import GITHUB_MD_REPORT_FILE_NAME, HTML_CR_COMMENT_MARKER
 from ..gh_api import (
     post_gh_comment,
@@ -18,6 +18,7 @@ from ..project_config import ProjectConfig
 
 
 @app.command(name="github-comment", help="Leave a GitHub PR comment with the review.")
+@runs_without_llm
 def post_github_cr_comment(
     md_report_file: str = typer.Option(default=None),
     pr: int = typer.Option(default=None),
