@@ -2,12 +2,34 @@
 
 from pathlib import Path
 
+import click
 import pytest
 from git import Repo
+from typer.main import get_command
 
+import gito.cli  # noqa: F401  # registers CLI commands on the shared app
+from gito.cli_base import app, command_requires_llm
 from gito.commands.deploy import deploy
 from gito.bootstrap import bootstrap
 from gito.utils.git_platform.platform_types import PlatformType
+
+
+@pytest.mark.parametrize(
+    "subcommand, requires_llm",
+    [
+        ("deploy", False),  # marked @runs_without_llm
+        ("init", False),  # alias shares the marker
+        ("version", False),  # another marked command
+        ("review", True),  # performs inference
+        ("repl", True),  # exposes live LLM access
+        (None, True),  # bare invocation
+    ],
+)
+def test_command_requires_llm_marker(subcommand, requires_llm):
+    """@runs_without_llm commands report no LLM requirement; others do (issue #288)."""
+    ctx = click.Context(get_command(app))
+    ctx.invoked_subcommand = subcommand
+    assert command_requires_llm(ctx) is requires_llm
 
 
 @pytest.fixture
@@ -39,6 +61,32 @@ def gitlab_repo(tmp_path, monkeypatch):
 
     monkeypatch.chdir(tmp_path)
     yield repo
+
+
+@pytest.fixture
+def no_llm_config(tmp_path, monkeypatch):
+    """Simulate an environment without any LLM API credentials configured."""
+    monkeypatch.setattr("gito.bootstrap.HOME_ENV_PATH", str(tmp_path / "nonexistent.env"))
+    for var in (
+        "LLM_API_KEY",
+        "LLM_API_TYPE",
+        "OPENAI_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "GOOGLE_API_KEY",
+        "MODEL",
+    ):
+        monkeypatch.delenv(var, raising=False)
+
+
+def test_bootstrap_requires_llm_config_by_default(no_llm_config):
+    """Without LLM credentials, the default bootstrap aborts (LLM is required for review)."""
+    with pytest.raises(SystemExit):
+        bootstrap()
+
+
+def test_bootstrap_skips_llm_config_for_deploy(no_llm_config):
+    """`gito deploy` must bootstrap without LLM credentials (issue #288)."""
+    bootstrap(require_llm_config=False)  # must not raise SystemExit
 
 
 def test_deploy_github_creates_workflow_files(github_repo, monkeypatch):

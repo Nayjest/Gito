@@ -11,7 +11,7 @@ import requests
 import typer
 from microcore import ui
 
-from ..cli_base import app
+from ..cli_base import app, runs_without_llm
 from ..constants import GITHUB_MD_REPORT_FILE_NAME, HTML_CR_COMMENT_MARKER
 from ..project_config import ProjectConfig
 from ..utils.git_platform.gitlab import is_running_in_gitlab_ci
@@ -170,6 +170,7 @@ def collapse_gl_outdated_cr_comments(
 
 @app.command(name="gitlab-comment", help="Leave a GitLab MR comment with the review.")
 @app.command(name="post-gitlab-comment", hidden=True)
+@runs_without_llm
 def post_gitlab_cr_comment(
     md_report_file: str = typer.Option(
         default=None,

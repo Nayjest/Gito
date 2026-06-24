@@ -11,7 +11,7 @@ import git
 import typer
 from microcore import ui
 
-from ..cli_base import app
+from ..cli_base import app, runs_without_llm
 from ..constants import JSON_REPORT_FILE_NAME
 from ..report_struct import Report, Issue
 from ..utils.git import get_cwd_repo_or_fail
@@ -22,6 +22,7 @@ from ..utils.git import get_cwd_repo_or_fail
     "(latest code review results will be used by default). "
     "If no issue number is provided, attempts to fix all fixable issues."
 )
+@runs_without_llm
 def fix(
     issue_numbers: Optional[list[int]] = typer.Argument(
         None, help="Issue number(s) to fix (separated by space, fixes all if omitted)"
