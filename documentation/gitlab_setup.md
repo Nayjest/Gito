@@ -129,7 +129,7 @@ The generated job also renders a [GitLab Code Quality](https://docs.gitlab.com/c
 
 GitLab ingests this artifact and surfaces the detected issues directly in the Merge Request widget and the pipeline's **Code Quality** tab:
 
-![Gito Code Quality report in a GitLab Merge Request](assets/gitlab_code_quality_screenshot.png)
+<img width="1038" height="212" alt="image" src="https://github.com/user-attachments/assets/f6fcc980-fb59-4674-8196-5aec4e7b81b9" />
 
 > **Note:** The Code Quality MR widget is available on GitLab Premium/Ultimate. On all tiers, the report can still be downloaded as a pipeline artifact, and inline comments (`--inline`) remain available.
 
