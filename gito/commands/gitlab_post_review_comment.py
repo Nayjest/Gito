@@ -10,7 +10,7 @@ from typing import List, Dict, Optional, Tuple
 import typer
 from microcore import ui
 
-from ..cli_base import app
+from ..cli_base import app, runs_without_llm
 from ..constants import (
     GITHUB_MD_REPORT_FILE_NAME,
     JSON_REPORT_FILE_NAME,
@@ -164,6 +164,7 @@ def post_gl_inline_review(
 
 @app.command(name="gitlab-comment", help="Leave a GitLab MR comment with the review.")
 @app.command(name="post-gitlab-comment", hidden=True)
+@runs_without_llm
 def post_gitlab_cr_comment(
     md_report_file: str = typer.Option(
         default=None,

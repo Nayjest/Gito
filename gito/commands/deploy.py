@@ -32,7 +32,7 @@ from rich.panel import Panel
 from rich.console import Console
 
 from ..core import get_base_branch
-from ..cli_base import app
+from ..cli_base import app, runs_without_llm
 from ..gh_api import gh_api
 from ..utils.package_metadata import version
 from ..utils.git_platform.platform_types import PlatformType, identify_git_platform
@@ -146,6 +146,7 @@ def _show_intro(console: Console):
 @app.command(name="init", hidden=True)
 @app.command(name="connect", hidden=True)
 @app.command(name="ci", hidden=True)
+@runs_without_llm
 def deploy(
     api_type: ApiType = typer.Option(None, help="LLM API type (interactive if omitted)"),
     commit: bool = typer.Option(None, help="Commit and push changes"),

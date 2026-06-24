@@ -5,7 +5,7 @@ import logging
 import requests
 import typer
 
-from ..cli_base import app
+from ..cli_base import app, runs_without_llm
 from ..issue_trackers import resolve_issue_key
 from ..utils.git import get_cwd_repo_or_fail
 
@@ -72,6 +72,7 @@ def _process_text_input(text: str | None) -> str:
 
 
 @app.command(help="Post a comment with specified text to the associated Linear issue.")
+@runs_without_llm
 def linear_comment(
     text: str = typer.Argument(
         default=None,

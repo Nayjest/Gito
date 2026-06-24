@@ -39,8 +39,16 @@ def setup_logging(log_level: int = logging.INFO):
     logging.basicConfig(level=log_level, handlers=[handler])
 
 
-def bootstrap(verbosity: int = 1):
-    """Bootstrap the application with the environment configuration."""
+def bootstrap(verbosity: int = 1, require_llm_config: bool = True):
+    """
+    Bootstrap the application with the environment configuration.
+
+    Args:
+        verbosity: Output verbosity level (0-3).
+        require_llm_config: When False, configure with no LLM backend so that
+            commands that don't perform inference (e.g. `gito deploy`) can run
+            without LLM API credentials configured.
+    """
     log_levels_by_verbosity = {
         0: logging.CRITICAL,
         1: logging.INFO,
@@ -59,12 +67,18 @@ def bootstrap(verbosity: int = 1):
         sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 
     try:
-        mc.configure(
+        configure_kwargs = dict(
             DOT_ENV_FILE=HOME_ENV_PATH,
             USE_LOGGING=verbosity >= 1,
             EMBEDDING_DB_TYPE=mc.EmbeddingDbType.NONE,
             PROMPT_TEMPLATES_PATH=[PROJECT_GITO_FOLDER, Path(__file__).parent / "tpl"],
         )
+        if not require_llm_config:
+            # Inference-free commands must run without LLM credentials. The NONE
+            # backend neither checks for an API key nor instantiates a client, so
+            # a missing key no longer aborts bootstrap.
+            configure_kwargs.update(LLM_API_TYPE=mc.ApiType.NONE)
+        mc.configure(**configure_kwargs)
         if mc.config().MAX_CONCURRENT_TASKS is None:
             mc.config().MAX_CONCURRENT_TASKS = DEFAULT_MAX_CONCURRENT_TASKS
         if verbosity > 1:
