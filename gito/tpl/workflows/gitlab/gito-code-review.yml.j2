@@ -22,6 +22,7 @@ gito-ai-review:
   script:
     - pip install gito.bot~={{ major }}.{{ minor }}
     - gito --verbose review --against="origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
+    # Tip: add --inline to post each issue as a separate inline diff comment (works on all GitLab tiers)
     - gito gitlab-comment --token "$GITLAB_ACCESS_TOKEN" --project-id "$CI_PROJECT_ID" --merge-request-iid "$CI_MERGE_REQUEST_IID"
     - gito -v0 render gitlab_code_quality > gitlab_code_quality_report.json
   artifacts:

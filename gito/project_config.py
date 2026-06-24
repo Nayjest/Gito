@@ -24,6 +24,8 @@ class ProjectConfig:
     report_template_gitlab_code_quality: str = (
         "fn:gito.gitlab:convert_to_gitlab_code_quality_report"
     )
+    report_template_gitlab_mr_inline_issue: str = ""
+    """Single-issue inline MR comment template used by `gito gitlab-comment --inline`"""
     post_process: str = ""
     retries: int = 3
     """LLM retries for one request"""

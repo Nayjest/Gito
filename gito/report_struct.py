@@ -13,7 +13,13 @@ from microcore.utils import file_link
 from colorama import Fore, Style, Back
 from pydantic.dataclasses import dataclass
 
-from .constants import JSON_REPORT_FILE_NAME, HTML_TEXT_ICON, HTML_CR_COMMENT_MARKER, REFS_VALUE_ALL
+from .constants import (
+    JSON_REPORT_FILE_NAME,
+    HTML_TEXT_ICON,
+    HTML_CR_COMMENT_MARKER,
+    HTML_INLINE_CR_COMMENT_MARKER,
+    REFS_VALUE_ALL,
+)
 from .project_config import ProjectConfig
 from .utils.string import block_wrap_lr, max_line_len
 from .utils.html import remove_html_comments
@@ -168,6 +174,7 @@ class Report:
         MARKDOWN = "md"
         CLI = "cli"
         GITLAB_QUALITY_REPORT = "gitlab_quality_report"
+        GITLAB_MR_INLINE_ISSUE = "gitlab_mr_inline_issue"
 
     issues: dict[str, list[Issue]] = field(default_factory=dict)
     summary: str = field(default="")
@@ -232,6 +239,7 @@ class Report:
         self,
         config: ProjectConfig = None,
         report_format: Format = Format.MARKDOWN,
+        **extra_vars,
     ) -> str:
         """Render the report to target format."""
         config = config or ProjectConfig.load()
@@ -247,9 +255,11 @@ class Report:
             max_line_len=max_line_len,
             HTML_TEXT_ICON=HTML_TEXT_ICON,
             HTML_CR_COMMENT_MARKER=HTML_CR_COMMENT_MARKER,
+            HTML_INLINE_CR_COMMENT_MARKER=HTML_INLINE_CR_COMMENT_MARKER,
             remove_html_comments=remove_html_comments,
             **config.prompt_vars,
         )
+        vars.update(extra_vars)
         template = getattr(config, f"report_template_{report_format}")
         if str(template).startswith("tpl:"):
             template_file = str(template)[4:]
