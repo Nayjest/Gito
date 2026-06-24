@@ -254,6 +254,11 @@ def cmd_answer(
 @app.command(help="Configure LLM for local usage interactively.")
 def setup():
     print(logo())
+    print(
+        "This wizard sets up access to a language model for local code reviews: "
+        "choose a provider, enter your API key, and pick a model. "
+        "Settings are saved to ~/.gito/.env."
+    )
     mc.interactive_setup(HOME_ENV_PATH)
 
 
