@@ -55,7 +55,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions: { contents: read, pull-requests: write } # required to post review comments
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with: { fetch-depth: 0 }
       - name: Set up Python
         uses: actions/setup-python@v6

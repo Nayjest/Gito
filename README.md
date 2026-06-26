@@ -121,7 +121,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions: { contents: read, pull-requests: write } # 'write' for leaving the summary comment
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
       with: { fetch-depth: 0 }
     - name: Set up Python
       uses: actions/setup-python@v6

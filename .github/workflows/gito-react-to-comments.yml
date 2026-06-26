@@ -57,7 +57,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
       with:
         repository: ${{ needs.check-pr.outputs.head_repo }}
         ref: ${{ needs.check-pr.outputs.head_ref }}
