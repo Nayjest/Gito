@@ -72,7 +72,7 @@ jobs:
         run: |
           gito --verbose review
           gito github-comment
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: gito-code-review-results
           path: |

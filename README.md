@@ -138,7 +138,7 @@ jobs:
       run: |
         gito --verbose review
         gito github-comment --token ${{ secrets.GITHUB_TOKEN }}
-    - uses: actions/upload-artifact@v6
+    - uses: actions/upload-artifact@v7
       with:
         name: ai-code-review-results
         path: |

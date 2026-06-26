@@ -55,7 +55,7 @@ jobs:
         # gito --verbose review ${{ github.event_name == 'pull_request' && github.event.pull_request.base.ref && format(' --against="origin/{0}"', github.event.pull_request.base.ref) || '' }}
         gito github-comment
 
-    - uses: actions/upload-artifact@v6
+    - uses: actions/upload-artifact@v7
       with:
         name: gito-code-review-results
         path: |
