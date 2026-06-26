@@ -55,7 +55,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions: { contents: read, pull-requests: write } # required to post review comments
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with: { fetch-depth: 0 }
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -72,7 +72,7 @@ jobs:
         run: |
           gito --verbose review
           gito github-comment
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: gito-code-review-results
           path: |

@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
       with:
         persist-credentials: false
     - run: pipx install poetry genbadge[coverage]
@@ -33,7 +33,7 @@ jobs:
         head -c 4096 "$f" | grep -qiF '<svg' || { echo "$f: not an SVG"; exit 1; }
     - name: Upload coverage badge artifact
       if: success()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: coverage-badge
         path: coverage.svg
@@ -47,13 +47,13 @@ jobs:
     permissions:
       contents: write
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
       with:
         ref: coverage-badge
         fetch-depth: 1
         token: ${{ secrets.GITHUB_TOKEN }}
         persist-credentials: true  # `git push` relies on it on next step
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@v8
       with:
         name: coverage-badge
         path: badge

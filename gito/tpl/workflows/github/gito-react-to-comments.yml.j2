@@ -35,7 +35,7 @@ jobs:
     steps:
     - name: Get PR details
       id: pr
-      uses: actions/github-script@v7
+      uses: actions/github-script@v9
       with:
         script: |
           const pr = await github.rest.pulls.get({
@@ -50,7 +50,7 @@ jobs:
           };
 
     - name: Checkout repository
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
       with:
         {% raw -%}
         repository: ${{ github.repository }}
