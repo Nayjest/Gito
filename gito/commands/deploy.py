@@ -386,21 +386,20 @@ def _configure_llm(
     }
     model_proposals = {
         ApiType.ANTHROPIC: {
-            "claude-opus-4-6": f"Claude Opus 4.6 {ui.dim}(most capable)",
-            "claude-sonnet-4-5": f"Claude Sonnet 4.5 {ui.dim}(balanced)",
+            "claude-fable-5": f"Claude Fable 5{ui.dim}(most capable)",
+            "claude-sonnet-5": f"Claude Sonnet 5 {ui.dim}(balanced)",
             "claude-haiku-4-5": f"Claude Haiku 4.5 {ui.dim}(cheapest but less capable)",
         },
         ApiType.OPENAI: {
-            "gpt-5.2": f"GPT-5.2 {ui.dim} (recommended)",
-            "gpt-5.1": "GPT-5.1",
-            "gpt-5": "GPT-5",
-            "gpt-5-mini": "GPT-5 Mini",
+            "gpt-5.5": f"GPT-5.5 {ui.dim} (recommended)",
+            "gpt-5.4": "GPT-5.4",
+            "gpt-5.4-mini": "GPT-5.4 Mini",
         },
         ApiType.GOOGLE: {
             "gemini-2.5-pro": "Gemini 2.5 Pro",
-            "gemini-2.5-flash": "Gemini 2.5 Flash",
-            "gemini-3-pro-preview": f"Gemini 3 Pro Preview {ui.dim}(rate limited)",
-            "gemini-3-flash-preview": f"Gemini 3 Flash Preview {ui.dim}(rate limited)",
+            "gemini-3.5-flash": "Gemini 3.5 Flash",
+            "gemini-3.1-flash-lite": f"Gemini 3.1 Flash Lite",
+            "gemini-3.1-pro-preview": f"Gemini 3.1 Pro Preview {ui.dim}(rate limited)",
         },
     }
     if not api_type:
