@@ -7,6 +7,7 @@ import os
 import re
 from pathlib import Path
 from typing import Optional
+from urllib.error import HTTPError
 import zipfile
 
 import requests
@@ -120,13 +121,27 @@ def react_to_comment(
         )
         logging.info("Fix applied successfully.")
     elif is_review_request(comment.body):
-        ref = repo.active_branch.name
+        pr_data = api.pulls.get(pr)
+        if pr_data.head.repo and pr_data.head.repo.full_name == f"{owner}/{repo_name}":
+            ref = pr_data.head.ref
+        else:
+            ref = pr_data.base.ref
+        workflow_id = "gito-code-review.yml"
         logging.info(f"Triggering code-review workflow, ref='{ref}'")
-        api.actions.create_workflow_dispatch(
-            workflow_id="gito-code-review.yml",
-            ref=ref,
-            inputs={"pr_number": str(pr)},
-        )
+        try:
+            api.actions.create_workflow_dispatch(
+                workflow_id=workflow_id,
+                ref=ref,
+                inputs={"pr_number": str(pr)},
+            )
+        except HTTPError as e:
+            ui.error(
+                f"Failed to trigger workflow dispatch ({e.code} {e.reason}): "
+                f"ensure the workflow file '.github/workflows/{workflow_id}' exists "
+                f"on ref '{ref}' of {owner}/{repo_name} and the token has "
+                f"'actions: write' permission."
+            )
+            raise typer.Exit(1)
     else:
         if cfg.answer_github_comments:
             question = cleanup_comment_addressed_to_gito(comment.body)
