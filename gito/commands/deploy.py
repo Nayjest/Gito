@@ -422,8 +422,8 @@ def _configure_llm(
         ApiType.GOOGLE: "GOOGLE_API_KEY",
     }
     default_models = {
-        ApiType.ANTHROPIC: "claude-sonnet-4-5",
-        ApiType.OPENAI: "gpt-5.2",
+        ApiType.ANTHROPIC: "claude-sonnet-5",
+        ApiType.OPENAI: "gpt-5.5",
         ApiType.GOOGLE: "gemini-2.5-pro",
     }
     use_default_model = model == "default"
