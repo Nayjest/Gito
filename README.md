@@ -74,7 +74,7 @@ Get consistent, thorough code reviews in seconds—no waiting for human availabi
 ### 🤖 LLM Providers / Runtimes
 | Provider / Runtime                                                                              | Status        |
 |-------------------------------------------------------------------------------------------------|---------------|
-| OpenAI-compatible APIs <br>`Mistral, xAI, Azure, Amazon Bedrock, OpenRouter, Fireworks, and much more` | ✅ Supported  |
+| OpenAI-compatible APIs <br>`Mistral, xAI, Azure, Amazon Bedrock, OpenRouter, Fireworks, and many more` | ✅ Supported  |
 | Anthropic API                                                                                          | ✅ Supported  |
 | Google API                                                                                             | ✅ Supported  |
 | Local LLM Services<br/>`Ollama, vLLM, llama.cpp, SGLang, LM Studio,  etc.`                             | ✅ Supported  |
