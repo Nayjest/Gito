@@ -77,7 +77,7 @@ def bootstrap(verbosity: int = 1, require_llm_config: bool = True):
             # Inference-free commands must run without LLM credentials. The NONE
             # backend neither checks for an API key nor instantiates a client, so
             # a missing key no longer aborts bootstrap.
-            configure_kwargs.update(LLM_API_TYPE=mc.ApiType.NONE)
+            configure_kwargs.update(LLM_API_TYPE=mc.ApiType.NONE, LLM_CLI=None)
         mc.configure(**configure_kwargs)
         if mc.config().MAX_CONCURRENT_TASKS is None:
             mc.config().MAX_CONCURRENT_TASKS = DEFAULT_MAX_CONCURRENT_TASKS
