@@ -11,7 +11,7 @@ from functools import partial
 
 import microcore as mc
 from microcore import ui
-from git import Repo, Commit
+from git import Commit, Repo
 from git.exc import GitCommandError
 from unidiff import PatchSet, PatchedFile
 from unidiff.constants import DEV_NULL
@@ -30,14 +30,15 @@ def review_subject_is_index(what):
     return not what or what == "INDEX"
 
 
-def is_binary_file(repo: Repo, file_path: str) -> bool:
+def is_binary_file(repo: Repo, file_path: str, ref: str | None = None) -> bool:
     """
     Check if a file is binary by attempting to read it as text.
     Returns True if the file is binary, False otherwise.
     """
     try:
-        # Attempt to read the file content from the repository tree
-        content = repo.tree()[file_path].data_stream.read()
+        # Attempt to read the file content from the requested repository tree.
+        tree = repo.commit(ref).tree if ref else repo.tree()
+        content = tree[file_path].data_stream.read()
         # Try decoding as UTF-8; if it fails, it's likely binary
         content.decode("utf-8")
         return False
@@ -63,12 +64,32 @@ def is_binary_file(repo: Repo, file_path: str) -> bool:
 
 def commit_in_branch(repo: Repo, commit: Commit, target_branch: str) -> bool:
     try:
-        # exit code 0 if commit is ancestor of branch
         repo.git.merge_base("--is-ancestor", commit.hexsha, target_branch)
         return True
     except GitCommandError:
-        pass
-    return False
+        return False
+
+
+def get_closed_review_base(repo: Repo, what: str, against: str) -> str | None:
+    """Find the base used by the merge that integrated an already-merged PR head."""
+    merge_sha = repo.git.log(
+        "--merges",
+        "--ancestry-path",
+        f"{what}..{against}",
+        "-n",
+        "1",
+        "--pretty=format:%H",
+    ).strip()
+    if not merge_sha:
+        return None
+
+    merged_head = repo.commit(what)
+    merge_commit = repo.commit(merge_sha)
+    for parent in merge_commit.parents:
+        if parent.hexsha == merged_head.hexsha or not commit_in_branch(repo, parent, against):
+            continue
+        return repo.git.merge_base(parent.hexsha, merged_head.hexsha)
+    return None
 
 
 def get_base_branch(repo: Repo, pr: int | str = None):
@@ -111,6 +132,10 @@ def get_base_branch(repo: Repo, pr: int | str = None):
         raise ValueError("No default branch found in the repository.")
 
 
+class MergeBaseError(RuntimeError):
+    """Raised when Git cannot construct a merge-base comparison."""
+
+
 def get_diff(
     repo: Repo = None,
     what: str = None,
@@ -129,103 +154,52 @@ def get_diff(
         against = get_base_branch(repo, pr=pr)
     if review_subject_is_index(what):
         what = None  # working copy
+    comparison = "merge-base" if use_merge_base else "direct"
+    logging.info(
+        f"Making {comparison} diff: {ui.green(what or 'INDEX')} vs {ui.yellow(against)}"
+    )
     if use_merge_base:
         try:
-            if review_subject_is_index(what):
-                try:
-                    current_ref = repo.active_branch.name
-                except TypeError:
-                    # In detached HEAD state, use HEAD directly
-                    current_ref = "HEAD"
-                    logging.info("Detected detached HEAD state, using HEAD as current reference")
-            else:
-                current_ref = what
-            merge_base = repo.merge_base(current_ref or repo.active_branch.name, against)[0]
-            logging.info(
-                f"Merge base({ui.green(current_ref)},{ui.yellow(against)})"
-                f" --> {ui.cyan(merge_base.hexsha)}"
-            )
-            # if branch is already an ancestor of "against", merge_base == branch ⇒ it’s been merged
-            if merge_base.hexsha == repo.commit(current_ref or repo.active_branch.name).hexsha:
-                # @todo: check case: reviewing working copy index in main branch #103
+            comparison_base = repo.git.merge_base(against, what or "HEAD")
+            closed_review_base = None
+            if not review_subject_is_index(what) and comparison_base == repo.commit(what).hexsha:
+                closed_review_base = get_closed_review_base(repo, what, against)
+            if closed_review_base:
+                comparison_base = closed_review_base
                 logging.info(
-                    f"Branch is already merged. ({ui.green(current_ref)} vs {ui.yellow(against)})"
+                    f"Reviewing merged ref {ui.green(what)} from its pre-merge base "
+                    f"{ui.cyan(comparison_base[:8])}"
                 )
-                merge_sha = repo.git.log(
-                    "--merges",
-                    "--ancestry-path",
-                    f"{current_ref}..{against}",
-                    "-n",
-                    "1",
-                    "--pretty=format:%H",
-                ).strip()
-                if merge_sha:
-                    logging.info(f"Merge commit is {ui.cyan(merge_sha)}")
-                    merge_commit = repo.commit(merge_sha)
-
-                    other_merge_parent = None
-                    for parent in merge_commit.parents:
-                        logging.info(f"Checking merge parent: {parent.hexsha[:8]}")
-                        if parent.hexsha == merge_base.hexsha:
-                            logging.info(f"merge parent is {ui.cyan(parent.hexsha[:8])}, skipping")
-                            continue
-                        if not commit_in_branch(repo, parent, against):
-                            logging.warning(f"merge parent is not in {against}, skipping")
-                            continue
-                        logging.info(f"Found other merge parent: {ui.cyan(parent.hexsha[:8])}")
-                        other_merge_parent = parent
-                        break
-                    if other_merge_parent:
-                        first_common_ancestor = repo.merge_base(other_merge_parent, merge_base)[0]
-                        # for gito remote (feature_branch vs origin/main)
-                        # the same merge base appears in first_common_ancestor again
-                        if first_common_ancestor.hexsha == merge_base.hexsha:
-                            if merge_base.parents:
-                                first_common_ancestor = repo.merge_base(
-                                    other_merge_parent, merge_base.parents[0]
-                                )[0]
-                            else:
-                                logging.error(
-                                    "merge_base has no parents, "
-                                    "using merge_base as first_common_ancestor"
-                                )
-                        logging.info(
-                            f"{what} will be compared to "
-                            f"first common ancestor of {what} and {against}: "
-                            f"{ui.cyan(first_common_ancestor.hexsha[:8])}"
-                        )
-                        against = first_common_ancestor.hexsha
-                    else:
-                        logging.error(f"Can't find other merge parent for {merge_sha}")
-                else:
-                    logging.warning(
-                        f"No merge‐commit found for {current_ref!r}→{against!r}; "
-                        "falling back to merge‐base diff"
-                    )
+                diff_content = repo.git.diff(comparison_base, what)
+            elif review_subject_is_index(what):
+                # With one commit, Git compares the working tree to the merge
+                # base of that commit and HEAD. This preserves local changes.
+                diff_content = repo.git.diff("--merge-base", against)
             else:
-                # normal case: branch not yet merged
-                against = merge_base.hexsha
-                logging.info(
-                    f"Using merge base: {ui.cyan(merge_base.hexsha[:8])} ({merge_base.summary})"
-                )
-        except Exception as e:
-            logging.error(f"Error finding merge base: {e}")
-    logging.info(f"Making diff: {ui.green(what or 'INDEX')} vs {ui.yellow(against)}")
-    diff_content = repo.git.diff(against, what)
+                diff_content = repo.git.diff("--merge-base", against, what)
+        except GitCommandError as e:
+            raise MergeBaseError(
+                f"Cannot determine a merge base between '{against}' and '{what or 'HEAD'}'. "
+                "Fetch the base ref and complete history, then retry."
+            ) from e
+    else:
+        comparison_base = against
+        diff_content = repo.git.diff(against, what)
     diff = PatchSet.from_string(diff_content)
 
     # Filter out binary files
     non_binary_diff = PatchSet([])
     for patched_file in diff:
         # Check if the file is binary using the source or target file path
-        file_path = (
-            patched_file.target_file
-            if patched_file.target_file != DEV_NULL
-            else patched_file.source_file
-        )
+        file_path = patched_file.target_file
+        file_ref = what
+        if file_path == DEV_NULL:
+            file_path = patched_file.source_file
+            file_ref = comparison_base
         if file_path == DEV_NULL:
             continue
-        if is_binary_file(repo, file_path.removeprefix("b/")):
+        path_in_repo = file_path.removeprefix("a/").removeprefix("b/")
+        if is_binary_file(repo, path_in_repo, ref=file_ref):
             logging.info(f"Skipping binary file: {patched_file.path}")
             continue
         non_binary_diff.append(patched_file)
