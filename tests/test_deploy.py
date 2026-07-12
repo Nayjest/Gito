@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import click
+import microcore as mc
 import pytest
 from git import Repo
 from typer.main import get_command
@@ -87,6 +88,16 @@ def test_bootstrap_requires_llm_config_by_default(no_llm_config):
 def test_bootstrap_skips_llm_config_for_deploy(no_llm_config):
     """`gito deploy` must bootstrap without LLM credentials (issue #288)."""
     bootstrap(require_llm_config=False)  # must not raise SystemExit
+
+
+def test_bootstrap_ignores_llm_cli_for_non_llm_command(monkeypatch):
+    """Inference-free commands must not warn about an unused CLI LLM config (#297)."""
+    monkeypatch.setenv("LLM_API_TYPE", "cli")
+    monkeypatch.setenv("LLM_CLI", "echo mocked")
+    bootstrap(require_llm_config=False)
+
+    assert mc.config().LLM_API_TYPE == mc.ApiType.NONE
+    assert mc.config().LLM_CLI is None
 
 
 def test_deploy_github_creates_workflow_files(github_repo, monkeypatch):
