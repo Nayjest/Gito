@@ -74,7 +74,8 @@ The default $CI_JOB_TOKEN does not have write access to merge requests.
 
 Examples:
   ```bash
-  gito gitlab-comment --token $GITLAB_ACCESS_TOKEN --project-id $CI_PROJECT_ID --merge-request-iid $CI_MERGE_REQUEST_IID
+  gito gitlab-comment --token $GITLAB_ACCESS_TOKEN
+  --project-id $CI_PROJECT_ID --merge-request-iid $CI_MERGE_REQUEST_IID
   ```
 
 **Usage**:
