@@ -1,0 +1,452 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Code Doctor — AI Code Review Control Plane</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <!-- Toast notification stack -->
+    <div id="toastStack" class="toast-stack" aria-live="polite" aria-atomic="false"></div>
+
+    <div class="shell" id="shell">
+
+      <!-- ═══════════════════════════════ SIDEBAR ═══════════════════════════════ -->
+      <aside class="sidebar" id="sidebar">
+
+        <div class="sidebar-header">
+          <div class="brand">
+            <img class="brand-logo" src="/assets/press-kit/logo/gito-ai-code-reviewer_logo-180.png" alt="Code Doctor" />
+            <div class="brand-text">
+              <strong>Code Doctor</strong>
+              <span>Private Review Plane</span>
+            </div>
+          </div>
+        </div>
+
+        <nav class="nav" aria-label="Primary">
+          <button class="nav-item active" data-view="cockpit" type="button">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+            <span>Cockpit</span>
+          </button>
+          <button class="nav-item" data-view="review" type="button">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            <span>Review</span>
+          </button>
+          <button class="nav-item" data-view="repos" type="button">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+            <span>Repositories</span>
+          </button>
+          <button class="nav-item" data-view="findings" type="button">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <span>Findings</span>
+            <span class="nav-badge" id="findingsBadge"></span>
+          </button>
+          <button class="nav-item" data-view="reports" type="button">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            <span>Reports</span>
+          </button>
+          <button class="nav-item" data-view="governance" type="button">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <span>Governance</span>
+          </button>
+          <button class="nav-item" data-view="audit" type="button">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            <span>Audit Log</span>
+          </button>
+        </nav>
+
+        <div class="sys-status">
+          <div class="sys-status-title">System</div>
+          <div class="sys-row">
+            <span class="sys-dot" id="ollamaStatusDot" data-state="unknown"></span>
+            <span class="sys-label">Ollama</span>
+            <span class="sys-val" id="ollamaStatus">—</span>
+          </div>
+          <div class="sys-row">
+            <span class="sys-dot" id="gitStatusDot" data-state="unknown"></span>
+            <span class="sys-label">Git</span>
+            <span class="sys-val" id="gitStatus">—</span>
+          </div>
+          <div class="sys-row">
+            <span class="sys-dot sys-dot--purple"></span>
+            <span class="sys-label">Model</span>
+            <span class="sys-val sys-val--truncate" id="activeModel">—</span>
+          </div>
+          <div class="sys-row">
+            <span class="sys-dot" id="authStatusDot" data-state="ok"></span>
+            <span class="sys-label">Auth</span>
+            <span class="sys-val" id="authStatus">Local</span>
+          </div>
+        </div>
+
+        <div class="runs-panel">
+          <div class="runs-header">
+            <span>Recent Runs</span>
+            <button class="icon-btn" id="refreshRuns" type="button" title="Refresh">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            </button>
+          </div>
+          <div id="runList" class="run-list"></div>
+        </div>
+      </aside>
+
+      <!-- ══════════════════════════════ MAIN AREA ══════════════════════════════ -->
+      <div class="main-wrapper">
+        <header class="topbar">
+          <div class="topbar-left">
+            <h1 class="topbar-title" id="viewTitle">Cockpit</h1>
+            <span class="topbar-sub" id="workspaceLabel">No repository selected</span>
+          </div>
+          <div class="topbar-right">
+            <div id="tokenSection" class="token-section">
+              <input id="tokenInput" class="token-input" type="password" placeholder="Access token…" autocomplete="off" />
+              <button id="saveToken" class="btn btn-sm btn-secondary" type="button">Set Token</button>
+            </div>
+            <button id="seedSample" class="btn btn-sm btn-ghost" type="button">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+              Sample Data
+            </button>
+            <button id="exportJson" class="btn btn-sm btn-secondary" type="button">Export JSON</button>
+            <button id="runReview" class="btn btn-primary" type="button">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              Start Review
+            </button>
+          </div>
+        </header>
+
+        <div id="authBanner" class="info-banner hidden">
+          <svg class="banner-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <span id="authBannerText">API access is protected. Enter the workspace token.</span>
+          <button class="banner-close" id="closeBanner" type="button" aria-label="Dismiss">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+
+        <main class="main" id="main">
+
+          <!-- COCKPIT -->
+          <section id="view-cockpit" class="view active">
+            <div class="metrics-row">
+              <div class="metric-card metric-card--blue">
+                <svg class="metric-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                <div class="metric-body"><span>Repositories</span><strong id="metricRepos">0</strong></div>
+              </div>
+              <div class="metric-card metric-card--violet">
+                <svg class="metric-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                <div class="metric-body"><span>Reviews</span><strong id="metricReviews">0</strong></div>
+              </div>
+              <div class="metric-card metric-card--amber">
+                <svg class="metric-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                <div class="metric-body"><span>Issues Found</span><strong id="metricIssues">0</strong></div>
+              </div>
+              <div class="metric-card metric-card--teal">
+                <svg class="metric-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                <div class="metric-body"><span>Avg Risk Score</span><strong id="metricAvgRisk">0</strong></div>
+              </div>
+              <div class="metric-card metric-card--red">
+                <svg class="metric-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M7.86 2h8.28L22 7.86v8.28L16.14 22H7.86L2 16.14V7.86L7.86 2z"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                <div class="metric-body"><span>Blocked</span><strong id="metricBlocked">0</strong></div>
+              </div>
+              <div class="metric-card metric-card--orange">
+                <svg class="metric-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                <div class="metric-body"><span>Needs Review</span><strong id="metricReviewGate">0</strong></div>
+              </div>
+            </div>
+
+            <div class="content-grid col-2">
+              <div class="panel">
+                <div class="panel-header">
+                  <h2 class="panel-title">Latest Review</h2>
+                  <span id="latestGate" class="gate-pill gate--muted">No Run</span>
+                </div>
+                <div class="panel-body">
+                  <p class="summary-text" id="latestReview">No completed review yet. Start a review or load sample data.</p>
+                  <div id="latestTags" class="tag-row"></div>
+                  <div id="latestFindings" class="mini-findings"></div>
+                </div>
+              </div>
+              <div class="panel">
+                <div class="panel-header">
+                  <h2 class="panel-title">Commercial Readiness</h2>
+                  <span class="readiness-score" id="readinessScore">0/0</span>
+                </div>
+                <div id="readinessList" class="readiness-list"></div>
+              </div>
+            </div>
+
+            <div class="content-grid col-2 gap-top">
+              <div class="panel">
+                <div class="panel-header"><h2 class="panel-title">Risk Distribution</h2></div>
+                <div class="gate-breakdown" id="gateBreakdown"></div>
+              </div>
+              <div class="panel">
+                <div class="panel-header"><h2 class="panel-title">Recurring Risk Tags</h2></div>
+                <div class="tag-cloud panel-body" id="topTags"></div>
+              </div>
+            </div>
+          </section>
+
+          <!-- REVIEW -->
+          <section id="view-review" class="view">
+            <div class="content-grid col-2">
+              <div class="panel">
+                <div class="panel-header">
+                  <h2 class="panel-title">Run Setup</h2>
+                  <span class="state-pill" id="runState">Idle</span>
+                </div>
+                <form id="reviewForm" class="form-grid">
+                  <div class="field wide">
+                    <label class="field-label">Repository Path</label>
+                    <input id="repoPath" name="repoPath" type="text" class="field-input" autocomplete="off" placeholder="/path/to/repo" />
+                  </div>
+                  <div class="field">
+                    <label class="field-label">Ollama URL</label>
+                    <input id="ollamaBase" name="ollamaBase" type="text" class="field-input" autocomplete="off" />
+                  </div>
+                  <div class="field">
+                    <label class="field-label">Model</label>
+                    <input id="model" name="model" list="modelList" type="text" class="field-input" autocomplete="off" />
+                    <datalist id="modelList"></datalist>
+                  </div>
+                  <div class="field wide">
+                    <label class="field-label">Review Scope</label>
+                    <div class="seg-control">
+                      <label class="seg-option"><input type="radio" name="mode" value="working" checked /><span>Working Diff</span></label>
+                      <label class="seg-option"><input type="radio" name="mode" value="refs" /><span>Git Refs</span></label>
+                      <label class="seg-option"><input type="radio" name="mode" value="all" /><span>Full Repo</span></label>
+                    </div>
+                  </div>
+                  <div class="field refs-only">
+                    <label class="field-label">Refs</label>
+                    <input id="refs" name="refs" type="text" class="field-input" placeholder="feature..main" autocomplete="off" />
+                  </div>
+                  <div class="field refs-only">
+                    <label class="field-label">Against</label>
+                    <input id="against" name="against" type="text" class="field-input" placeholder="origin/main" autocomplete="off" />
+                  </div>
+                  <div class="field wide">
+                    <label class="field-label">File Filters</label>
+                    <input id="filters" name="filters" type="text" class="field-input" autocomplete="off" />
+                  </div>
+                  <div class="field">
+                    <label class="field-label">Parallel Tasks</label>
+                    <input id="maxConcurrentTasks" name="maxConcurrentTasks" type="number" class="field-input" min="1" max="24" value="4" />
+                  </div>
+                  <div class="field check-field">
+                    <label class="check-label">
+                      <input id="mergeBase" name="mergeBase" type="checkbox" checked />
+                      <span>Use merge base</span>
+                    </label>
+                  </div>
+                </form>
+                <div class="panel-footer">
+                  <button id="runPreflight" class="btn btn-secondary" type="button">Run Preflight</button>
+                </div>
+              </div>
+
+              <div class="panel">
+                <div class="panel-header">
+                  <h2 class="panel-title">Preflight Check</h2>
+                  <span class="state-pill" id="preflightState">Not Run</span>
+                </div>
+                <div id="preflightBox" class="panel-body">
+                  <p class="empty-msg">Select a repository and run preflight check.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="risk-banner panel gap-top">
+              <div class="risk-banner-inner">
+                <span class="gate-pill gate--muted" id="gatePill">No Run</span>
+                <div class="risk-stats">
+                  <div class="risk-stat"><span>Risk Score</span><strong id="riskScore">0</strong></div>
+                  <div class="risk-stat"><span>Findings</span><strong id="issueCount">0</strong></div>
+                  <div class="risk-stat"><span>Files Scanned</span><strong id="fileCount">0</strong></div>
+                  <div class="risk-stat"><span>Duration</span><strong id="duration">—</strong></div>
+                </div>
+              </div>
+              <p class="risk-summary" id="summaryBox">No completed review selected.</p>
+              <div class="tag-row" id="tagStrip"></div>
+            </div>
+
+            <div class="panel gap-top">
+              <div class="panel-header">
+                <h2 class="panel-title">Findings</h2>
+                <span class="meta-label" id="findingMeta">0 open</span>
+              </div>
+              <div id="findingsList" class="findings-list"></div>
+            </div>
+
+            <div class="panel gap-top">
+              <div class="panel-header">
+                <h2 class="panel-title">Execution Log</h2>
+                <button id="refreshLog" class="btn btn-sm btn-ghost" type="button">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                  Refresh
+                </button>
+              </div>
+              <pre id="logOutput" class="log-output">No log loaded.</pre>
+            </div>
+          </section>
+
+          <!-- REPOS -->
+          <section id="view-repos" class="view">
+            <div class="content-grid col-2">
+              <div class="panel">
+                <div class="panel-header"><h2 class="panel-title">Register Repository</h2></div>
+                <form id="repoForm" class="form-grid">
+                  <div class="field wide">
+                    <label class="field-label">Repository Path</label>
+                    <input id="newRepoPath" type="text" class="field-input" autocomplete="off" placeholder="/path/to/repo" />
+                  </div>
+                  <div class="field">
+                    <label class="field-label">Name</label>
+                    <input id="newRepoName" type="text" class="field-input" autocomplete="off" />
+                  </div>
+                  <div class="field">
+                    <label class="field-label">Owner Team</label>
+                    <input id="newRepoOwner" type="text" class="field-input" value="Engineering" autocomplete="off" />
+                  </div>
+                  <div class="field">
+                    <label class="field-label">Tier</label>
+                    <select id="newRepoTier" class="field-input">
+                      <option value="production">Production</option>
+                      <option value="staging">Staging</option>
+                      <option value="development">Development</option>
+                    </select>
+                  </div>
+                </form>
+                <div class="panel-footer">
+                  <button id="addRepo" class="btn btn-primary" type="button">Add Repository</button>
+                </div>
+              </div>
+              <div class="panel">
+                <div class="panel-header"><h2 class="panel-title">Coverage Overview</h2></div>
+                <div class="panel-body" id="repoCoverage"></div>
+              </div>
+            </div>
+            <div class="panel gap-top">
+              <div class="panel-header">
+                <h2 class="panel-title">Registered Repositories</h2>
+                <button id="refreshRepos" class="btn btn-sm btn-ghost" type="button">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                  Refresh
+                </button>
+              </div>
+              <div id="repoList" class="repo-list"></div>
+            </div>
+          </section>
+
+          <!-- FINDINGS -->
+          <section id="view-findings" class="view">
+            <div class="panel">
+              <div class="panel-header">
+                <h2 class="panel-title">Finding Queue</h2>
+                <span class="meta-label" id="queueMeta">No run</span>
+              </div>
+              <div id="findingQueue" class="finding-table"></div>
+            </div>
+          </section>
+
+          <!-- REPORTS -->
+          <section id="view-reports" class="view">
+            <div class="content-grid col-2">
+              <div class="panel">
+                <div class="panel-header"><h2 class="panel-title">Evidence Exports</h2></div>
+                <div class="panel-body">
+                  <p class="help-text">Export the selected review run as structured evidence for compliance, analysis, or third-party integrations.</p>
+                  <div class="export-grid">
+                    <button id="downloadJson" class="export-card" type="button">
+                      <span class="export-badge export-badge--json">JSON</span>
+                      <div><strong>Full Report</strong><span>Structured JSON data</span></div>
+                    </button>
+                    <button id="downloadMarkdown" class="export-card" type="button">
+                      <span class="export-badge export-badge--md">MD</span>
+                      <div><strong>Markdown Report</strong><span>Human-readable summary</span></div>
+                    </button>
+                    <button id="downloadCsv" class="export-card" type="button">
+                      <span class="export-badge export-badge--csv">CSV</span>
+                      <div><strong>Issues CSV</strong><span>Spreadsheet-ready</span></div>
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div class="panel">
+                <div class="panel-header">
+                  <h2 class="panel-title">Selected Run</h2>
+                  <span class="state-pill" id="reportRunState">No Run</span>
+                </div>
+                <div class="panel-body">
+                  <p class="summary-text" id="reportSummary">Select a review run from the sidebar.</p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- GOVERNANCE -->
+          <section id="view-governance" class="view">
+            <div class="content-grid col-2">
+              <div class="panel">
+                <div class="panel-header">
+                  <h2 class="panel-title">Policy Gates</h2>
+                  <button id="savePolicies" class="btn btn-sm btn-primary" type="button">Save</button>
+                </div>
+                <form id="policyForm" class="form-grid">
+                  <div class="field">
+                    <label class="field-label">Block Severity</label>
+                    <input id="blockSeverity" type="number" class="field-input" min="1" max="5" />
+                    <span class="field-hint">Issues at or above this severity block merge</span>
+                  </div>
+                  <div class="field">
+                    <label class="field-label">Review Severity</label>
+                    <input id="reviewSeverity" type="number" class="field-input" min="1" max="5" />
+                    <span class="field-hint">Issues at or above this severity require review</span>
+                  </div>
+                  <div class="field wide">
+                    <label class="field-label">Max Risk Score</label>
+                    <input id="maxRiskScore" type="number" class="field-input" min="1" max="100" />
+                    <span class="field-hint">Risk score above this threshold blocks merge</span>
+                  </div>
+                  <div class="field wide check-field">
+                    <label class="check-label">
+                      <input id="sensitiveFileReview" type="checkbox" />
+                      <span>Sensitive file changes require manual review</span>
+                    </label>
+                  </div>
+                </form>
+                <div class="gate-legend">
+                  <div class="gate-leg gate-leg--block"><span>BLOCK</span><p>Critical issues or risk score above threshold — PR cannot merge.</p></div>
+                  <div class="gate-leg gate-leg--review"><span>REVIEW</span><p>Major issues, sensitive files, or missing tests — manual review required.</p></div>
+                  <div class="gate-leg gate-leg--pass"><span>PASS</span><p>No high-confidence merge blockers detected.</p></div>
+                </div>
+              </div>
+              <div class="panel">
+                <div class="panel-header"><h2 class="panel-title">Guardrails</h2></div>
+                <div id="guardrailList" class="guardrail-list"></div>
+              </div>
+            </div>
+          </section>
+
+          <!-- AUDIT -->
+          <section id="view-audit" class="view">
+            <div class="panel">
+              <div class="panel-header">
+                <h2 class="panel-title">Audit Trail</h2>
+                <button id="refreshAudit" class="btn btn-sm btn-ghost" type="button">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                  Refresh
+                </button>
+              </div>
+              <div id="auditTrail" class="audit-list"></div>
+            </div>
+          </section>
+
+        </main>
+      </div>
+    </div>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>

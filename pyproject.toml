@@ -57,7 +57,13 @@ maintainers = [
     "Dariia Stepanenko <zozulinadarina97@gmail.com>"
 ]
 packages = [
-    { include = "gito" }
+    { include = "gito" },
+    { include = "code_doctor_app" },
+]
+include = [
+    "code_doctor_app/static/*",
+    "code_doctor_app/review_profile.toml",
+    "press-kit/logo/gito-ai-code-reviewer_logo-180.png",
 ]
 [tool.poetry.urls]
 "Bug Tracker" = "https://github.com/Nayjest/Gito/issues"
@@ -99,6 +105,7 @@ build-backend = "poetry.core.masonry.api"
 [tool.poetry.scripts]
 gito = "gito.entrypoint:main"
 "gito.bot" = "gito.entrypoint:main"  # alias for `uvx gito.bot`
+code-doctor = "code_doctor_app.server:main"
 
 [tool.pytest.ini_options]
 minversion = "6.0"

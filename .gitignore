@@ -46,6 +46,7 @@ htmlcov/
 .coverage
 .coverage.*
 .cache
+.playwright-cli/
 nosetests.xml
 coverage.xml
 coverage.svg
@@ -69,4 +70,6 @@ venv.bak/
 !.aico/project.json
 storage
 code-review-report.*
+.code-doctor/
+output/
 *.zip

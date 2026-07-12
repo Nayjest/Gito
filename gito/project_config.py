@@ -1,4 +1,5 @@
 import logging
+import os
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -95,21 +96,29 @@ class ProjectConfig:
 
         config_path = Path(config_path or PROJECT_CONFIG_FILE_PATH)
         if config_path.exists():
-            logging.info(
-                f"Loading project-specific configuration from {mc.utils.file_link(config_path)}..."
-            )
-            default_prompt_vars = config["prompt_vars"]
-            default_pipeline_steps = config["pipeline_steps"]
-            with open(config_path, "rb") as f:
-                config.update(tomllib.load(f))
-            # overriding prompt_vars config section will not empty default values
-            config["prompt_vars"] = default_prompt_vars | config["prompt_vars"]
-            # merge individual pipeline steps
-            for k, v in config["pipeline_steps"].items():
-                config["pipeline_steps"][k] = default_pipeline_steps.get(k, {}) | v
-            # merge pipeline steps dict
-            config["pipeline_steps"] = default_pipeline_steps | config["pipeline_steps"]
+            ProjectConfig._merge_file(config, config_path, "project-specific")
         else:
             logging.info(f"No project config found at {ui.blue(config_path)}, using defaults")
 
+        extra_config_path = os.getenv("GITO_EXTRA_PROJECT_CONFIG")
+        if extra_config_path:
+            ProjectConfig._merge_file(config, Path(extra_config_path), "extra")
+
         return ProjectConfig(**config)
+
+    @staticmethod
+    def _merge_file(config: dict, config_path: Path, label: str):
+        logging.info(
+            f"Loading {label} configuration from {mc.utils.file_link(config_path)}..."
+        )
+        default_prompt_vars = config["prompt_vars"]
+        default_pipeline_steps = config["pipeline_steps"]
+        with open(config_path, "rb") as f:
+            config.update(tomllib.load(f))
+        # overriding prompt_vars config section should not empty default values
+        config["prompt_vars"] = default_prompt_vars | config["prompt_vars"]
+        # merge individual pipeline steps
+        for k, v in config["pipeline_steps"].items():
+            config["pipeline_steps"][k] = default_pipeline_steps.get(k, {}) | v
+        # merge pipeline steps dict
+        config["pipeline_steps"] = default_pipeline_steps | config["pipeline_steps"]

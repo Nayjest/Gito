@@ -33,6 +33,45 @@ def test_prompt_vars_merging(tmp_path):
     assert cfg.retries == 7
 
 
+def test_extra_project_config_merges_after_repo_config(tmp_path, monkeypatch):
+    repo_config = tmp_path / "repo.toml"
+    repo_config.write_text(
+        textwrap.dedent(
+            """
+            retries = 5
+            [prompt_vars]
+            repo_rule = "present"
+            requirements = "repo"
+            [pipeline_steps.jira]
+            enabled = true
+            """
+        )
+    )
+    extra_config = tmp_path / "extra.toml"
+    extra_config.write_text(
+        textwrap.dedent(
+            """
+            [prompt_vars]
+            requirements = "extra"
+            mentor_rule = "present"
+            [pipeline_steps.jira]
+            enabled = false
+            """
+        )
+    )
+
+    monkeypatch.setenv("GITO_EXTRA_PROJECT_CONFIG", str(extra_config))
+
+    cfg = ProjectConfig.load(config_path=repo_config)
+
+    assert cfg.retries == 5
+    assert cfg.prompt_vars["repo_rule"] == "present"
+    assert cfg.prompt_vars["mentor_rule"] == "present"
+    assert cfg.prompt_vars["requirements"] == "extra"
+    assert "linear" in cfg.pipeline_steps
+    assert not cfg.pipeline_steps["jira"].enabled
+
+
 def test_merge_pipeline_steps():
     file = Path(__file__).parent / "fixtures" / "config-disable-jira.toml"
     cfg = ProjectConfig.load(config_path=file)

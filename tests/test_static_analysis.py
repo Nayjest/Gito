@@ -1,0 +1,127 @@
+from __future__ import annotations
+
+from code_doctor_app import static_analysis as sa
+
+
+def make_diff(path: str, added_lines: list[str], start: int = 1) -> str:
+    body = "\n".join("+" + line for line in added_lines)
+    return (
+        f"diff --git a/{path} b/{path}\n"
+        f"--- a/{path}\n"
+        f"+++ b/{path}\n"
+        f"@@ -0,0 +{start},{len(added_lines)} @@\n"
+        f"{body}\n"
+    )
+
+
+def issues_for(diff: str, path: str) -> list[dict]:
+    return sa.analyze_diff(diff).get(path, [])
+
+
+def rule_ids(findings: list[dict]) -> set[str]:
+    return {finding["rule"] for finding in findings}
+
+
+def test_detects_and_masks_aws_key():
+    diff = make_diff("app/config.py", ['ACCESS = "AKIAZXCVBNMASDFGHJKQ"'], start=12)
+    findings = issues_for(diff, "app/config.py")
+
+    assert rule_ids(findings) == {"aws-access-key"}
+    finding = findings[0]
+    assert finding["severity"] == 1
+    assert finding["affected_lines"][0]["start_line"] == 12
+    code = finding["affected_lines"][0]["affected_code"]
+    assert "AKIAZXCVBNMASDFGHJKQ" not in code  # secret is masked in evidence
+    assert "AKIA" in code
+
+
+def test_skips_placeholder_env_values_but_flags_live_looking_keys():
+    safe = make_diff(".env.example", ["PAYMENT_KEY=replace-with-local-test-key"])
+    risky = make_diff(".env.example", ["PAYMENT_KEY=pk_live_123456789"])
+
+    assert issues_for(safe, ".env.example") == []
+    assert "stripe-publishable-live-key" in rule_ids(issues_for(risky, ".env.example"))
+
+
+def test_python_danger_rules_report_correct_lines():
+    diff = make_diff(
+        "svc/run.py",
+        [
+            "import subprocess",
+            "subprocess.run(cmd, shell=True)",
+            "try:",
+            "    pass",
+            "except:",
+        ],
+        start=10,
+    )
+    findings = issues_for(diff, "svc/run.py")
+    by_rule = {finding["rule"]: finding for finding in findings}
+
+    assert by_rule["subprocess-shell-true"]["affected_lines"][0]["start_line"] == 11
+    assert by_rule["bare-except"]["affected_lines"][0]["start_line"] == 14
+
+
+def test_python_rules_do_not_apply_to_other_languages():
+    diff = make_diff("notes.md", ["subprocess.run(cmd, shell=True)", "except:"])
+    assert issues_for(diff, "notes.md") == []
+
+
+def test_js_rules_flag_xss_and_debug_leftovers():
+    diff = make_diff(
+        "web/app.ts",
+        ["el.innerHTML = userInput", "debugger;", "console.log(token)"],
+    )
+    ids = rule_ids(issues_for(diff, "web/app.ts"))
+    assert {"js-xss-sink", "js-debugger-statement", "js-console-debug"} <= ids
+
+
+def test_merge_conflict_markers_flagged_anywhere():
+    diff = make_diff("src/thing.py", ["<<<<<<< HEAD"])
+    assert rule_ids(issues_for(diff, "src/thing.py")) == {"merge-conflict-marker"}
+
+
+def test_lockfiles_are_excluded():
+    diff = make_diff("package-lock.json", ['"token": "ghp_' + "a" * 40 + '"'])
+    assert sa.analyze_diff(diff) == {}
+
+
+def test_merge_into_report_dedupes_lines_llm_already_flagged():
+    static_issues = sa.analyze_diff(
+        make_diff("svc/run.py", ["subprocess.run(cmd, shell=True)"], start=5)
+    )
+    report = {
+        "issues": {
+            "svc/run.py": [
+                {
+                    "id": 1,
+                    "severity": 2,
+                    "title": "Shell injection risk.",
+                    "tags": ["security"],
+                    "affected_lines": [{"start_line": 4, "end_line": 6}],
+                }
+            ]
+        },
+        "total_issues": 1,
+    }
+
+    added = sa.merge_into_report(report, static_issues)
+
+    assert added == 0
+    assert report["total_issues"] == 1
+    assert len(report["issues"]["svc/run.py"]) == 1
+
+
+def test_merge_into_report_appends_new_findings_with_stable_ids():
+    static_issues = sa.analyze_diff(
+        make_diff("svc/run.py", ["subprocess.run(cmd, shell=True)"], start=5)
+    )
+    report = {"issues": {}, "total_issues": 0}
+
+    added = sa.merge_into_report(report, static_issues)
+
+    assert added == 1
+    finding = report["issues"]["svc/run.py"][0]
+    assert finding["id"] >= sa.STATIC_ISSUE_ID_BASE
+    assert finding["source"] == "static"
+    assert report["total_issues"] == 1
