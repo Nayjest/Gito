@@ -209,10 +209,8 @@ def post_gitlab_cr_comment(
 
     Examples:
       ```bash
-      gito gitlab-comment \
-        --token $GITLAB_ACCESS_TOKEN \
-        --project-id $CI_PROJECT_ID \
-        --merge-request-iid $CI_MERGE_REQUEST_IID
+      gito gitlab-comment --token $GITLAB_ACCESS_TOKEN
+      --project-id $CI_PROJECT_ID --merge-request-iid $CI_MERGE_REQUEST_IID
       ```
     """
     token = require_gl_token(token)

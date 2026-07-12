@@ -23,14 +23,18 @@ $ gito [OPTIONS] COMMAND [ARGS]...
 
 **Commands**:
 
-* `fix`: Fix an issue from the code review report...
+* `github-comment`: Leave a GitHub PR comment with the review.
+* `post-gitlab-comment`: Leaves a comment with the review on the...
+* `gitlab-comment`: Leave a GitLab MR comment with the review.
+* `linear-comment`: Post a comment with specified text to the...
+* `fix`: Fix issues from the code review report...
 * `react-to-comment`: Handles direct agent instructions from...
 * `repl`: Python REPL with core functionality loaded...
-* `init`
-* `deploy`: Create and configure Gito GitHub Actions...
+* `ci`: Deploy Gito to repository&#x27;s CI pipeline...
+* `connect`: Deploy Gito to repository&#x27;s CI pipeline...
+* `init`: Deploy Gito to repository&#x27;s CI pipeline...
+* `deploy`: Create and deploy Gito workflows to your...
 * `version`: Show Gito version.
-* `github-comment`: Leave a GitHub PR comment with the review.
-* `linear-comment`: Post a comment with specified text to the...
 * `run`
 * `review`: Perform a code review of the target...
 * `answer`
@@ -40,19 +44,110 @@ $ gito [OPTIONS] COMMAND [ARGS]...
 * `report`: Render and display code review report.
 * `files`: List files in the changeset.
 
-## `gito fix`
+## `gito github-comment`
 
-Fix an issue from the code review report (latest code review results will be used by default)
+Leave a GitHub PR comment with the review.
 
 **Usage**:
 
 ```console
-$ gito fix [OPTIONS] ISSUE_NUMBER
+$ gito github-comment [OPTIONS]
+```
+
+**Options**:
+
+* `--md-report-file TEXT`
+* `--pr INTEGER`
+* `--gh-repo TEXT`: owner/repo
+* `--token TEXT`: GitHub token (or set GITHUB_TOKEN env var)
+* `--help`: Show this message and exit.
+
+## `gito post-gitlab-comment`
+
+Leaves a comment with the review on the current GitLab merge request.
+
+With --inline, posts an overview comment first, then each issue as a separate
+inline comment anchored to the affected diff lines (published together as one review).
+
+Requires a Project Access Token with &#x27;api&#x27; scope.
+The default $CI_JOB_TOKEN does not have write access to merge requests.
+
+Examples:
+  ```bash
+  gito gitlab-comment --token $GITLAB_ACCESS_TOKEN
+  --project-id $CI_PROJECT_ID --merge-request-iid $CI_MERGE_REQUEST_IID
+  ```
+
+**Usage**:
+
+```console
+$ gito post-gitlab-comment [OPTIONS]
+```
+
+**Options**:
+
+* `--md-report-file TEXT`: Path to the markdown review file. Gito&#x27;s standard report file will be used by default.
+* `--json-report-file TEXT`: Path to the JSON review report (used with --inline). Gito&#x27;s standard report file will be used by default.
+* `--project-id TEXT`: GitLab project ID (numeric) or URL-encoded path
+* `--merge-request-iid INTEGER`: Merge Request IID
+* `--token TEXT`: GitLab access token (or set GITLAB_ACCESS_TOKEN env var)
+* `--base-url TEXT`: GitLab base URL (default env GITLAB_BASE_URL or https://gitlab.com)
+* `--inline`: Post each issue as a separate inline comment on the MR diff (works on all GitLab tiers); the main comment then contains only the review overview.
+* `--help`: Show this message and exit.
+
+## `gito gitlab-comment`
+
+Leave a GitLab MR comment with the review.
+
+**Usage**:
+
+```console
+$ gito gitlab-comment [OPTIONS]
+```
+
+**Options**:
+
+* `--md-report-file TEXT`: Path to the markdown review file. Gito&#x27;s standard report file will be used by default.
+* `--json-report-file TEXT`: Path to the JSON review report (used with --inline). Gito&#x27;s standard report file will be used by default.
+* `--project-id TEXT`: GitLab project ID (numeric) or URL-encoded path
+* `--merge-request-iid INTEGER`: Merge Request IID
+* `--token TEXT`: GitLab access token (or set GITLAB_ACCESS_TOKEN env var)
+* `--base-url TEXT`: GitLab base URL (default env GITLAB_BASE_URL or https://gitlab.com)
+* `--inline`: Post each issue as a separate inline comment on the MR diff (works on all GitLab tiers); the main comment then contains only the review overview.
+* `--help`: Show this message and exit.
+
+## `gito linear-comment`
+
+Post a comment with specified text to the associated Linear issue.
+
+**Usage**:
+
+```console
+$ gito linear-comment [OPTIONS] [TEXT]
 ```
 
 **Arguments**:
 
-* `ISSUE_NUMBER`: Issue number to fix  [required]
+* `[TEXT]`: Comment text (supports Markdown). Use &#x27;-&#x27; to read from stdin.
+
+**Options**:
+
+* `-k, --issue-key TEXT`: Linear issue key (if not provided, will be resolved from the current repo branch)
+* `--help`: Show this message and exit.
+
+## `gito fix`
+
+Fix issues from the code review report (latest code review results will be used by default). If no issue number is provided, attempts to fix all fixable issues.
+
+**Usage**:
+
+```console
+$ gito fix [OPTIONS] [ISSUE_NUMBERS]...
+```
+
+**Arguments**:
+
+* `[ISSUE_NUMBERS]...`: Issue number(s) to fix (separated by space, fixes all if omitted)
 
 **Options**:
 
@@ -60,6 +155,7 @@ $ gito fix [OPTIONS] ISSUE_NUMBER
 * `-d, --dry-run`: Only print changes without applying them
 * `--commit / --no-commit`: Commit changes after applying them  [default: no-commit]
 * `--push / --no-push`: Push changes to the remote repository  [default: no-push]
+* `--src-path TEXT`: Base path to prepend to file paths in the report (if report paths are relative)
 * `--help`: Show this message and exit.
 
 ## `gito react-to-comment`
@@ -101,7 +197,49 @@ $ gito repl [OPTIONS]
 
 * `--help`: Show this message and exit.
 
+## `gito ci`
+
+Deploy Gito to repository&#x27;s CI pipeline for automatic code reviews.
+
+**Usage**:
+
+```console
+$ gito ci [OPTIONS]
+```
+
+**Options**:
+
+* `--api-type [openai|azure|anyscale|deep_infra|anthropic|google_vertex_ai|google_ai_studio|google|function|transformers|cli|none]`: LLM API type (interactive if omitted)
+* `--commit / --no-commit`: Commit and push changes
+* `--rewrite / --no-rewrite`: Overwrite existing configuration  [default: no-rewrite]
+* `--to-branch TEXT`: Branch name for new PR containing Gito CI workflows  [default: gito-ci]
+* `--token TEXT`: GitHub token (or set GITHUB_TOKEN env var)
+* `--model TEXT`: Language model to use (interactive if omitted; &quot;default&quot; selects the recommended model)
+* `--help`: Show this message and exit.
+
+## `gito connect`
+
+Deploy Gito to repository&#x27;s CI pipeline for automatic code reviews.
+
+**Usage**:
+
+```console
+$ gito connect [OPTIONS]
+```
+
+**Options**:
+
+* `--api-type [openai|azure|anyscale|deep_infra|anthropic|google_vertex_ai|google_ai_studio|google|function|transformers|cli|none]`: LLM API type (interactive if omitted)
+* `--commit / --no-commit`: Commit and push changes
+* `--rewrite / --no-rewrite`: Overwrite existing configuration  [default: no-rewrite]
+* `--to-branch TEXT`: Branch name for new PR containing Gito CI workflows  [default: gito-ci]
+* `--token TEXT`: GitHub token (or set GITHUB_TOKEN env var)
+* `--model TEXT`: Language model to use (interactive if omitted; &quot;default&quot; selects the recommended model)
+* `--help`: Show this message and exit.
+
 ## `gito init`
+
+Deploy Gito to repository&#x27;s CI pipeline for automatic code reviews.
 
 **Usage**:
 
@@ -111,17 +249,19 @@ $ gito init [OPTIONS]
 
 **Options**:
 
-* `--api-type [openai|azure|anyscale|deep_infra|anthropic|google_vertex_ai|google_ai_studio|function|transformers|none]`
-* `--commit / --no-commit`
-* `--rewrite / --no-rewrite`: [default: no-rewrite]
-* `--to-branch TEXT`: Branch name for the new PR containing the Gito workflows commit  [default: gito_deploy]
+* `--api-type [openai|azure|anyscale|deep_infra|anthropic|google_vertex_ai|google_ai_studio|google|function|transformers|cli|none]`: LLM API type (interactive if omitted)
+* `--commit / --no-commit`: Commit and push changes
+* `--rewrite / --no-rewrite`: Overwrite existing configuration  [default: no-rewrite]
+* `--to-branch TEXT`: Branch name for new PR containing Gito CI workflows  [default: gito-ci]
 * `--token TEXT`: GitHub token (or set GITHUB_TOKEN env var)
+* `--model TEXT`: Language model to use (interactive if omitted; &quot;default&quot; selects the recommended model)
 * `--help`: Show this message and exit.
 
 ## `gito deploy`
 
-Create and configure Gito GitHub Actions for current repository.
-aliases: init
+Create and deploy Gito workflows to your CI pipeline for automatic code reviews.
+Run this command from your repository root.
+aliases: init, connect, ci
 
 **Usage**:
 
@@ -131,11 +271,12 @@ $ gito deploy [OPTIONS]
 
 **Options**:
 
-* `--api-type [openai|azure|anyscale|deep_infra|anthropic|google_vertex_ai|google_ai_studio|function|transformers|none]`
-* `--commit / --no-commit`
-* `--rewrite / --no-rewrite`: [default: no-rewrite]
-* `--to-branch TEXT`: Branch name for the new PR containing the Gito workflows commit  [default: gito_deploy]
+* `--api-type [openai|azure|anyscale|deep_infra|anthropic|google_vertex_ai|google_ai_studio|google|function|transformers|cli|none]`: LLM API type (interactive if omitted)
+* `--commit / --no-commit`: Commit and push changes
+* `--rewrite / --no-rewrite`: Overwrite existing configuration  [default: no-rewrite]
+* `--to-branch TEXT`: Branch name for new PR containing Gito CI workflows  [default: gito-ci]
 * `--token TEXT`: GitHub token (or set GITHUB_TOKEN env var)
+* `--model TEXT`: Language model to use (interactive if omitted; &quot;default&quot; selects the recommended model)
 * `--help`: Show this message and exit.
 
 ## `gito version`
@@ -147,43 +288,6 @@ Show Gito version.
 ```console
 $ gito version [OPTIONS]
 ```
-
-**Options**:
-
-* `--help`: Show this message and exit.
-
-## `gito github-comment`
-
-Leave a GitHub PR comment with the review.
-
-**Usage**:
-
-```console
-$ gito github-comment [OPTIONS]
-```
-
-**Options**:
-
-* `--md-report-file TEXT`
-* `--pr INTEGER`
-* `--gh-repo TEXT`: owner/repo
-* `--token TEXT`: GitHub token (or set GITHUB_TOKEN env var)
-* `--help`: Show this message and exit.
-
-## `gito linear-comment`
-
-Post a comment with specified text to the associated Linear issue.
-
-**Usage**:
-
-```console
-$ gito linear-comment [OPTIONS] [TEXT] [REFS]
-```
-
-**Arguments**:
-
-* `[TEXT]`
-* `[REFS]`: Git refs to review, .. (e.g., &#x27;HEAD..HEAD~1&#x27;). If omitted, the current index (including added but not committed files) will be compared to the repository’s main branch.
 
 **Options**:
 
@@ -210,10 +314,10 @@ e.g. &#x27;src/**/*.py&#x27;, may be comma-separated
 * `--merge-base / --no-merge-base`: Use merge base for comparison  [default: merge-base]
 * `--url TEXT`: Git repository URL
 * `--path TEXT`: Git repository path
-* `--post-comment / --no-post-comment`: Post review comment to GitHub  [default: no-post-comment]
-* `--pr INTEGER`: GitHub Pull Request number to post the comment to
+* `--post-comment / --no-post-comment`: Post review comment to git platform (GitHub, GitLab, etc.)  [default: no-post-comment]
+* `--pr INTEGER`: GitHub Pull Request number or GitLab Merge Request ID to post the comment to
 (for local usage together with --post-comment,
-in the github actions PR is resolved from the environment)
+in the GitHub/GitLab actions PR/MR is resolved from the environment)
 * `-o, --out, --output TEXT`: Output folder for the code review report
 * `--all / --no-all`: Review whole codebase  [default: no-all]
 * `--help`: Show this message and exit.
@@ -241,10 +345,10 @@ e.g. &#x27;src/**/*.py&#x27;, may be comma-separated
 * `--merge-base / --no-merge-base`: Use merge base for comparison  [default: merge-base]
 * `--url TEXT`: Git repository URL
 * `--path TEXT`: Git repository path
-* `--post-comment / --no-post-comment`: Post review comment to GitHub  [default: no-post-comment]
-* `--pr INTEGER`: GitHub Pull Request number to post the comment to
+* `--post-comment / --no-post-comment`: Post review comment to git platform (GitHub, GitLab, etc.)  [default: no-post-comment]
+* `--pr INTEGER`: GitHub Pull Request number or GitLab Merge Request ID to post the comment to
 (for local usage together with --post-comment,
-in the github actions PR is resolved from the environment)
+in the GitHub/GitLab actions PR/MR is resolved from the environment)
 * `-o, --out, --output TEXT`: Output folder for the code review report
 * `--all / --no-all`: Review whole codebase  [default: no-all]
 * `--help`: Show this message and exit.
@@ -331,7 +435,7 @@ $ gito render [OPTIONS] [FORMAT]
 
 **Arguments**:
 
-* `[FORMAT]`: [default: cli]
+* `[FORMAT]`: Report format: md (Markdown), cli (terminal)  [default: cli]
 
 **Options**:
 
@@ -350,7 +454,7 @@ $ gito report [OPTIONS] [FORMAT]
 
 **Arguments**:
 
-* `[FORMAT]`: [default: cli]
+* `[FORMAT]`: Report format: md (Markdown), cli (terminal)  [default: cli]
 
 **Options**:
 
@@ -380,4 +484,5 @@ $ gito files [OPTIONS] [REFS]
 e.g. &#x27;src/**/*.py&#x27;, may be comma-separated
 * `--merge-base / --no-merge-base`: Use merge base for comparison  [default: merge-base]
 * `--diff / --no-diff`: Show diff content  [default: no-diff]
+* `--all / --no-all`: Review whole codebase  [default: no-all]
 * `--help`: Show this message and exit.
