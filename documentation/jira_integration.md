@@ -38,13 +38,18 @@ If an associated issue is found, Gito’s summary prompt includes a special sect
 Gito reads Jira credentials from environment variables (or passed explicitly to the pipeline step):
 
 - `JIRA_URL` — Base Jira URL, e.g. `https://your-domain.atlassian.net`
-- `JIRA_USER` / `JIRA_USERNAME` / `JIRA_EMAIL` — Username/email for Jira auth
+- `JIRA_USER` / `JIRA_USERNAME` / `JIRA_EMAIL` — Optional username/email for Jira basic auth
 - `JIRA_TOKEN` / `JIRA_API_TOKEN` / `JIRA_API_KEY` — Jira API token
 
 Resolution order (as implemented in `gito/pipeline_steps/jira.py`):
 
-- Username: `jira_username` arg → `JIRA_USERNAME` → `JIRA_USER` → `JIRA_EMAIL`
+- Username (optional): `jira_username` arg → `JIRA_USERNAME` → `JIRA_USER` → `JIRA_EMAIL`
 - Token: `jira_api_token` arg → `JIRA_API_TOKEN` → `JIRA_API_KEY` → `JIRA_TOKEN`
+
+Authentication is selected automatically:
+
+- With a username, Gito uses Jira basic authentication, preserving the existing Jira Cloud setup.
+- Without a username, Gito uses token authentication (`token_auth`), which supports Jira Server and Data Center personal access tokens.
 
 ### Branch naming convention
 Gito extracts the issue key using `gito.issue_trackers.extract_issue_key()`, which expects:
@@ -83,7 +88,7 @@ The pipeline step lives here:
 Key logic:
 
 - `resolve_issue_key(repo)` determines the current branch (supports GitHub Actions env) and extracts the issue key.
-- `fetch_issue(...)` uses `jira.JIRA(..., basic_auth=(username, api_token))` and loads `jira.issue(issue_key)`.
+- `fetch_issue(...)` uses `jira.JIRA(..., basic_auth=(username, api_token))` when a username is configured; otherwise it uses `jira.JIRA(..., token_auth=api_token)`. It then loads `jira.issue(issue_key)`.
 
 The returned value is normalized into:
 
@@ -132,13 +137,21 @@ env:
   JIRA_USER: ${{ secrets.JIRA_USER }}
 ```
 
-### Required GitHub Secrets
+For token-authenticated Jira Server or Data Center, omit `JIRA_USER`:
+
+```yaml
+env:
+  JIRA_TOKEN: ${{ secrets.JIRA_TOKEN }}
+  JIRA_URL: ${{ secrets.JIRA_URL }}
+```
+
+### GitHub Secrets
 Add these secrets under:
 
 **Settings → Secrets and variables → Actions → New repository secret**
 
 - `JIRA_URL`
-- `JIRA_USER`
+- `JIRA_USER` (optional; omit for token-authenticated Jira Server/Data Center)
 - `JIRA_TOKEN`
 
 ## Disabling Jira integration
@@ -166,6 +179,8 @@ Common causes:
 - Wrong `JIRA_URL` (must match your Jira base URL)
 - Token is invalid/expired
 - User lacks permission to read the issue/project
+
+For Jira Server or Data Center using a personal access token, do not set `JIRA_USER`, `JIRA_USERNAME`, or `JIRA_EMAIL`; Gito will use token authentication automatically.
 
 Check workflow logs; errors are surfaced from `jira.JIRAError` with status code + response text.
 

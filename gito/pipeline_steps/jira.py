@@ -8,20 +8,22 @@ from gito.issue_trackers import IssueTrackerIssue, resolve_issue_key
 
 
 def fetch_issue(
-    issue_key: str, jira_url: str, username: str, api_token: str
+    issue_key: str, jira_url: str, username: str | None, api_token: str
 ) -> IssueTrackerIssue | None:
     """
     Fetch a Jira issue by its key.
     Args:
         issue_key (str): The key of the Jira issue to fetch.
         jira_url (str): The base URL of the Jira instance.
-        username (str): The Jira username for authentication.
+        username (str | None): The Jira username for basic authentication. When omitted,
+            token authentication is used instead.
         api_token (str): The Jira API token for authentication.
     Returns:
         IssueTrackerIssue | None: The fetched issue or None if not found/error.
     """
     try:
-        jira = JIRA(jira_url, basic_auth=(username, api_token))
+        auth = {"basic_auth": (username, api_token)} if username else {"token_auth": api_token}
+        jira = JIRA(jira_url, **auth)
         issue = jira.issue(issue_key)
         return IssueTrackerIssue(
             title=issue.fields.summary,
@@ -57,7 +59,6 @@ def fetch_associated_issue(
     )
     try:
         assert jira_url, "JIRA_URL is not set"
-        assert jira_username, "JIRA_USERNAME is not set"
         assert jira_token, "JIRA_API_TOKEN is not set"
     except AssertionError as e:
         logging.error(f"Jira configuration error: {e}")
