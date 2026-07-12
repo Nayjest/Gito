@@ -70,3 +70,4 @@ venv.bak/
 storage
 code-review-report.*
 *.zip
+cc.bat
