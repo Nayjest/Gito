@@ -53,7 +53,7 @@ gito-ai-review:
     LLM_API_KEY: $LLM_API_KEY
     MODEL: gpt-5.2
   script:
-    - pip install gito.bot~=4.3
+    - pip install gito.bot~=4.4
     - gito --verbose review --against="origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
     - gito gitlab-comment --token "$GITLAB_ACCESS_TOKEN" --project-id "$CI_PROJECT_ID" --merge-request-iid "$CI_MERGE_REQUEST_IID"
     - gito -v0 render gitlab_code_quality > gitlab_code_quality_report.json
