@@ -10,7 +10,7 @@ from typer.main import get_command
 
 import gito.cli  # noqa: F401  # registers CLI commands on the shared app
 from gito.cli_base import app, command_requires_llm
-from gito.commands.deploy import deploy
+from gito.commands.deploy import _configure_llm, deploy
 from gito.bootstrap import bootstrap
 from gito.utils.git_platform.platform_types import PlatformType
 
@@ -98,6 +98,15 @@ def test_bootstrap_ignores_llm_cli_for_non_llm_command(monkeypatch):
 
     assert mc.config().LLM_API_TYPE == mc.ApiType.NONE
     assert mc.config().LLM_CLI is None
+
+
+def test_deploy_uses_current_openai_default_model():
+    """`--model default` selects the current recommended OpenAI model."""
+    api_type, secret_name, model = _configure_llm("openai", model="default")
+
+    assert api_type == mc.ApiType.OPENAI
+    assert secret_name == "OPENAI_API_KEY"
+    assert model == "gpt-5.6"
 
 
 def test_deploy_github_creates_workflow_files(github_repo, monkeypatch):

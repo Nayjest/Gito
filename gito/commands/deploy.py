@@ -391,9 +391,9 @@ def _configure_llm(
             "claude-haiku-4-5": f"Claude Haiku 4.5 {ui.dim}(cheapest but less capable)",
         },
         ApiType.OPENAI: {
-            "gpt-5.5": f"GPT-5.5 {ui.dim} (recommended)",
-            "gpt-5.4": "GPT-5.4",
-            "gpt-5.4-mini": "GPT-5.4 Mini",
+            "gpt-5.6": f"GPT-5.6 {ui.dim}(recommended)",
+            "gpt-5.6-terra": f"GPT-5.6 Terra {ui.dim}(balanced)",
+            "gpt-5.6-luna": f"GPT-5.6 Luna {ui.dim}(cost-sensitive)",
         },
         ApiType.GOOGLE: {
             "gemini-2.5-pro": "Gemini 2.5 Pro",
@@ -423,7 +423,7 @@ def _configure_llm(
     }
     default_models = {
         ApiType.ANTHROPIC: "claude-sonnet-5",
-        ApiType.OPENAI: "gpt-5.5",
+        ApiType.OPENAI: "gpt-5.6",
         ApiType.GOOGLE: "gemini-2.5-pro",
     }
     use_default_model = model == "default"
