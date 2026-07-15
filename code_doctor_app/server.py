@@ -33,6 +33,8 @@ GZIP_MIN_SIZE   = 860                  # compress responses larger than this
 STATIC_CACHE_TTL = 3600               # 1-hour cache for static assets
 APP_VERSION     = "4.3.1"
 REVIEW_TIMEOUT_DEFAULT = 3600         # hard cap on a single review subprocess (seconds)
+GENERATION_TIMEOUT_DEFAULT = 1200     # hard cap on a test/PR generation subprocess
+GENERATION_KINDS = {"tests", "pr"}
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -47,6 +49,7 @@ REVIEW_PROFILE = Path(__file__).resolve().parent / "review_profile.toml"
 DEFAULT_FILTERS = "*.py,*.js,*.jsx,*.ts,*.tsx,*.mjs,*.cjs"
 DEFAULT_OLLAMA_BASE = "http://localhost:11434"
 DEFAULT_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
+RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 SENSITIVE_PATTERNS = [
     ".env",
     ".env.*",
@@ -170,7 +173,13 @@ def merge_dicts(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]
 
 
 def run_dir(run_id: str) -> Path:
-    return RUNS_DIR / run_id
+    if not isinstance(run_id, str) or not RUN_ID_RE.fullmatch(run_id):
+        raise ValueError("Invalid review run id.")
+    root = RUNS_DIR.resolve(strict=False)
+    path = (RUNS_DIR / run_id).resolve(strict=False)
+    if path != root and root not in path.parents:
+        raise ValueError("Invalid review run id.")
+    return path
 
 
 def meta_path(run_id: str) -> Path:
@@ -183,6 +192,14 @@ def report_path(run_id: str) -> Path:
 
 def markdown_path(run_id: str) -> Path:
     return run_dir(run_id) / "code-review-report.md"
+
+
+def tests_json_path(run_id: str) -> Path:
+    return run_dir(run_id) / "generated-tests.json"
+
+
+def pr_draft_json_path(run_id: str) -> Path:
+    return run_dir(run_id) / "pr-draft.json"
 
 
 def log_path(run_id: str) -> Path:
@@ -403,6 +420,39 @@ def openai_compatible_base(ollama_base: str) -> str:
     return normalize_ollama_base(ollama_base) + "/v1/"
 
 
+def review_options(payload: dict[str, Any]) -> dict[str, Any]:
+    mode = str(payload.get("mode") or "working").strip()
+    refs = str(payload.get("refs") or "").strip()
+    what = str(payload.get("what") or "").strip()
+    against = str(payload.get("against") or "").strip()
+    use_merge_base = payload.get("mergeBase") is not False
+
+    if mode not in {"working", "refs", "all"}:
+        raise ValueError("Unsupported review mode.")
+
+    if mode == "all":
+        refs = what = against = ""
+        use_merge_base = False
+    elif mode == "working":
+        if not against:
+            against = "HEAD"
+            use_merge_base = False
+    elif refs and against:
+        if ".." in refs:
+            raise ValueError("Use either a refs pair or a separate Against ref, not both.")
+        what = what or refs
+        refs = ""
+
+    return {
+        "mode": mode,
+        "refs": refs,
+        "what": what,
+        "against": against,
+        "filters": (payload.get("filters") or DEFAULT_FILTERS).strip(),
+        "use_merge_base": use_merge_base,
+    }
+
+
 def require_git_repo(repo_path: str) -> Path:
     path = Path(repo_path).expanduser().resolve()
     if not path.exists() or not path.is_dir():
@@ -426,13 +476,17 @@ def require_git_repo(repo_path: str) -> Path:
     return Path(root).resolve()
 
 
-def build_review_command(payload: dict[str, Any], out_dir: Path) -> list[str]:
+def build_review_command(
+    payload: dict[str, Any],
+    out_dir: Path,
+    options: dict[str, Any] | None = None,
+) -> list[str]:
     cmd = [sys.executable, "-m", "gito", "review"]
-    mode = payload.get("mode") or "working"
-    refs = (payload.get("refs") or "").strip()
-    what = (payload.get("what") or "").strip()
-    against = (payload.get("against") or "").strip()
-    use_merge_base = payload.get("mergeBase") is not False
+    options = options or review_options(payload)
+    mode = options["mode"]
+    refs = options["refs"]
+    what = options["what"]
+    against = options["against"]
 
     if mode == "all":
         cmd.append("--all")
@@ -443,22 +497,183 @@ def build_review_command(payload: dict[str, Any], out_dir: Path) -> list[str]:
             cmd.extend(["--what", what])
         if against:
             cmd.extend(["--against", against])
-        elif mode == "working":
-            cmd.extend(["--against", "HEAD"])
-            use_merge_base = False
 
-    if not use_merge_base:
+    if not options["use_merge_base"]:
         cmd.append("--no-merge-base")
 
-    filters = (payload.get("filters") or DEFAULT_FILTERS).strip()
-    if filters:
-        cmd.extend(["--filter", filters])
+    if options["filters"]:
+        cmd.extend(["--filter", options["filters"]])
 
     cmd.extend(["--out", str(out_dir)])
     return cmd
 
 
 SECURITY_TAGS = {"security", "secret-handling", "input-validation"}
+TEXT_SAMPLE_LIMIT = 200_000
+MAX_GENERATED_TEST_CASES = 30
+AI_TEST_SIGNAL_TERMS = {
+    "prompt": (
+        "prompt",
+        "system_prompt",
+        "developer_prompt",
+        "system message",
+        "jailbreak",
+        "instruction",
+    ),
+    "rag": (
+        "rag",
+        "retriever",
+        "retrieval",
+        "vector",
+        "embedding",
+        "chunk",
+        "citation",
+        "grounding",
+        "context window",
+    ),
+    "agent": (
+        "agent",
+        "tool_call",
+        "tool call",
+        "function_call",
+        "function call",
+        "tool schema",
+        "tool_choice",
+        "planner",
+    ),
+    "schema": (
+        "json_schema",
+        "response_format",
+        "output_schema",
+        "structured output",
+        "pydantic",
+        "zod",
+        "schema validation",
+    ),
+    "model": (
+        "openai",
+        "anthropic",
+        "ollama",
+        "llm",
+        "chatcompletion",
+        "responses.create",
+        "temperature",
+        "max_tokens",
+        "rate limit",
+    ),
+    "eval": (
+        "evals",
+        "evaluation",
+        "benchmark",
+        "golden set",
+        "scorecard",
+        "grader",
+    ),
+}
+AI_TEST_TEMPLATES = {
+    "prompt": {
+        "type": "ai-prompt-injection",
+        "title": "Prompt-injection regression for {file}",
+        "rationale": (
+            "Changed prompt or instruction code should resist hostile user instructions "
+            "and avoid leaking hidden context."
+        ),
+        "steps": [
+            "Send a normal task with realistic user input.",
+            "Send a jailbreak-style request that asks the model to ignore system instructions.",
+            "Compare the response against the expected policy and output contract.",
+        ],
+        "expected": (
+            "The response follows system and developer instructions, does not reveal hidden "
+            "context, and keeps the expected response shape."
+        ),
+        "automation_hint": "Add benign and hostile prompts to the AI eval suite.",
+    },
+    "rag": {
+        "type": "ai-rag-grounding",
+        "title": "RAG grounding regression for {file}",
+        "rationale": (
+            "Retrieval changes should keep answers grounded in retrieved sources and handle "
+            "empty or noisy context predictably."
+        ),
+        "steps": [
+            "Run a query with a relevant retrieved document.",
+            "Run the same query with irrelevant or empty retrieved context.",
+            "Assert citations or source references match the retrieved documents.",
+        ],
+        "expected": (
+            "Answers use only retrieved evidence when available and abstain or ask for more "
+            "context when evidence is missing."
+        ),
+        "automation_hint": "Use a small fixture corpus with positive, noisy, and empty retrieval cases.",
+    },
+    "agent": {
+        "type": "ai-tool-guardrail",
+        "title": "Agent tool guardrail regression for {file}",
+        "rationale": (
+            "Agent and tool-call paths should validate tool names, arguments, and permissions "
+            "before side effects happen."
+        ),
+        "steps": [
+            "Invoke an allowed tool with valid arguments.",
+            "Invoke a disallowed tool or malformed arguments through a model response.",
+            "Assert rejected tool calls do not execute side effects.",
+        ],
+        "expected": (
+            "Only allowlisted tools with schema-valid arguments execute, and rejected calls "
+            "return a controlled error."
+        ),
+        "automation_hint": "Mock tools and assert call counts, arguments, and rejection errors.",
+    },
+    "schema": {
+        "type": "ai-schema-contract",
+        "title": "Structured-output contract regression for {file}",
+        "rationale": (
+            "AI outputs that cross code boundaries should be validated before application "
+            "logic trusts them."
+        ),
+        "steps": [
+            "Return a valid model response that matches the schema.",
+            "Return malformed JSON or a response missing required fields.",
+            "Assert the parser retries, falls back, or returns a controlled validation error.",
+        ],
+        "expected": "Invalid model output is rejected before downstream code uses it.",
+        "automation_hint": "Mock the model client with valid and invalid structured responses.",
+    },
+    "model": {
+        "type": "ai-model-resilience",
+        "title": "Model failure-path regression for {file}",
+        "rationale": (
+            "Model client changes should handle provider errors without duplicate side "
+            "effects or silent success."
+        ),
+        "steps": [
+            "Mock a successful model response.",
+            "Mock timeout, rate-limit, and malformed-response failures.",
+            "Assert retry limits, fallback behavior, and user-facing errors.",
+        ],
+        "expected": (
+            "Failures are bounded, logged, and surfaced without marking the AI workflow as "
+            "successful."
+        ),
+        "automation_hint": "Stub the provider client and assert retry count plus final status.",
+    },
+    "eval": {
+        "type": "ai-eval-coverage",
+        "title": "AI eval coverage regression for {file}",
+        "rationale": (
+            "Evaluation code should keep a stable golden set and fail when output quality or "
+            "policy compliance regresses."
+        ),
+        "steps": [
+            "Run the golden set before and after the change.",
+            "Include at least one negative or refusal case.",
+            "Assert score thresholds and failure reporting are deterministic.",
+        ],
+        "expected": "The eval run fails on meaningful quality, grounding, or policy regressions.",
+        "automation_hint": "Add the case to the local eval harness or CI eval job.",
+    },
+}
 
 
 def issue_fingerprint(issue: dict[str, Any]) -> str:
@@ -468,6 +683,292 @@ def issue_fingerprint(issue: dict[str, Any]) -> str:
     tags = ",".join(sorted(issue.get("tags") or []))
     key = f"{issue.get('file', '')}|{tags}|{title}"
     return hashlib.sha1(key.encode("utf-8")).hexdigest()[:16]
+
+
+def unique_nonempty(values: list[Any] | tuple[Any, ...]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        item = str(value or "").strip()
+        if item and item not in seen:
+            seen.add(item)
+            result.append(item)
+    return result
+
+
+def coverage_watch_patterns() -> list[str]:
+    patterns = load_policies().get("coverage", {}).get("watchPatterns", [])
+    return [str(pattern) for pattern in patterns] if isinstance(patterns, list) else []
+
+
+def classify_scope_files(files: list[str]) -> dict[str, list[str]]:
+    changed = unique_nonempty(files)
+    watch_patterns = coverage_watch_patterns()
+    return {
+        "changed": changed,
+        "sensitive": [
+            file
+            for file in changed
+            if any(fnmatch_match(file, pattern) for pattern in SENSITIVE_PATTERNS)
+        ],
+        "tests": [
+            file
+            for file in changed
+            if any(fnmatch_match(file, pattern) for pattern in watch_patterns)
+        ],
+    }
+
+
+def collect_scope_files(repo_path: Path, options: dict[str, Any]) -> list[str]:
+    return static_analysis.collect_changed_files(
+        repo_path,
+        mode=options["mode"],
+        refs=options["refs"],
+        what=options["what"],
+        against=options["against"],
+        use_merge_base=options["use_merge_base"],
+        filters=options["filters"],
+    )
+
+
+def _stable_test_case_id(*parts: Any) -> str:
+    key = "|".join(str(part or "") for part in parts)
+    return "tc-" + hashlib.sha1(key.encode("utf-8")).hexdigest()[:10]
+
+
+def _test_runner_hint(file: str) -> str:
+    lower = file.lower()
+    if lower.endswith(".py"):
+        return "pytest"
+    if lower.endswith((".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs")):
+        return "vitest or jest"
+    return "project test runner"
+
+
+def _issue_priority(issue: dict[str, Any]) -> str:
+    severity = issue.get("severity")
+    tags = set(issue.get("tags") or [])
+    if severity == 1 or SECURITY_TAGS.intersection(tags):
+        return "P0"
+    if isinstance(severity, int) and severity <= 2:
+        return "P1"
+    return "P2"
+
+
+def _issue_location(issue: dict[str, Any]) -> str:
+    file = str(issue.get("file") or "")
+    affected = issue.get("affected_lines") or []
+    if affected and isinstance(affected[0], dict) and affected[0].get("start_line"):
+        return f"{file}:{affected[0]['start_line']}"
+    return file
+
+
+def _issue_test_case(issue: dict[str, Any]) -> dict[str, Any]:
+    file = str(issue.get("file") or "")
+    title = str(issue.get("title") or "Review finding")
+    tags = set(issue.get("tags") or [])
+    location = _issue_location(issue)
+    runner = _test_runner_hint(file)
+    if "secret-handling" in tags:
+        case_type = "secret-hygiene"
+        case_title = f"Secret hygiene regression for {file}"
+        rationale = "The reviewed change handles credential-like data and should reject production-looking secrets."
+        steps = [
+            "Load the affected configuration or template with placeholder credentials.",
+            "Load the same path with a production-looking key or token.",
+            "Assert the unsafe value is rejected, masked, or never persisted.",
+        ]
+        expected = "Production-looking credentials do not pass validation or appear in committed output."
+    elif "async-flow" in tags:
+        case_type = "async-failure-path"
+        case_title = f"Async failure-path regression for {file}"
+        rationale = "The finding involves async control flow where failures can be reported as success."
+        steps = [
+            "Mock the asynchronous dependency to resolve successfully.",
+            "Mock the same dependency to reject or time out.",
+            "Assert the handler awaits the dependency and returns the correct failure status.",
+        ]
+        expected = "The workflow only reports success after the async dependency succeeds."
+    elif SECURITY_TAGS.intersection(tags):
+        case_type = "security-regression"
+        case_title = f"Security regression for {file}"
+        rationale = "The finding changes a trust boundary and needs a negative test, not only a happy path."
+        steps = [
+            "Exercise the valid path with authorized or well-formed input.",
+            "Exercise an unauthorized, malformed, or hostile input at the same boundary.",
+            "Assert the unsafe path is rejected before side effects happen.",
+        ]
+        expected = "Invalid or unauthorized input is rejected at the boundary identified by the review."
+    else:
+        case_type = "finding-regression"
+        case_title = f"Regression test for {title}"
+        rationale = "The reviewed behavior should have a targeted test that fails before the fix."
+        steps = [
+            f"Create a fixture that reaches {location}.",
+            "Exercise the behavior described by the review finding.",
+            "Assert the corrected behavior and the failure mode.",
+        ]
+        expected = "The test fails with the reviewed bug present and passes after the fix."
+    return {
+        "type": case_type,
+        "title": case_title,
+        "priority": _issue_priority(issue),
+        "file": file,
+        "source": f"finding:{issue.get('id', '')}",
+        "rationale": rationale,
+        "steps": steps,
+        "expected": expected,
+        "automation_hint": f"Automate with {runner} near the affected code path.",
+    }
+
+
+def _read_file_sample(repo_path: Path | None, file: str) -> str:
+    if not repo_path or not file:
+        return ""
+    try:
+        root = repo_path.resolve(strict=False)
+        target = (Path(file) if Path(file).is_absolute() else root / file).resolve(strict=False)
+        if target != root and root not in target.parents:
+            return ""
+        if not target.exists() or not target.is_file() or target.stat().st_size > TEXT_SAMPLE_LIMIT:
+            return ""
+        return target.read_text(encoding="utf-8", errors="ignore")[:8000]
+    except OSError:
+        return ""
+
+
+def _ai_signals_for_context(file: str, issue: dict[str, Any] | None = None, sample: str = "") -> list[str]:
+    issue_text = ""
+    if issue:
+        issue_text = " ".join(
+            [
+                str(issue.get("title") or ""),
+                str(issue.get("details") or ""),
+                " ".join(str(tag) for tag in issue.get("tags") or []),
+            ]
+        )
+    haystack = f"{file}\n{issue_text}\n{sample}".lower()
+    signals = [
+        signal
+        for signal, terms in AI_TEST_SIGNAL_TERMS.items()
+        if any(term in haystack for term in terms)
+    ]
+    return sorted(set(signals))
+
+
+def _add_case(cases: list[dict[str, Any]], seen: set[tuple[str, str, str]], case: dict[str, Any]) -> None:
+    if len(cases) >= MAX_GENERATED_TEST_CASES:
+        return
+    key = (str(case.get("type")), str(case.get("file")), str(case.get("title")))
+    if key in seen:
+        return
+    case["id"] = _stable_test_case_id(case.get("type"), case.get("file"), case.get("title"), case.get("source"))
+    seen.add(key)
+    cases.append(case)
+
+
+def _ai_test_case(signal: str, file: str, priority: str, source: str) -> dict[str, Any] | None:
+    template = AI_TEST_TEMPLATES.get(signal)
+    if not template:
+        return None
+    return {
+        "type": template["type"],
+        "title": template["title"].format(file=file),
+        "priority": priority,
+        "file": file,
+        "source": source,
+        "rationale": template["rationale"],
+        "steps": list(template["steps"]),
+        "expected": template["expected"],
+        "automation_hint": template["automation_hint"],
+    }
+
+
+def _review_scope_files(meta: dict[str, Any], report: dict[str, Any] | None) -> list[str]:
+    changed = meta.get("changed_files")
+    if isinstance(changed, list) and changed:
+        return unique_nonempty(changed)
+
+    issue_files = unique_nonempty([issue.get("file") for issue in flatten_report_issues(report)])
+    if issue_files:
+        return issue_files
+
+    repo_path = meta.get("repo_path")
+    if not repo_path:
+        return []
+    try:
+        return collect_scope_files(
+            require_git_repo(repo_path),
+            {
+                "mode": meta.get("mode") or "working",
+                "refs": meta.get("refs") or "",
+                "what": meta.get("what") or "",
+                "against": meta.get("against") or "HEAD",
+                "filters": meta.get("filters") or DEFAULT_FILTERS,
+                "use_merge_base": meta.get("merge_base") is not False,
+            },
+        )
+    except Exception:
+        return []
+
+
+def generate_review_test_cases(meta: dict[str, Any], report: dict[str, Any] | None) -> dict[str, Any]:
+    issues = flatten_report_issues(report)
+    scope_files = _review_scope_files(meta, report)
+    classified = classify_scope_files(scope_files)
+    repo_path = Path(meta["repo_path"]) if meta.get("repo_path") else None
+    samples = {file: _read_file_sample(repo_path, file) for file in classified["changed"]}
+    cases: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, str]] = set()
+
+    for issue in issues:
+        file = str(issue.get("file") or "")
+        _add_case(cases, seen, _issue_test_case(issue))
+        for signal in _ai_signals_for_context(file, issue, samples.get(file, "")):
+            case = _ai_test_case(signal, file, _issue_priority(issue), f"finding:{issue.get('id', '')}")
+            if case:
+                _add_case(cases, seen, case)
+
+    issue_files = {str(issue.get("file") or "") for issue in issues}
+    for file in classified["changed"]:
+        for signal in _ai_signals_for_context(file, sample=samples.get(file, "")):
+            priority = "P1" if file in issue_files else "P2"
+            case = _ai_test_case(signal, file, priority, f"scope:{file}")
+            if case:
+                _add_case(cases, seen, case)
+
+    if classified["changed"] and not classified["tests"]:
+        primary = classified["changed"][0]
+        _add_case(
+            cases,
+            seen,
+            {
+                "type": "coverage-gap",
+                "title": "Changed-scope coverage check",
+                "priority": "P2",
+                "file": primary,
+                "source": "scope",
+                "rationale": "The review scope changed application code without a matching test-file change.",
+                "steps": [
+                    "Identify the highest-risk changed behavior in this review scope.",
+                    "Add or update a focused unit, integration, or eval test for that behavior.",
+                    "Run the project test command and confirm the new test fails without the fix.",
+                ],
+                "expected": "The changed behavior has executable coverage tied to the review scope.",
+                "automation_hint": f"Use {_test_runner_hint(primary)} or the repository's configured test runner.",
+            },
+        )
+
+    ai_case_count = sum(1 for case in cases if str(case.get("type", "")).startswith("ai-"))
+    return {
+        "generated_at": utc_now(),
+        "total": len(cases),
+        "ai_app_cases": ai_case_count,
+        "issue_cases": sum(1 for case in cases if str(case.get("source", "")).startswith("finding:")),
+        "scope_files": classified["changed"],
+        "test_files": classified["tests"],
+        "cases": cases,
+    }
 
 
 def previous_fingerprints(run_id: str, repo_path: str, created_at: str) -> set[str] | None:
@@ -576,8 +1077,8 @@ def summarize_report(run_id: str) -> dict[str, Any]:
     }
 
 
-def run_review(run_id: str, repo_path: Path, payload: dict[str, Any], command: list[str]) -> None:
-    started = time.monotonic()
+def subprocess_env(payload: dict[str, Any]) -> dict[str, str]:
+    """Environment for review/generation subprocesses: Gito's LLM_* contract."""
     env = os.environ.copy()
     python_path = str(PROJECT_ROOT)
     if env.get("PYTHONPATH"):
@@ -593,6 +1094,12 @@ def run_review(run_id: str, repo_path: Path, payload: dict[str, Any], command: l
             "GITO_EXTRA_PROJECT_CONFIG": str(REVIEW_PROFILE),
         }
     )
+    return env
+
+
+def run_review(run_id: str, repo_path: Path, payload: dict[str, Any], command: list[str]) -> None:
+    started = time.monotonic()
+    env = subprocess_env(payload)
 
     update_meta(run_id, status="running", started_at=utc_now())
     audit_event(
@@ -606,12 +1113,15 @@ def run_review(run_id: str, repo_path: Path, payload: dict[str, Any], command: l
     static_issues: dict[str, list[dict[str, Any]]] = {}
     if payload.get("staticAnalysis") is not False:
         try:
+            options = review_options(payload)
             static_issues = static_analysis.analyze_repo_changes(
                 repo_path,
-                mode=payload.get("mode") or "working",
-                refs=(payload.get("refs") or "").strip(),
-                what=(payload.get("what") or "").strip(),
-                against=(payload.get("against") or "").strip(),
+                mode=options["mode"],
+                refs=options["refs"],
+                what=options["what"],
+                against=options["against"],
+                use_merge_base=options["use_merge_base"],
+                filters=options["filters"],
             )
         except Exception as exc:
             audit_event("static_analysis_failed", run_id=run_id, error=str(exc))
@@ -697,10 +1207,17 @@ def start_review(payload: dict[str, Any]) -> dict[str, Any]:
             raise ValueError("Registered repository not found.")
         payload = dict(payload) | {"repoPath": repo.get("path")}
     repo_path = require_git_repo(payload.get("repoPath") or "")
+    options = review_options(payload)
     run_id = datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:8]
     out_dir = run_dir(run_id)
     out_dir.mkdir(parents=True, exist_ok=True)
-    command = build_review_command(payload, out_dir)
+    command = build_review_command(payload, out_dir, options)
+    try:
+        scope_files = collect_scope_files(repo_path, options)
+    except Exception as exc:
+        scope_files = []
+        audit_event("scope_collection_failed", run_id=run_id, error=str(exc))
+    classified_files = classify_scope_files(scope_files)
 
     meta = {
         "id": run_id,
@@ -710,12 +1227,15 @@ def start_review(payload: dict[str, Any]) -> dict[str, Any]:
         "repo_path": str(repo_path),
         "model": (payload.get("model") or DEFAULT_MODEL).strip(),
         "ollama_base": normalize_ollama_base(payload.get("ollamaBase")),
-        "mode": payload.get("mode") or "working",
-        "refs": payload.get("refs") or "",
-        "what": payload.get("what") or "",
-        "against": payload.get("against") or "",
-        "filters": payload.get("filters") or DEFAULT_FILTERS,
-        "merge_base": payload.get("mergeBase") is not False,
+        "mode": options["mode"],
+        "refs": options["refs"],
+        "what": options["what"],
+        "against": options["against"],
+        "filters": options["filters"],
+        "merge_base": options["use_merge_base"],
+        "changed_files": classified_files["changed"],
+        "sensitive_files": classified_files["sensitive"],
+        "test_files": classified_files["tests"],
         "command": command,
     }
     atomic_write_json(meta_path(run_id), meta)
@@ -731,6 +1251,153 @@ def start_review(payload: dict[str, Any]) -> dict[str, Any]:
         target=run_review,
         args=(run_id, repo_path, payload, command),
         name=f"code-doctor-review-{run_id}",
+        daemon=True,
+    )
+    thread.start()
+    return read_json(meta_path(run_id), meta)
+
+
+def build_generation_command(
+    kind: str,
+    repo_path: Path,
+    out_dir: Path,
+    options: dict[str, Any],
+) -> list[str]:
+    cmd = [
+        sys.executable,
+        "-m",
+        "code_doctor_app.generator",
+        "--kind",
+        kind,
+        "--repo",
+        str(repo_path),
+        "--out",
+        str(out_dir),
+        "--mode",
+        options["mode"],
+    ]
+    if options["refs"]:
+        cmd.extend(["--refs", options["refs"]])
+    if options["what"]:
+        cmd.extend(["--what", options["what"]])
+    if options["against"]:
+        cmd.extend(["--against", options["against"]])
+    if options["filters"]:
+        cmd.extend(["--filters", options["filters"]])
+    if not options["use_merge_base"]:
+        cmd.append("--no-merge-base")
+    return cmd
+
+
+def generation_artifact_path(run_id: str, kind: str) -> Path:
+    return tests_json_path(run_id) if kind == "tests" else pr_draft_json_path(run_id)
+
+
+def run_generation(
+    run_id: str, repo_path: Path, payload: dict[str, Any], command: list[str], kind: str
+) -> None:
+    started = time.monotonic()
+    env = subprocess_env(payload)
+    update_meta(run_id, status="running", started_at=utc_now())
+    audit_event("generation_started", run_id=run_id, repo_path=str(repo_path), kind=kind)
+
+    timeout_seconds = int(payload.get("timeoutSeconds") or GENERATION_TIMEOUT_DEFAULT)
+    timed_out = False
+    exit_code: int | None = None
+    error = ""
+    with log_path(run_id).open("ab") as log_file:
+        try:
+            proc = subprocess.Popen(
+                command,
+                cwd=repo_path,
+                env=env,
+                stdout=log_file,
+                stderr=subprocess.STDOUT,
+            )
+            with PROCESS_LOCK:
+                PROCESSES[run_id] = proc
+            try:
+                exit_code = proc.wait(timeout=timeout_seconds)
+            except subprocess.TimeoutExpired:
+                timed_out = True
+                proc.kill()
+                proc.wait()
+                exit_code = -1
+                log_file.write(
+                    f"\nCode Doctor: generation timed out after {timeout_seconds}s and was killed.\n".encode("utf-8")
+                )
+        except Exception as exc:
+            error = str(exc)
+            log_file.write(f"\nCode Doctor failed to start the generator: {exc}\n".encode("utf-8"))
+        finally:
+            with PROCESS_LOCK:
+                PROCESSES.pop(run_id, None)
+
+    artifact_ready = generation_artifact_path(run_id, kind).exists()
+    status = "completed" if exit_code == 0 and artifact_ready else "failed"
+    update_meta(
+        run_id,
+        status=status,
+        exit_code=exit_code,
+        timed_out=timed_out,
+        **({"error": error} if error else {}),
+        completed_at=utc_now(),
+        duration_seconds=round(time.monotonic() - started, 2),
+        stats={},
+    )
+    audit_event(
+        "generation_finished",
+        run_id=run_id,
+        repo_path=str(repo_path),
+        kind=kind,
+        status=status,
+        exit_code=exit_code,
+        timed_out=timed_out,
+    )
+
+
+def start_generation(payload: dict[str, Any]) -> dict[str, Any]:
+    kind = str(payload.get("kind") or "").strip()
+    if kind not in GENERATION_KINDS:
+        raise ValueError("Unsupported generation kind. Use 'tests' or 'pr'.")
+    if payload.get("repoId"):
+        repo = next((item for item in list_repos() if item.get("id") == payload.get("repoId")), None)
+        if not repo:
+            raise ValueError("Registered repository not found.")
+        payload = dict(payload) | {"repoPath": repo.get("path")}
+    repo_path = require_git_repo(payload.get("repoPath") or "")
+    options = review_options(payload)
+    run_id = (
+        f"{kind}-" + datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:8]
+    )
+    out_dir = run_dir(run_id)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    command = build_generation_command(kind, repo_path, out_dir, options)
+
+    meta = {
+        "id": run_id,
+        "kind": kind,
+        "status": "queued",
+        "created_at": utc_now(),
+        "updated_at": utc_now(),
+        "repo_path": str(repo_path),
+        "model": (payload.get("model") or DEFAULT_MODEL).strip(),
+        "ollama_base": normalize_ollama_base(payload.get("ollamaBase")),
+        "mode": options["mode"],
+        "refs": options["refs"],
+        "what": options["what"],
+        "against": options["against"],
+        "filters": options["filters"],
+        "merge_base": options["use_merge_base"],
+        "command": command,
+    }
+    atomic_write_json(meta_path(run_id), meta)
+    audit_event("generation_queued", run_id=run_id, repo_path=str(repo_path), kind=kind)
+
+    thread = threading.Thread(
+        target=run_generation,
+        args=(run_id, repo_path, payload, command, kind),
+        name=f"code-doctor-generate-{run_id}",
         daemon=True,
     )
     thread.start()
@@ -760,35 +1427,26 @@ def preflight_review(payload: dict[str, Any]) -> dict[str, Any]:
             raise ValueError("Registered repository not found.")
         payload = dict(payload) | {"repoPath": repo.get("path")}
     repo_path = require_git_repo(payload.get("repoPath") or "")
+    options = review_options(payload)
     metadata = repo_metadata(repo_path)
-    against = payload.get("against") or "HEAD"
-    changed = git_output(repo_path, "diff", "--name-only", against).splitlines()
-    sensitive = [
-        file
-        for file in changed
-        if any(fnmatch_match(file, pattern) for pattern in SENSITIVE_PATTERNS)
-    ]
-    test_changes = [
-        file
-        for file in changed
-        if any(fnmatch_match(file, pattern) for pattern in load_policies().get("coverage", {}).get("watchPatterns", []))
-    ]
+    classified = classify_scope_files(collect_scope_files(repo_path, options))
     return {
         "repo_path": str(repo_path),
+        "scope": options,
         "metadata": metadata,
-        "changedFiles": changed,
-        "sensitiveFiles": sensitive,
-        "testFiles": test_changes,
-        "ready": bool(changed),
+        "changedFiles": classified["changed"],
+        "sensitiveFiles": classified["sensitive"],
+        "testFiles": classified["tests"],
+        "ready": bool(classified["changed"]),
         "warnings": [
-            *(["No changed files detected against HEAD."] if not changed else []),
-            *(["Sensitive file changes require review."] if sensitive else []),
-            *(["No matching test changes detected."] if changed and not test_changes else []),
+            *(["No changed files detected for the selected scope."] if not classified["changed"] else []),
+            *(["Sensitive file changes require review."] if classified["sensitive"] else []),
+            *(["No matching test changes detected."] if classified["changed"] and not classified["tests"] else []),
         ],
     }
 
 
-def get_review(run_id: str) -> dict[str, Any]:
+def review_detail(run_id: str) -> dict[str, Any]:
     meta = read_json(meta_path(run_id))
     if not meta:
         raise FileNotFoundError(run_id)
@@ -799,6 +1457,19 @@ def get_review(run_id: str) -> dict[str, Any]:
         if markdown_path(run_id).exists()
         else "",
     }
+
+
+def get_review(run_id: str) -> dict[str, Any]:
+    detail = review_detail(run_id)
+    detail["test_cases"] = generate_review_test_cases(detail["meta"], detail.get("report"))
+    detail["generated_tests"] = read_json(tests_json_path(run_id), None)
+    detail["pr_draft"] = read_json(pr_draft_json_path(run_id), None)
+    return detail
+
+
+def get_review_tests(run_id: str) -> dict[str, Any]:
+    detail = review_detail(run_id)
+    return generate_review_test_cases(detail["meta"], detail.get("report"))
 
 
 def flatten_report_issues(report: dict[str, Any] | None) -> list[dict[str, Any]]:
@@ -815,9 +1486,12 @@ def overview() -> dict[str, Any]:
     reviews = list_reviews()
     repos = list_repos()
     policies = load_policies()
-    completed = [review for review in reviews if review.get("status") == "completed"]
+    # Gate/risk metrics only make sense for review runs, not generation runs.
+    review_runs = [run for run in reviews if (run.get("kind") or "review") == "review"]
+    completed = [review for review in review_runs if review.get("status") == "completed"]
     running = [review for review in reviews if review.get("status") in {"queued", "running"}]
     failed = [review for review in reviews if review.get("status") == "failed"]
+    generations = [run for run in reviews if (run.get("kind") or "review") != "review"]
     gate_counts = {"block": 0, "review": 0, "pass": 0}
     tag_counts: dict[str, int] = {}
     for review in completed:
@@ -841,6 +1515,7 @@ def overview() -> dict[str, Any]:
         {"label": "Repository onboarding", "ready": bool(repos), "detail": f"{len(repos)} registered"},
         {"label": "Access control", "ready": bool(os.getenv("CODE_DOCTOR_TOKEN")), "detail": "CODE_DOCTOR_TOKEN"},
         {"label": "Evidence exports", "ready": True, "detail": "JSON, Markdown, CSV"},
+        {"label": "Test & PR generation", "ready": True, "detail": "LLM unit tests and PR drafts"},
     ]
     return {
         "metrics": {
@@ -853,6 +1528,7 @@ def overview() -> dict[str, Any]:
             "avgRisk": avg_risk,
             "gateCounts": gate_counts,
             "topTags": sorted(tag_counts.items(), key=lambda item: item[1], reverse=True)[:6],
+            "generations": len(generations),
         },
         "latestReview": reviews[0] if reviews else None,
         "readiness": readiness_items,
@@ -1029,6 +1705,14 @@ def cancel_review(run_id: str) -> dict[str, Any]:
 
 def ollama_health(base: str | None) -> dict[str, Any]:
     ollama_base = normalize_ollama_base(base)
+    parsed = urlparse(ollama_base)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        return {
+            "ok": False,
+            "base": ollama_base,
+            "models": [],
+            "error": "Ollama URL must be an http(s) URL.",
+        }
     url = ollama_base + "/api/tags"
     try:
         req = Request(url, headers={"Accept": "application/json"})
@@ -1040,7 +1724,10 @@ def ollama_health(base: str | None) -> dict[str, Any]:
         return {"ok": False, "base": ollama_base, "models": [], "error": str(exc)}
 
 
-def system_health(query: dict[str, list[str]]) -> dict[str, Any]:
+def system_health(
+    query: dict[str, list[str]],
+    include_ollama_check: bool = True,
+) -> dict[str, Any]:
     git_path = shutil.which("git")
     git_version = ""
     if git_path:
@@ -1052,9 +1739,20 @@ def system_health(query: dict[str, list[str]]) -> dict[str, Any]:
             check=False,
         )
         git_version = result.stdout.strip()
+    ollama_base = (query.get("ollamaBase") or [DEFAULT_OLLAMA_BASE])[0]
+    if include_ollama_check:
+        ollama = ollama_health(ollama_base)
+    else:
+        ollama = {
+            "ok": False,
+            "base": normalize_ollama_base(ollama_base),
+            "models": [],
+            "skipped": True,
+            "error": "Authorization required for model probe.",
+        }
     return {
         "git": {"ok": bool(git_path), "version": git_version},
-        "ollama": ollama_health((query.get("ollamaBase") or [DEFAULT_OLLAMA_BASE])[0]),
+        "ollama": ollama,
         "defaults": {
             "repoPath": str(Path.cwd()),
             "model": DEFAULT_MODEL,
@@ -1089,7 +1787,7 @@ class CodeDoctorHandler(BaseHTTPRequestHandler):
             if path.startswith("/api/") and path != "/api/health" and not self.authorized():
                 return self.send_error_json(HTTPStatus.UNAUTHORIZED, "Authorization required.")
             if path == "/api/health":
-                self.send_json(system_health(query))
+                self.send_json(system_health(query, include_ollama_check=self.authorized()))
             elif path == "/api/overview":
                 self.send_json(overview())
             elif path == "/api/repos":
@@ -1123,6 +1821,9 @@ class CodeDoctorHandler(BaseHTTPRequestHandler):
             if path == "/api/reviews":
                 payload = self.read_json_body()
                 self.send_json(start_review(payload), HTTPStatus.CREATED)
+            elif path == "/api/generate":
+                payload = self.read_json_body()
+                self.send_json(start_generation(payload), HTTPStatus.CREATED)
             elif path == "/api/repos":
                 payload = self.read_json_body()
                 self.send_json(register_repo(payload), HTTPStatus.CREATED)
@@ -1175,6 +1876,9 @@ class CodeDoctorHandler(BaseHTTPRequestHandler):
         if len(parts) == 4 and parts[3] == "log":
             text = log_path(parts[2]).read_text(encoding="utf-8") if log_path(parts[2]).exists() else ""
             self.send_text(text, "text/plain; charset=utf-8")
+            return
+        if len(parts) == 4 and parts[3] == "tests":
+            self.send_json(get_review_tests(parts[2]))
             return
         if len(parts) == 4 and parts[3] == "export":
             export_format = (parse_qs(urlparse(self.path).query).get("format") or ["json"])[0]

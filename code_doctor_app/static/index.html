@@ -281,6 +281,14 @@
 
             <div class="panel gap-top">
               <div class="panel-header">
+                <h2 class="panel-title">Generated Test Cases</h2>
+                <span class="meta-label" id="testCaseMeta">No run</span>
+              </div>
+              <div id="testCaseList" class="test-case-list"></div>
+            </div>
+
+            <div class="panel gap-top">
+              <div class="panel-header">
                 <h2 class="panel-title">Execution Log</h2>
                 <button id="refreshLog" class="btn btn-sm btn-ghost" type="button">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
@@ -381,6 +389,28 @@
                 <div class="panel-body">
                   <p class="summary-text" id="reportSummary">Select a review run from the sidebar.</p>
                 </div>
+              </div>
+            </div>
+
+            <div class="panel gap-top">
+              <div class="panel-header">
+                <h2 class="panel-title">Unit Test Generator</h2>
+                <button id="generateTests" class="btn btn-sm btn-primary" type="button">Generate Unit Tests</button>
+              </div>
+              <div class="panel-body">
+                <p class="help-text">Generates runnable pytest/vitest files for the current review scope with the configured private model. Copy them into your repo or download the run JSON.</p>
+                <div id="generatedTests"><div class="empty-state"><p>No generated tests for the selected run.</p></div></div>
+              </div>
+            </div>
+
+            <div class="panel gap-top">
+              <div class="panel-header">
+                <h2 class="panel-title">PR Draft</h2>
+                <button id="generatePr" class="btn btn-sm btn-primary" type="button">Draft Pull Request</button>
+              </div>
+              <div class="panel-body">
+                <p class="help-text">Drafts a pull-request title, description, labels, and reviewer checklist from the same diff scope.</p>
+                <div id="prDraft"><div class="empty-state"><p>No PR draft for the selected run.</p></div></div>
               </div>
             </div>
           </section>

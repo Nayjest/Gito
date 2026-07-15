@@ -406,12 +406,25 @@ def iter_added_lines(diff_text: str) -> Iterator[tuple[str, int, str]]:
             new_remaining -= 1
 
 
+def _normalize_patterns(filters: str | list[str] | tuple[str, ...] | None) -> tuple[str, ...]:
+    if not filters:
+        return ()
+    if isinstance(filters, str):
+        return tuple(item.strip() for item in filters.split(",") if item.strip())
+    return tuple(str(item).strip() for item in filters if str(item).strip())
+
+
 def _file_matches(path: str, patterns: tuple[str, ...]) -> bool:
     return any(fnmatch(path, pattern) for pattern in patterns)
 
 
 def _excluded(path: str) -> bool:
     return _file_matches(path, EXCLUDED_FILES)
+
+
+def _included_by_filters(path: str, filters: str | list[str] | tuple[str, ...] | None) -> bool:
+    patterns = _normalize_patterns(filters)
+    return not patterns or _file_matches(path, patterns)
 
 
 def _finding(rule: Rule, file: str, line_no: int, line: str, match: re.Match) -> dict:
@@ -437,7 +450,10 @@ def _finding(rule: Rule, file: str, line_no: int, line: str, match: re.Match) ->
     }
 
 
-def analyze_diff(diff_text: str) -> dict[str, list[dict]]:
+def analyze_diff(
+    diff_text: str,
+    filters: str | list[str] | tuple[str, ...] | None = None,
+) -> dict[str, list[dict]]:
     """Run the rule pack over the added lines of a unified diff."""
     issues: dict[str, list[dict]] = {}
     rule_hits: Counter = Counter()
@@ -445,7 +461,12 @@ def analyze_diff(diff_text: str) -> dict[str, list[dict]]:
     for file, line_no, line in iter_added_lines(diff_text):
         if total >= MAX_TOTAL_FINDINGS:
             break
-        if not file or _excluded(file) or len(line) > MAX_LINE_LENGTH:
+        if (
+            not file
+            or _excluded(file)
+            or not _included_by_filters(file, filters)
+            or len(line) > MAX_LINE_LENGTH
+        ):
             continue
         secret_flagged = False  # only the most specific secret rule fires per line
         for rule in RULES:
@@ -468,24 +489,7 @@ def analyze_diff(diff_text: str) -> dict[str, list[dict]]:
     return issues
 
 
-def collect_diff(
-    repo_path: Path,
-    mode: str = "working",
-    refs: str = "",
-    what: str = "",
-    against: str = "",
-) -> str:
-    """Produce the same shape of diff the review targets, as unified diff text."""
-    if mode == "all":
-        args = ["diff", EMPTY_TREE_SHA]
-    elif refs:
-        args = ["diff", refs]
-    elif what and against:
-        args = ["diff", f"{against}...{what}"]
-    elif what:
-        args = ["diff", f"{what}~1", what]
-    else:
-        args = ["diff", against or "HEAD"]
+def _git_stdout(repo_path: Path, *args: str) -> str:
     result = subprocess.run(
         ["git", "-C", str(repo_path), *args],
         text=True,
@@ -493,7 +497,105 @@ def collect_diff(
         stderr=subprocess.PIPE,
         check=False,
     )
-    return result.stdout if result.returncode == 0 else ""
+    return result.stdout.strip() if result.returncode == 0 else ""
+
+
+def _active_ref(repo_path: Path) -> str:
+    return _git_stdout(repo_path, "branch", "--show-current") or "HEAD"
+
+
+def _parse_refs_pair(refs: str) -> tuple[str, str]:
+    if ".." not in refs:
+        return refs, ""
+    what, against = refs.split("..", 1)
+    return what, against
+
+
+def _merge_base(repo_path: Path, what: str, against: str) -> str:
+    if not against:
+        return ""
+    current = what or _active_ref(repo_path)
+    return _git_stdout(repo_path, "merge-base", current, against)
+
+
+def _diff_args(
+    repo_path: Path,
+    mode: str,
+    refs: str,
+    what: str,
+    against: str,
+    use_merge_base: bool,
+    name_only: bool,
+) -> list[str]:
+    args = ["diff"]
+    if name_only:
+        args.append("--name-only")
+
+    if mode == "all":
+        return [*args, EMPTY_TREE_SHA]
+
+    if refs:
+        ref_what, ref_against = _parse_refs_pair(refs)
+        if ref_against:
+            base = (
+                _merge_base(repo_path, ref_what, ref_against)
+                if use_merge_base
+                else ref_against
+            )
+            if ref_what:
+                return [*args, base or ref_against, ref_what]
+            return [*args, base or ref_against]
+        return [*args, refs]
+
+    if what:
+        if against:
+            base = _merge_base(repo_path, what, against) if use_merge_base else against
+            return [*args, base or against, what]
+        return [*args, f"{what}~1", what]
+
+    base = against or "HEAD"
+    if use_merge_base and against:
+        base = _merge_base(repo_path, "", against) or against
+    return [*args, base]
+
+
+def collect_diff(
+    repo_path: Path,
+    mode: str = "working",
+    refs: str = "",
+    what: str = "",
+    against: str = "",
+    use_merge_base: bool = True,
+    filters: str | list[str] | tuple[str, ...] | None = None,
+    name_only: bool = False,
+) -> str:
+    """Produce the same shape of diff the review targets, as unified diff text."""
+    args = _diff_args(
+        repo_path,
+        mode=mode,
+        refs=refs,
+        what=what,
+        against=against,
+        use_merge_base=use_merge_base,
+        name_only=name_only,
+    )
+    result = subprocess.run(
+        ["git", "-C", str(repo_path), *args],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    if result.returncode != 0:
+        return ""
+    if not name_only or not filters:
+        return result.stdout
+    kept = [
+        line
+        for line in result.stdout.splitlines()
+        if line and not _excluded(line) and _included_by_filters(line, filters)
+    ]
+    return "\n".join(kept) + ("\n" if kept else "")
 
 
 def analyze_repo_changes(
@@ -502,11 +604,42 @@ def analyze_repo_changes(
     refs: str = "",
     what: str = "",
     against: str = "",
+    use_merge_base: bool = True,
+    filters: str | list[str] | tuple[str, ...] | None = None,
 ) -> dict[str, list[dict]]:
-    diff_text = collect_diff(repo_path, mode=mode, refs=refs, what=what, against=against)
+    diff_text = collect_diff(
+        repo_path,
+        mode=mode,
+        refs=refs,
+        what=what,
+        against=against,
+        use_merge_base=use_merge_base,
+    )
     if not diff_text:
         return {}
-    return analyze_diff(diff_text)
+    return analyze_diff(diff_text, filters=filters)
+
+
+def collect_changed_files(
+    repo_path: Path,
+    mode: str = "working",
+    refs: str = "",
+    what: str = "",
+    against: str = "",
+    use_merge_base: bool = True,
+    filters: str | list[str] | tuple[str, ...] | None = None,
+) -> list[str]:
+    names = collect_diff(
+        repo_path,
+        mode=mode,
+        refs=refs,
+        what=what,
+        against=against,
+        use_merge_base=use_merge_base,
+        filters=filters,
+        name_only=True,
+    )
+    return [name for name in names.splitlines() if name]
 
 
 def empty_report() -> dict:

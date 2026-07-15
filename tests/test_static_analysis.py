@@ -1,6 +1,27 @@
 from __future__ import annotations
 
+import subprocess
+from pathlib import Path
+
 from code_doctor_app import static_analysis as sa
+
+
+def _git(repo: Path, *args: str) -> None:
+    subprocess.run(
+        ["git", "-C", str(repo), *args],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=True,
+    )
+
+
+def _make_repo(path: Path) -> Path:
+    path.mkdir()
+    subprocess.run(["git", "init", str(path)], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    _git(path, "config", "user.email", "code-doctor@example.local")
+    _git(path, "config", "user.name", "Code Doctor")
+    return path
 
 
 def make_diff(path: str, added_lines: list[str], start: int = 1) -> str:
@@ -84,6 +105,49 @@ def test_merge_conflict_markers_flagged_anywhere():
 def test_lockfiles_are_excluded():
     diff = make_diff("package-lock.json", ['"token": "ghp_' + "a" * 40 + '"'])
     assert sa.analyze_diff(diff) == {}
+
+
+def test_analyze_diff_applies_review_filters():
+    diff = make_diff("src/app.py", ["subprocess.run(cmd, shell=True)"])
+    diff += make_diff("web/app.ts", ["console.log(token)"])
+
+    findings = sa.analyze_diff(diff, filters="*.py")
+
+    assert set(findings) == {"src/app.py"}
+
+
+def test_collect_changed_files_applies_filters(tmp_path):
+    repo = _make_repo(tmp_path / "repo")
+    (repo / "app.py").write_text("print('ok')\n", encoding="utf-8")
+    (repo / "web.js").write_text("console.log('ok')\n", encoding="utf-8")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-m", "initial")
+    (repo / "app.py").write_text("print('changed')\n", encoding="utf-8")
+    (repo / "web.js").write_text("console.log('changed')\n", encoding="utf-8")
+
+    files = sa.collect_changed_files(
+        repo,
+        mode="working",
+        against="HEAD",
+        use_merge_base=False,
+        filters="*.py",
+    )
+
+    assert files == ["app.py"]
+
+
+def test_diff_args_omit_empty_ref_for_against_only_pair(tmp_path):
+    args = sa._diff_args(  # noqa: SLF001 - regression coverage for git argv shape
+        tmp_path,
+        mode="refs",
+        refs="..main",
+        what="",
+        against="",
+        use_merge_base=False,
+        name_only=False,
+    )
+
+    assert args == ["diff", "main"]
 
 
 def test_merge_into_report_dedupes_lines_llm_already_flagged():

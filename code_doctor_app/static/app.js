@@ -290,7 +290,8 @@ function renderRuns() {
     const stats = run.stats || {};
     const gate = stats.gate ? ` · ${stats.gate.toUpperCase()}` : "";
     const issues = stats.total_issues != null ? ` · ${stats.total_issues} issues` : "";
-    const line = `${run.status || "unknown"}${issues}${gate}`;
+    const kindTag = { tests: " · TESTGEN", pr: " · PR DRAFT" }[run.kind] || "";
+    const line = `${run.status || "unknown"}${kindTag}${issues}${gate}`;
     return `
       <button class="run-item${active}" data-run-id="${esc(run.id)}" type="button">
         <strong>${esc(basename(run.repo_path))}</strong>
@@ -404,6 +405,123 @@ function renderFindings() {
   });
 
   renderFindingQueue(issues);
+}
+
+// ── Render: generated test cases ────────────────────────────────────────────
+function renderTestCases() {
+  const plan = state.detail?.test_cases || null;
+  const cases = plan?.cases || [];
+  const list = $("#testCaseList");
+  if (!list) return;
+
+  setText(
+    "#testCaseMeta",
+    state.selectedRunId ? `${cases.length} cases / ${plan?.ai_app_cases ?? 0} AI app` : "No run"
+  );
+
+  if (!cases.length) {
+    list.innerHTML = state.detail
+      ? `<div class="empty-state"><p>No generated test cases for this review.</p></div>`
+      : `<div class="empty-state"><p>No review selected.</p></div>`;
+    return;
+  }
+
+  list.innerHTML = cases.map((tc) => {
+    const priority = String(tc.priority || "P2").toLowerCase().replace(/[^a-z0-9_-]/g, "");
+    const steps = (tc.steps || []).slice(0, 5).map((step) => `<li>${esc(step)}</li>`).join("");
+    return `
+      <article class="test-case-row fade-in">
+        <div class="test-case-head">
+          <span class="test-priority test-priority-${esc(priority)}">${esc(tc.priority || "P2")}</span>
+          <div>
+            <h3 class="test-case-title">${esc(tc.title)}</h3>
+            <div class="test-case-meta">
+              <span>${esc(tc.type || "test")}</span>
+              <span>${esc(tc.file || "scope")}</span>
+              <span>${esc(tc.source || "generated")}</span>
+            </div>
+          </div>
+        </div>
+        <p class="test-case-rationale">${esc(tc.rationale)}</p>
+        ${steps ? `<ol class="test-case-steps">${steps}</ol>` : ""}
+        <div class="test-case-expected">
+          <strong>Expected</strong>
+          <span>${esc(tc.expected)}</span>
+        </div>
+        <div class="test-case-hint">${esc(tc.automation_hint)}</div>
+      </article>
+    `;
+  }).join("");
+}
+
+// ── Clipboard ────────────────────────────────────────────────────────────────
+async function copyText(text, label) {
+  try {
+    await navigator.clipboard.writeText(text);
+    toastSuccess(`${label} copied to clipboard.`);
+  } catch (_) {
+    toastError("Copy failed — clipboard unavailable.");
+  }
+}
+
+// ── Render: generated unit tests + PR draft (reports view) ──────────────────
+function generationPlaceholder(kind) {
+  const meta = selectedMeta();
+  if (meta?.kind === kind && ["queued", "running"].includes(meta.status)) {
+    return `<div class="empty-state"><p>Generating… this can take a minute on local models. The panel updates automatically.</p></div>`;
+  }
+  if (meta?.kind === kind && meta.status === "failed") {
+    return `<div class="empty-state"><p>Generation failed — check the execution log in the Review view.</p></div>`;
+  }
+  const noun = kind === "tests" ? "generated tests" : "PR draft";
+  return `<div class="empty-state"><p>No ${noun} for the selected run.</p></div>`;
+}
+
+function renderGenerated() {
+  const testsBox = $("#generatedTests");
+  const prBox = $("#prDraft");
+  if (!testsBox || !prBox) return;
+
+  const gt = state.detail?.generated_tests;
+  if (gt?.files?.length) {
+    testsBox.innerHTML = gt.files.map((file, idx) => `
+      <article class="gen-file fade-in">
+        <div class="gen-file-head">
+          <div>
+            <strong class="gen-file-path">${esc(file.path)}</strong>
+            <span class="meta-label">${esc(file.framework || "")}${file.covers?.length ? ` · covers ${esc(file.covers.join(", "))}` : ""}</span>
+          </div>
+          <button class="btn btn-sm btn-ghost copy-test" data-idx="${idx}" type="button">Copy</button>
+        </div>
+        ${file.rationale ? `<p class="help-text">${esc(file.rationale)}</p>` : ""}
+        <pre class="code-block">${esc(file.content)}</pre>
+      </article>
+    `).join("") + (gt.notes ? `<p class="help-text">${esc(gt.notes)}</p>` : "");
+    $$(".copy-test").forEach((btn) => btn.addEventListener("click", () =>
+      copyText(gt.files[Number(btn.dataset.idx)]?.content || "", "Test file")));
+  } else {
+    testsBox.innerHTML = generationPlaceholder("tests");
+  }
+
+  const pr = state.detail?.pr_draft;
+  if (pr?.title) {
+    const checklist = (pr.checklist || []).map((item) => `<li>${esc(item)}</li>`).join("");
+    prBox.innerHTML = `
+      <article class="gen-file fade-in">
+        <div class="gen-file-head">
+          <strong class="gen-file-path">${esc(pr.title)}</strong>
+          <button id="copyPrDraft" class="btn btn-sm btn-ghost" type="button">Copy Markdown</button>
+        </div>
+        <div class="tag-row" style="padding-bottom:8px">${(pr.labels || []).map((l) => `<span class="tag">${esc(l)}</span>`).join("")}</div>
+        <pre class="code-block pr-draft-body">${esc(pr.body_markdown)}</pre>
+        ${checklist ? `<div class="code-block-label">Reviewer checklist</div><ul class="pr-checklist">${checklist}</ul>` : ""}
+      </article>
+    `;
+    $("#copyPrDraft")?.addEventListener("click", () =>
+      copyText(`# ${pr.title}\n\n${pr.body_markdown}`, "PR draft"));
+  } else {
+    prBox.innerHTML = generationPlaceholder("pr");
+  }
 }
 
 // ── Render: finding queue (findings view) ────────────────────────────────────
@@ -560,6 +678,8 @@ function renderAll() {
   renderRuns();
   renderSelectedRun();
   renderFindings();
+  renderTestCases();
+  renderGenerated();
   renderRepos();
   renderPolicies();
   renderPreflight();
@@ -603,6 +723,8 @@ async function refreshRuns() {
   renderRuns();
   renderSelectedRun();
   renderFindings();
+  renderTestCases();
+  renderGenerated();
 }
 
 async function refreshAudit() {
@@ -679,6 +801,25 @@ async function startReview(extraPayload = {}) {
   } finally {
     btn.disabled = false;
     btn.innerHTML = orig;
+  }
+}
+
+async function startGeneration(kind) {
+  const btn = $(kind === "tests" ? "#generateTests" : "#generatePr");
+  btn.disabled = true;
+  try {
+    const meta = await api("/api/generate", {
+      method: "POST",
+      body: JSON.stringify({ ...formPayload(), kind }),
+    });
+    state.selectedRunId = meta.id;
+    await refreshEverything();
+    showView("reports");
+    toastInfo(kind === "tests" ? "Generating unit tests — watching for results…" : "Drafting pull request — watching for results…");
+  } catch (err) {
+    toastError(`Could not start generation: ${err.message}`);
+  } finally {
+    btn.disabled = false;
   }
 }
 
@@ -872,6 +1013,10 @@ function wireEvents() {
   $("#downloadMarkdown").addEventListener("click",  () => downloadSelected("md"));
   $("#downloadCsv").addEventListener("click",       () => downloadSelected("csv"));
 
+  // Generators
+  $("#generateTests").addEventListener("click", () => startGeneration("tests"));
+  $("#generatePr").addEventListener("click",    () => startGeneration("pr"));
+
   // Ollama URL change → re-check health
   $("#ollamaBase").addEventListener("change", () => {
     refreshHealth().catch(() => {});
@@ -899,10 +1044,13 @@ async function poll() {
     if (prevMeta && ["running", "queued", "unknown"].includes(prevMeta.status)) {
       await loadSelected().catch(() => {});
       renderAll();
+      const runNoun = { tests: "Unit-test generation", pr: "PR draft" }[newMeta?.kind] || "Review";
       if (newMeta?.status === "completed") {
-        toastSuccess(`Review of "${basename(newMeta.repo_path)}" completed — ${newMeta.stats?.total_issues ?? 0} issue(s) found.`);
+        toastSuccess(newMeta?.kind
+          ? `${runNoun} for "${basename(newMeta.repo_path)}" is ready — see Reports.`
+          : `Review of "${basename(newMeta.repo_path)}" completed — ${newMeta.stats?.total_issues ?? 0} issue(s) found.`);
       } else if (newMeta?.status === "failed") {
-        toastError(`Review of "${basename(newMeta.repo_path)}" failed. Check the execution log.`);
+        toastError(`${runNoun} for "${basename(newMeta.repo_path)}" failed. Check the execution log.`);
       }
     }
   } finally {

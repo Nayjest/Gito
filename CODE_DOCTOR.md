@@ -59,6 +59,41 @@ Every run pairs the LLM review with a deterministic static-analysis pass
   static findings still produce a report, so a run is never a total loss.
 - Disable per run with `"staticAnalysis": false` in the review payload.
 
+## Dynamic Test Case Generation
+
+Each review detail includes a generated `test_cases` plan. The plan is built
+from the review scope, changed files, findings, and lightweight AI-application
+signals in the affected code:
+
+- Finding-driven cases cover security, input validation, async failure paths,
+  secret hygiene, and generic regressions.
+- AI-application cases cover prompt injection, RAG grounding, agent/tool
+  guardrails, structured-output contracts, model failure paths, and eval
+  coverage.
+- The plan is included in JSON exports and is available directly at
+  `/api/reviews/<run-id>/tests`.
+
+## Test-Case Planner, Unit-Test Generator, and PR Drafts
+
+Every review computes a deterministic test-case plan (`test_cases` in the run
+detail): regression cases derived from each finding, coverage-gap cases when
+application code changes without test changes, and AI-app cases (prompt
+injection, RAG grounding, tool guardrails, schema contracts, model resilience,
+eval coverage) when the change surface touches LLM-related code.
+
+On demand, `POST /api/generate` runs an LLM pass over the same diff scope:
+
+- `{"kind": "tests"}` writes runnable pytest/vitest files to
+  `.code-doctor/runs/<run-id>/generated-tests/` plus `generated-tests.json`
+  and a Markdown preview. Model-proposed paths are sandboxed to the run
+  directory.
+- `{"kind": "pr"}` writes `pr-draft.json` and a ready-to-paste Markdown PR
+  (title, Summary/Changes/Risk/Test Plan, labels, reviewer checklist).
+
+Both appear in the Reports view with copy buttons, run under the same
+private-model env contract as reviews, respect `timeoutSeconds` (default
+1200), and can be cancelled through the existing cancel endpoint.
+
 ## Risk Engine and Issue Lifecycle
 
 - Risk scores weight severity by model confidence and apply a multiplier to
@@ -75,7 +110,7 @@ Every run pairs the LLM review with a deterministic static-analysis pass
 The dashboard exposes the main operator workflows from the left navigation:
 
 - Cockpit: repository coverage, review volume, risk gates, readiness, and recurring risk tags.
-- Review: Ollama-backed review execution, preflight checks, risk gate, findings, and logs.
+- Review: Ollama-backed review execution, preflight checks, risk gate, findings, generated test cases, and logs.
 - Repositories: production repository registry with owner, tier, language, branch, and last-review metadata.
 - Reports: evidence export in JSON, Markdown, and CSV.
 - Governance: severity thresholds, sensitive-file escalation, and guardrail status.
