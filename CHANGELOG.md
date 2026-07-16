@@ -10,6 +10,17 @@ Store schema: `kv.schema_version` unchanged (tables introduced in 4.3 remain
 the full set; no new tables this release).
 
 ### Added
+- **AST taint / dataflow analysis (`taint_analysis.py`).** A new deterministic
+  engine tracks untrusted input (request data, route-handler params, `input()`)
+  to dangerous sinks — path traversal (`open`/`send_file`/`Path.read_text`),
+  SSRF (`requests`/`urlopen`/`httpx`), command injection
+  (`subprocess`/`os.system`), code execution (`eval`/`exec`/`pickle`), SQL
+  injection (`cursor.execute` on a built string), SSTI, and open redirect —
+  through assignments, f-strings, concatenation, `.format()`, and wrapper
+  calls, with `int()`/reassignment clearing taint. Intraprocedural and
+  conservative (few false positives). Findings use IDs 30000+ and the
+  `taint`/`dataflow` tags; runs report `stats.taint_issues` and
+  `/api/health` reports `engines.taint`. Opt out with `"taintAnalysis": false`.
 - **Item 1 — Semantic cross-file analysis.** Python symbol extraction moved
   from regexes to real AST parsing (`semantic_py.py`) with argument-binding
   simulation at call sites: provably breaking calls carry a `break_reason`

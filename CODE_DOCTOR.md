@@ -44,6 +44,30 @@ adding stricter guidance for:
 Project-level `.gito/config.toml` files still load first; the Code Doctor
 profile merges after them.
 
+## Taint / Dataflow Analysis
+
+Beyond line-oriented rules, Code Doctor runs an **AST dataflow pass**
+(`taint_analysis.py`) that tracks untrusted input from **sources** to
+dangerous **sinks** within a function — catching bugs where the taint and the
+sink sit on different lines, which regex rules and small LLMs both miss:
+
+- **Sources:** `request.*` (Flask/Django-style), route-handler path
+  parameters, `input()`.
+- **Sinks:** `open`/`send_file`/`Path.read_text` (path traversal),
+  `requests`/`urlopen`/`httpx` (SSRF), `subprocess`/`os.system` (command
+  injection), `eval`/`exec`/`pickle.loads` (code execution),
+  `cursor.execute` on a built string (SQL injection),
+  `render_template_string` (SSTI), `redirect` (open redirect).
+- **Propagation** follows assignments, f-strings, `+`/`%` concatenation,
+  `.format()`, and wrapper calls (`Path(x)`, `x.strip()`, `os.path.join`);
+  `int()`/`float()` and reassignment to a constant clear taint.
+
+It is intentionally conservative — a finding fires only when a tainted value
+provably reaches a sink, so false positives are rare. Analysis is
+intraprocedural: flows that pass through a helper in another module aren't
+followed. Findings carry the `taint`/`dataflow` tags and `/api/health` reports
+the engine under `engines.taint`. Disable per run with `"taintAnalysis": false`.
+
 ## Reviewing Local (Non-Git) Projects
 
 Code Doctor reviews any local folder, not just git repositories. Point the

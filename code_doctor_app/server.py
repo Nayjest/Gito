@@ -27,7 +27,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, unquote, urlparse
 from urllib.request import Request, urlopen
 
-from . import context_engine, patcher, publisher, semantic_js, snapshot, static_analysis, store
+from . import context_engine, patcher, publisher, semantic_js, snapshot, static_analysis, store, taint_analysis
 
 # ── Production constants ────────────────────────────────────────────────────
 MAX_REQUEST_BODY = 16 * 1024 * 1024   # 16 MB hard limit on JSON request bodies
@@ -1489,6 +1489,7 @@ def summarize_report(run_id: str) -> dict[str, Any]:
         "warnings": len(report.get("processing_warnings") or []),
         "static_issues": sum(1 for issue in plain_issues if issue.get("source") == "static"),
         "cross_file_issues": sum(1 for issue in plain_issues if issue.get("source") == "crossfile"),
+        "taint_issues": sum(1 for issue in plain_issues if issue.get("source") == "taint"),
         "suppressed": len(plain_issues) - len(scored_issues),
         "verification": verification,
         "rejected_issues": sum(
@@ -1598,8 +1599,24 @@ def run_review(run_id: str, repo_path: Path, payload: dict[str, Any], command: l
         except Exception as exc:
             audit_event("cross_file_analysis_failed", run_id=run_id, error=str(exc))
 
+    taint_issues: dict[str, list[dict[str, Any]]] = {}
+    if payload.get("taintAnalysis") is not False:
+        try:
+            options = review_options(payload)
+            taint_issues = taint_analysis.analyze_repo_changes(
+                repo_path,
+                mode=options["mode"],
+                refs=options["refs"],
+                what=options["what"],
+                against=options["against"],
+                use_merge_base=options["use_merge_base"],
+                filters=options["filters"],
+            )
+        except Exception as exc:
+            audit_event("taint_analysis_failed", run_id=run_id, error=str(exc))
+
     def merge_static() -> int:
-        if not static_issues and not crossfile_issues:
+        if not static_issues and not crossfile_issues and not taint_issues:
             return 0
         report = read_json(report_path(run_id), None) or static_analysis.empty_report()
         added = 0
@@ -1607,6 +1624,8 @@ def run_review(run_id: str, repo_path: Path, payload: dict[str, Any], command: l
             added += static_analysis.merge_into_report(report, static_issues)
         if crossfile_issues:
             added += context_engine.merge_into_report(report, crossfile_issues)
+        if taint_issues:
+            added += taint_analysis.merge_into_report(report, taint_issues)
         atomic_write_json(report_path(run_id), report)
         return added
 
@@ -2740,7 +2759,7 @@ def system_health(
         "git": {"ok": bool(git_path), "version": git_version},
         "ollama": ollama,
         "ollamaWatch": OLLAMA_WATCHDOG.snapshot(),
-        "engines": {"semanticJs": semantic_js.SEMANTIC_JS_MODE},
+        "engines": {"semanticJs": semantic_js.SEMANTIC_JS_MODE, "taint": "ast-dataflow"},
         "defaults": {
             "repoPath": str(Path.cwd()),
             "model": DEFAULT_MODEL,
