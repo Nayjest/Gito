@@ -1318,6 +1318,7 @@ img { display: block; max-width: 100%; }
 .export-badge--json { background: var(--violet-dim); color: var(--violet); }
 .export-badge--md   { background: var(--blue-dim);   color: var(--blue); }
 .export-badge--csv  { background: var(--green-dim);  color: var(--green); }
+.export-badge--sarif { background: var(--amber-dim, rgba(210,153,34,0.15)); color: var(--amber, #d29922); }
 
 .help-text { font-size: 13px; color: var(--text-muted); line-height: 1.6; }
 

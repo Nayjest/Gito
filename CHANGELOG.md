@@ -10,6 +10,17 @@ Store schema: `kv.schema_version` unchanged (tables introduced in 4.3 remain
 the full set; no new tables this release).
 
 ### Added
+- **Dependency / supply-chain scanning (`dependency_scan.py`).** Offline
+  checks over changed `requirements.txt` / `package.json`: typosquat detection
+  (edit-distance-1, including adjacent transpositions, against a bundled
+  popular-package set), unpinned/unbounded versions (pip without `==`, npm
+  wildcards and open ranges — conventional `^`/`~` left alone), and URL/VCS
+  installs that bypass the index. Findings use IDs 40000+ and the
+  `supply-chain` tag; opt out with `"dependencyScan": false`.
+- **SARIF 2.1.0 export.** `?format=sarif` (and an Evidence Exports card) render
+  a run as SARIF for GitHub Code Scanning: severity → level, findings →
+  results with physical locations, distinct rules in the tool driver
+  (`sarif.py`).
 - **Cloud LLM providers (Anthropic / OpenAI / Google) alongside Ollama.** A
   provider registry (`LLM_PROVIDERS`) selects the LLM backend per run; cloud
   API keys are read from the **server environment only**

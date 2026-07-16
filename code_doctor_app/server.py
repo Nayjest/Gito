@@ -27,7 +27,18 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, unquote, urlparse
 from urllib.request import Request, urlopen
 
-from . import context_engine, patcher, publisher, semantic_js, snapshot, static_analysis, store, taint_analysis
+from . import (
+    context_engine,
+    dependency_scan,
+    patcher,
+    publisher,
+    sarif,
+    semantic_js,
+    snapshot,
+    static_analysis,
+    store,
+    taint_analysis,
+)
 
 # ── Production constants ────────────────────────────────────────────────────
 MAX_REQUEST_BODY = 16 * 1024 * 1024   # 16 MB hard limit on JSON request bodies
@@ -1699,8 +1710,24 @@ def run_review(run_id: str, repo_path: Path, payload: dict[str, Any], command: l
         except Exception as exc:
             audit_event("taint_analysis_failed", run_id=run_id, error=str(exc))
 
+    dep_issues: dict[str, list[dict[str, Any]]] = {}
+    if payload.get("dependencyScan") is not False:
+        try:
+            options = review_options(payload)
+            dep_issues = dependency_scan.analyze_repo_changes(
+                repo_path,
+                mode=options["mode"],
+                refs=options["refs"],
+                what=options["what"],
+                against=options["against"],
+                use_merge_base=options["use_merge_base"],
+                filters=options["filters"],
+            )
+        except Exception as exc:
+            audit_event("dependency_scan_failed", run_id=run_id, error=str(exc))
+
     def merge_static() -> int:
-        if not static_issues and not crossfile_issues and not taint_issues:
+        if not static_issues and not crossfile_issues and not taint_issues and not dep_issues:
             return 0
         report = read_json(report_path(run_id), None) or static_analysis.empty_report()
         added = 0
@@ -1710,6 +1737,8 @@ def run_review(run_id: str, repo_path: Path, payload: dict[str, Any], command: l
             added += context_engine.merge_into_report(report, crossfile_issues)
         if taint_issues:
             added += taint_analysis.merge_into_report(report, taint_issues)
+        if dep_issues:
+            added += dependency_scan.merge_into_report(report, dep_issues)
         atomic_write_json(report_path(run_id), report)
         return added
 
@@ -2393,6 +2422,11 @@ def export_review(run_id: str, export_format: str) -> tuple[str, str]:
             ]
             rows.append(",".join(f'"{cell}"' for cell in row))
         return "\n".join(rows) + "\n", "text/csv; charset=utf-8"
+    if export_format == "sarif":
+        return (
+            sarif.dumps(flatten_report_issues(report), APP_VERSION),
+            "application/sarif+json; charset=utf-8",
+        )
     raise ValueError("Unsupported export format.")
 
 

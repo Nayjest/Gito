@@ -1278,6 +1278,7 @@ function wireEvents() {
   $("#downloadJson").addEventListener("click",     () => downloadSelected("json"));
   $("#downloadMarkdown").addEventListener("click",  () => downloadSelected("md"));
   $("#downloadCsv").addEventListener("click",       () => downloadSelected("csv"));
+  $("#downloadSarif")?.addEventListener("click",    () => downloadSelected("sarif"));
 
   // Generators
   $("#generateTests").addEventListener("click", () => startGeneration("tests"));

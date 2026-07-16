@@ -44,6 +44,31 @@ adding stricter guidance for:
 Project-level `.gito/config.toml` files still load first; the Code Doctor
 profile merges after them.
 
+## Dependency / Supply-Chain Checks
+
+Code Doctor scans changed manifests (`requirements.txt`, `package.json`)
+offline — no CVE feed needed (`dependency_scan.py`):
+
+- **Typosquatting** — a dependency name one edit (insert/delete/substitute/
+  adjacent-swap) from a very popular package, e.g. `requets` → `requests`.
+- **Unpinned / unbounded versions** — pip deps with no `==` pin, or npm specs
+  that are wildcards / open ranges (`*`, `latest`, `>=…`). Conventional npm
+  caret/tilde ranges are intentionally left alone to avoid noise.
+- **URL / VCS installs** — deps fetched from a git or http URL, bypassing the
+  index and its integrity checks.
+
+Findings use IDs 40000+ and the `supply-chain` tag. Opt out with
+`"dependencyScan": false`.
+
+## SARIF Export
+
+Any run exports to **SARIF 2.1.0** for GitHub Code Scanning (and other SARIF
+tools): `GET /api/reviews/<id>/export?format=sarif`, or the **SARIF** card in
+Evidence Exports. Severity maps to SARIF levels (1–2 → `error`, 3 →
+`warning`, 4–5 → `note`); each finding becomes a `result` with a
+`physicalLocation`, and distinct rules populate the tool driver. Upload the
+file to the GitHub Security tab via `github/codeql-action/upload-sarif`.
+
 ## LLM Providers (Local and Cloud)
 
 The review/verify/generate passes can run on a local model or a frontier cloud
