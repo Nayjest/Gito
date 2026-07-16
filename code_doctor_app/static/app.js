@@ -589,6 +589,8 @@ function renderCrossFile() {
           <span class="tag">${esc(name)}</span>
           <code>${esc(u.file)}:${esc(u.line)}</code>
           <span class="crossfile-code">${esc(u.code)}</span>
+          ${u.break_reason ? `<span class="tag tag-danger" title="Argument-binding check">breaks: ${esc(u.break_reason)}</span>` : ""}
+          ${u.verified_ok ? `<span class="tag" title="Call still binds against the new signature">binds ok</span>` : ""}
         </div>
       `)
     ).join("");

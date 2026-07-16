@@ -140,3 +140,150 @@ def test_merge_into_report_assigns_crossfile_ids():
     issue = report["issues"]["pkg/billing.py"][1]
     assert issue["id"] == context_engine.CROSSFILE_ISSUE_ID_BASE
     assert report["total_issues"] == 2
+
+
+# ── Item 1: semantic (AST) cross-file analysis ───────────────────────────────
+
+
+def test_analyze_cross_file_quiet_when_call_sites_already_pass_new_argument(tmp_path):
+    """A bound-checked call that satisfies the new signature must not be flagged
+    (the old regex pass flagged every dependent of a re-signed symbol)."""
+    repo = _make_repo(
+        tmp_path / "repo",
+        {
+            "pkg/__init__.py": "",
+            "pkg/billing.py": "def charge(account, amount):\n    return amount\n",
+            "pkg/api.py": (
+                "from pkg.billing import charge\n\n"
+                "def handler():\n"
+                "    return charge('a', 1, 'usd')\n"  # already passes the new arg
+            ),
+        },
+    )
+    (repo / "pkg/billing.py").write_text(
+        "def charge(account, amount, currency):\n    return amount\n", encoding="utf-8"
+    )
+
+    result = context_engine.analyze_cross_file(repo, mode="working", against="HEAD", use_merge_base=False)
+
+    assert result["findings"] == {}
+    usages = result["pack"]["files"]["pkg/billing.py"]["usages"]["charge"]
+    assert usages[0]["verified_ok"] is True
+
+
+def test_analyze_cross_file_reports_break_reason_with_high_confidence(tmp_path):
+    repo = _make_repo(
+        tmp_path / "repo",
+        {
+            "pkg/__init__.py": "",
+            "pkg/billing.py": "def charge(account, amount):\n    return amount\n",
+            "pkg/api.py": (
+                "from pkg.billing import charge\n\n"
+                "def handler():\n"
+                "    return charge('a', amount=1)\n"
+            ),
+        },
+    )
+    (repo / "pkg/billing.py").write_text(
+        "def charge(account, value):\n    return value\n", encoding="utf-8"
+    )
+
+    result = context_engine.analyze_cross_file(repo, mode="working", against="HEAD", use_merge_base=False)
+
+    finding = result["findings"]["pkg/billing.py"][0]
+    assert finding["confidence"] == 1  # binding-proved break
+    assert "keyword 'amount' removed" in finding["details"]
+    usage = result["pack"]["files"]["pkg/billing.py"]["usages"]["charge"][0]
+    assert usage["break_reason"] == "keyword 'amount' removed"
+
+
+def test_diff_symbol_changes_semantic_sees_decorated_and_unchanged_defs(tmp_path):
+    """Full-content parsing sees symbol changes even when the def line is not in
+    the diff hunks, and decorated defs parse cleanly."""
+    repo = _make_repo(
+        tmp_path / "repo",
+        {
+            "mod.py": (
+                "import functools\n\n"
+                "@functools.wraps(print)\n"
+                "def wrapped(a, b):\n"
+                "    return a\n\n"
+                "def untouched(x):\n"
+                "    return x\n"
+            ),
+        },
+    )
+    (repo / "mod.py").write_text(
+        "import functools\n\n"
+        "@functools.wraps(print)\n"
+        "def wrapped(a, b, c):\n"
+        "    return a\n\n"
+        "def untouched(x):\n"
+        "    return x\n",
+        encoding="utf-8",
+    )
+    diff = context_engine.static_analysis.collect_diff(repo, mode="working", against="HEAD", use_merge_base=False)
+
+    changes = context_engine.diff_symbol_changes(diff, repo, "HEAD")
+
+    entry = changes["mod.py"]
+    assert entry["signature_changed"] == [{"name": "wrapped", "before": "a,b", "after": "a,b,c"}]
+    assert entry["removed"] == []
+    assert entry["added"] == []  # untouched symbols are not "added" (old textual bug class)
+
+
+def test_string_and_comment_mentions_are_not_usages(tmp_path):
+    repo = _make_repo(
+        tmp_path / "repo",
+        {
+            "pkg/__init__.py": "",
+            "pkg/billing.py": "def charge(account, amount):\n    return amount\n",
+            "pkg/api.py": (
+                "from pkg.billing import charge\n\n"
+                "def handler():\n"
+                "    label = 'call charge(x) later'\n"
+                "    return charge('a', 1)\n"
+            ),
+        },
+    )
+    (repo / "pkg/billing.py").write_text(
+        "def charge(account, amount, currency):\n    return amount\n", encoding="utf-8"
+    )
+
+    result = context_engine.analyze_cross_file(repo, mode="working", against="HEAD", use_merge_base=False)
+
+    usages = result["pack"]["files"]["pkg/billing.py"]["usages"]["charge"]
+    assert len(usages) == 1  # only the real call, not the string mention
+    assert usages[0]["line"] == 5
+
+
+def test_method_signature_change_checks_attribute_call_sites(tmp_path):
+    repo = _make_repo(
+        tmp_path / "repo",
+        {
+            "pkg/__init__.py": "",
+            "pkg/billing.py": (
+                "class Billing:\n"
+                "    def refund(self, account_id):\n"
+                "        return account_id\n"
+            ),
+            "pkg/api.py": (
+                "from pkg.billing import Billing\n\n"
+                "def handler():\n"
+                "    return Billing().refund('a')\n"
+            ),
+        },
+    )
+    (repo / "pkg/billing.py").write_text(
+        "class Billing:\n"
+        "    def refund(self, account_id, reason):\n"
+        "        return account_id\n",
+        encoding="utf-8",
+    )
+
+    result = context_engine.analyze_cross_file(repo, mode="working", against="HEAD", use_merge_base=False)
+
+    finding = result["findings"]["pkg/billing.py"][0]
+    assert "refund" in finding["title"]
+    assert finding["confidence"] == 1
+    assert "new required parameter 'reason' not passed" in finding["details"]

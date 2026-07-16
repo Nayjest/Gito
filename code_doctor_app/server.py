@@ -26,7 +26,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, unquote, urlparse
 from urllib.request import Request, urlopen
 
-from . import context_engine, publisher, static_analysis, store
+from . import context_engine, publisher, semantic_js, static_analysis, store
 
 # ── Production constants ────────────────────────────────────────────────────
 MAX_REQUEST_BODY = 16 * 1024 * 1024   # 16 MB hard limit on JSON request bodies
@@ -2074,6 +2074,7 @@ def system_health(
     return {
         "git": {"ok": bool(git_path), "version": git_version},
         "ollama": ollama,
+        "engines": {"semanticJs": semantic_js.SEMANTIC_JS_MODE},
         "defaults": {
             "repoPath": str(Path.cwd()),
             "model": DEFAULT_MODEL,

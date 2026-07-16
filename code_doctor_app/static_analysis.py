@@ -500,6 +500,41 @@ def _git_stdout(repo_path: Path, *args: str) -> str:
     return result.stdout.strip() if result.returncode == 0 else ""
 
 
+def git_show_blob(repo_path: Path, ref: str, path: str) -> str:
+    """File content at ``ref`` (empty string when the blob does not exist),
+    matching the empty-on-failure convention of the other git helpers."""
+    if not ref or not path:
+        return ""
+    return _git_stdout(repo_path, "show", f"{ref}:{path}")
+
+
+def diff_base_and_target(
+    repo_path: Path,
+    mode: str = "working",
+    refs: str = "",
+    what: str = "",
+    against: str = "",
+    use_merge_base: bool = True,
+) -> tuple[str, str]:
+    """The (base_ref, target_ref) pair the review diff compares.
+
+    ``target_ref`` is empty when the diff targets the working tree.
+    """
+    args = _diff_args(
+        repo_path,
+        mode=mode,
+        refs=refs,
+        what=what,
+        against=against,
+        use_merge_base=use_merge_base,
+        name_only=False,
+    )
+    refs_part = args[1:]  # everything after "diff"
+    base = refs_part[0] if refs_part else "HEAD"
+    target = refs_part[1] if len(refs_part) > 1 else ""
+    return base, target
+
+
 def _active_ref(repo_path: Path) -> str:
     return _git_stdout(repo_path, "branch", "--show-current") or "HEAD"
 

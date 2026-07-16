@@ -605,6 +605,12 @@ img { display: block; max-width: 100%; }
   border: 1px solid rgba(57,197,207,0.2);
 }
 
+.tag-danger {
+  background: var(--red-dim, rgba(248, 81, 73, 0.12));
+  color: var(--red, #f85149);
+  border-color: rgba(248, 81, 73, 0.25);
+}
+
 .tag-cloud {
   display: flex;
   flex-wrap: wrap;

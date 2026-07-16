@@ -12,8 +12,11 @@ it. This module closes that gap deterministically:
    ``context pack`` (dependents, imports, symbol changes, usage sites) that
    the LLM verifier consumes so its verdicts see beyond the diff.
 
-Everything here is regex-level analysis — cheap, language-tolerant, and
-deliberately conservative (confidence 2, never confidence 1).
+Symbol extraction is AST-level for Python (``semantic_py``) and tolerant
+tokenizer-level for JS/TS (``semantic_js``), with the original regex pass kept
+as the fallback whenever parsing fails — behavior degrades to the old
+analysis, never worse. Findings stay conservative (confidence 2), except when
+argument-binding simulation *proves* a call site breaks (confidence 1).
 """
 
 from __future__ import annotations
@@ -23,7 +26,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from . import static_analysis
+from . import semantic_js, semantic_py, static_analysis
 
 CROSSFILE_ISSUE_ID_BASE = 20000
 MAX_GRAPH_FILES = 4000
@@ -179,8 +182,8 @@ def _defs_in_lines(lines: list[str], is_python: bool) -> dict[str, str]:
     return defs
 
 
-def diff_symbol_changes(diff_text: str) -> dict[str, dict[str, Any]]:
-    """Per changed file: symbols the diff added, removed, or re-signed."""
+def _diff_symbol_changes_textual(diff_text: str) -> dict[str, dict[str, Any]]:
+    """Regex fallback: symbol changes read from the diff hunks alone."""
     removed_lines: dict[str, list[str]] = {}
     added_lines: dict[str, list[str]] = {}
     current: str | None = None
@@ -224,13 +227,118 @@ def diff_symbol_changes(diff_text: str) -> dict[str, dict[str, Any]]:
     return changes
 
 
-def find_usages(
-    repo_path: Path, symbol: str, dependent_files: list[str], limit: int = MAX_USAGES_PER_SYMBOL
+def _changed_files_from_diff(diff_text: str) -> list[str]:
+    files: list[str] = []
+    for line in diff_text.splitlines():
+        if line.startswith("+++ "):
+            name = line[4:].split("\t")[0].strip()
+            if name != "/dev/null":
+                name = name.removeprefix("b/")
+                if name not in files:
+                    files.append(name)
+    return files
+
+
+def _before_and_after_sources(
+    repo_path: Path, file: str, base_ref: str, target_ref: str
+) -> tuple[str, str]:
+    before = static_analysis.git_show_blob(repo_path, base_ref, file)
+    if target_ref:
+        after = static_analysis.git_show_blob(repo_path, target_ref, file)
+    else:
+        after = _read_text(repo_path, file)
+    return before, after
+
+
+def _entry_from_symbol_maps(
+    before: dict[str, str], after: dict[str, str]
+) -> dict[str, Any] | None:
+    removed = sorted(
+        name for name in before
+        if name not in after and not _DUNDER_OR_PRIVATE.match(name)
+    )
+    signature_changed = [
+        {"name": name, "before": before[name], "after": after[name]}
+        for name in sorted(before)
+        if name in after and before[name] != after[name] and not _DUNDER_OR_PRIVATE.match(name)
+    ]
+    added = sorted(name for name in after if name not in before)
+    if not (removed or signature_changed or added):
+        return None
+    return {"added": added, "removed": removed, "signature_changed": signature_changed}
+
+
+def python_symbol_infos(
+    repo_path: Path, file: str, base_ref: str, target_ref: str = ""
+) -> tuple[dict[str, semantic_py.SymbolInfo] | None, dict[str, semantic_py.SymbolInfo] | None]:
+    """(before, after) SymbolInfo maps for a changed Python file; None on parse failure."""
+    before_src, after_src = _before_and_after_sources(repo_path, file, base_ref, target_ref)
+    try:
+        before = semantic_py.module_symbols(before_src)
+    except (SyntaxError, ValueError):
+        before = None
+    try:
+        after = semantic_py.module_symbols(after_src)
+    except (SyntaxError, ValueError):
+        after = None
+    return before, after
+
+
+def _semantic_file_entry(
+    repo_path: Path, file: str, base_ref: str, target_ref: str
+) -> dict[str, Any] | None:
+    """Symbol changes for one file by parsing full before/after content.
+
+    Raises on parse failure so the caller can fall back to the textual pass.
+    """
+    if file.endswith(PY_EXTENSIONS):
+        before_syms, after_syms = python_symbol_infos(repo_path, file, base_ref, target_ref)
+        if before_syms is None or after_syms is None:
+            raise ValueError(f"unparseable Python in {file}")
+        before = {name: semantic_py.signature_string(info) for name, info in before_syms.items()}
+        after = {name: semantic_py.signature_string(info) for name, info in after_syms.items()}
+    else:
+        before_src, after_src = _before_and_after_sources(repo_path, file, base_ref, target_ref)
+        before = semantic_js.module_symbols(before_src)
+        after = semantic_js.module_symbols(after_src)
+    return _entry_from_symbol_maps(before, after)
+
+
+def diff_symbol_changes(
+    diff_text: str,
+    repo_path: Path | None = None,
+    base_ref: str = "HEAD",
+    target_ref: str = "",
+) -> dict[str, dict[str, Any]]:
+    """Per changed file: symbols the diff added, removed, or re-signed.
+
+    With a ``repo_path``, before/after file contents are parsed so symbols
+    whose definition lines never appear in the diff hunks are still seen;
+    without one (or when parsing fails) the textual diff pass is used.
+    """
+    textual = _diff_symbol_changes_textual(diff_text)
+    if repo_path is None:
+        return textual
+    changes: dict[str, dict[str, Any]] = {}
+    for file in _changed_files_from_diff(diff_text):
+        if not _is_source(file):
+            continue
+        try:
+            entry = _semantic_file_entry(repo_path, file, base_ref, target_ref)
+        except Exception:  # noqa: BLE001 - degrade to the textual analysis, never worse
+            entry = textual.get(file)
+        if entry:
+            changes[file] = entry
+    return changes
+
+
+def _regex_usages(
+    repo_path: Path, symbol: str, files: list[str], limit: int
 ) -> list[dict[str, Any]]:
     pattern = re.compile(rf"\b{re.escape(symbol)}\s*\(")
     word = re.compile(rf"\b{re.escape(symbol)}\b")
     usages: list[dict[str, Any]] = []
-    for file in dependent_files:
+    for file in files:
         text = _read_text(repo_path, file)
         if not text:
             continue
@@ -245,18 +353,72 @@ def find_usages(
     return usages
 
 
+def find_usages(
+    repo_path: Path,
+    symbol: str,
+    dependent_files: list[str],
+    limit: int = MAX_USAGES_PER_SYMBOL,
+    before: semantic_py.SymbolInfo | None = None,
+    after: semantic_py.SymbolInfo | None = None,
+) -> list[dict[str, Any]]:
+    """Usage sites of ``symbol`` across dependents.
+
+    When before/after ``SymbolInfo`` is supplied (a Python signature change),
+    Python dependents are checked with real call-site binding: each usage
+    gains ``break_reason`` when the call provably no longer binds, or
+    ``verified_ok`` when it still does. Non-Python dependents and unparseable
+    files keep the regex scan.
+    """
+    if after is None:
+        return _regex_usages(repo_path, symbol, dependent_files, limit)
+    usages: list[dict[str, Any]] = []
+    regex_files: list[str] = []
+    for file in dependent_files:
+        if not file.endswith(PY_EXTENSIONS):
+            regex_files.append(file)
+            continue
+        text = _read_text(repo_path, file)
+        if not text:
+            continue
+        try:
+            calls = semantic_py.call_sites(text, symbol)
+        except (SyntaxError, ValueError):
+            regex_files.append(file)
+            continue
+        lines = text.splitlines()
+        for call in calls:
+            usage: dict[str, Any] = {
+                "file": file,
+                "line": call.lineno,
+                "code": (lines[call.lineno - 1].strip() if 0 < call.lineno <= len(lines) else "")[:200],
+                "kind": "call",
+            }
+            reason = semantic_py.signature_break(before, after, call)
+            if reason:
+                usage["break_reason"] = reason
+            else:
+                usage["verified_ok"] = True
+            usages.append(usage)
+            if len(usages) >= limit:
+                return usages
+    if regex_files:
+        usages.extend(_regex_usages(repo_path, symbol, regex_files, limit - len(usages)))
+    return usages[:limit]
+
+
 def _finding(
     file: str,
     title: str,
     details: str,
     usages: list[dict[str, Any]],
     tags: list[str],
+    confidence: int = 2,
 ) -> dict[str, Any]:
     return {
         "title": title,
         "details": details,
         "severity": 2,
-        "confidence": 2,
+        "confidence": confidence,
         "tags": ["cross-file", *tags],
         "source": "crossfile",
         "affected_lines": [
@@ -304,7 +466,17 @@ def analyze_cross_file(
 
     source_files = list_source_files(repo_path)
     graph = build_import_graph(repo_path, source_files)
-    symbol_changes = diff_symbol_changes(diff_text) if diff_text else {}
+    base_ref, target_ref = static_analysis.diff_base_and_target(
+        repo_path,
+        mode=mode,
+        refs=refs,
+        what=what,
+        against=against,
+        use_merge_base=use_merge_base,
+    )
+    symbol_changes = (
+        diff_symbol_changes(diff_text, repo_path, base_ref, target_ref) if diff_text else {}
+    )
 
     pack_files: dict[str, Any] = {}
     findings: dict[str, list[dict[str, Any]]] = {}
@@ -334,23 +506,50 @@ def analyze_cross_file(
                     )
                     finding_count += 1
 
+        before_infos: dict[str, semantic_py.SymbolInfo] | None = None
+        after_infos: dict[str, semantic_py.SymbolInfo] | None = None
+        if symbols["signature_changed"] and file.endswith(PY_EXTENSIONS):
+            try:
+                before_infos, after_infos = python_symbol_infos(
+                    repo_path, file, base_ref, target_ref
+                )
+            except Exception:  # noqa: BLE001 - binding check is best-effort
+                before_infos = after_infos = None
+
         for change in symbols["signature_changed"]:
             name = change["name"]
-            found = find_usages(repo_path, name, dependents)
+            before_info = (before_infos or {}).get(name)
+            after_info = (after_infos or {}).get(name)
+            found = find_usages(
+                repo_path, name, dependents, before=before_info, after=after_info
+            )
             if found:
                 usages[name] = found
+                # Every call site provably binds against the new signature →
+                # the contract did not break for any dependent; stay quiet.
+                if all(usage.get("verified_ok") for usage in found):
+                    continue
                 if finding_count < MAX_FINDINGS:
                     referencing = sorted({usage["file"] for usage in found})
+                    break_reasons = [
+                        usage["break_reason"] for usage in found if usage.get("break_reason")
+                    ]
+                    details = (
+                        f"`{name}` changed from `({change['before']})` to "
+                        f"`({change['after']})` in {file}. "
+                        f"{len(found)} call site(s) in {', '.join(referencing)} "
+                        "were not updated in this diff."
+                    )
+                    if break_reasons:
+                        details += f" Argument-binding check: {break_reasons[0]}."
                     findings.setdefault(file, []).append(
                         _finding(
                             file,
                             f"Signature of `{name}` changed; external call sites may need updates.",
-                            f"`{name}` changed from `({change['before']})` to "
-                            f"`({change['after']})` in {file}. "
-                            f"{len(found)} call site(s) in {', '.join(referencing)} "
-                            "were not updated in this diff.",
+                            details,
                             found,
                             ["api-contract"],
+                            confidence=1 if break_reasons else 2,
                         )
                     )
                     finding_count += 1
