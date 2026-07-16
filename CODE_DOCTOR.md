@@ -49,9 +49,11 @@ profile merges after them.
 Code Doctor reviews any local folder, not just git repositories. Point the
 **Repository Path** at a plain directory and it just works:
 
-- If the path is a git work tree, it is reviewed in place as before (diffs,
-  branches, lifecycle tracking — everything).
-- If it is **not** under git, Code Doctor takes a **snapshot**: your folder is
+- If the path is a git work tree **with at least one commit**, it is reviewed
+  in place as before (diffs, branches, lifecycle tracking — everything).
+- If it is **not** under git — or is a freshly `git init`-ed repo with no
+  commits yet (an unborn HEAD has nothing to diff against) — Code Doctor takes
+  a **snapshot**: your folder is
   copied into `.code-doctor/snapshots/<id>/` (skipping `node_modules`,
   virtualenvs, build output, caches, etc.), `git init` + one baseline commit,
   and the review diffs the git empty tree against that commit so **every file

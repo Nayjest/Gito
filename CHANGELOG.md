@@ -59,7 +59,9 @@ the full set; no new tables this release).
   `models.generate`; empty inherits the run's main model (today's
   behavior).
 - **Review any local folder, git or not.** Pointing the repository path at a
-  non-git directory now works: Code Doctor materializes a managed git
+  non-git directory — or a freshly `git init`-ed repo with no commits yet
+  (unborn HEAD, nothing to diff against) — now works: Code Doctor
+  materializes a managed git
   **snapshot** under `.code-doctor/snapshots/` (heavy dirs like
   `node_modules`, virtualenvs, and build output skipped), `git init` +
   baseline commit, and reviews the empty-tree diff so every file is analyzed

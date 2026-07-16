@@ -61,6 +61,28 @@ def is_git_work_tree(path: Path) -> bool:
     return result.returncode == 0 and result.stdout.strip() == "true"
 
 
+def has_commit(path: Path) -> bool:
+    """True when the git repo at ``path`` has at least one commit.
+
+    A freshly ``git init``-ed repo has an unborn HEAD and no commit to diff
+    against, so the diff-based pipeline can't review it in place — it needs a
+    snapshot just like a non-git folder does.
+    """
+    result = subprocess.run(
+        ["git", "-C", str(path), "rev-parse", "--verify", "-q", "HEAD"],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    return result.returncode == 0
+
+
+def reviewable_in_place(path: Path) -> bool:
+    """True when ``path`` is a git work tree with history we can diff against."""
+    return is_git_work_tree(path) and has_commit(path)
+
+
 def snapshot_id(source: Path) -> str:
     """Stable per-source id, so re-reviews reuse (and refresh) one snapshot."""
     return uuid.uuid5(uuid.NAMESPACE_URL, "code-doctor-snapshot:" + str(source)).hex[:12]

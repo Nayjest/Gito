@@ -103,9 +103,33 @@ def test_resolve_review_target_snapshots_non_git_and_passes_git_through(monkeypa
     gitrepo.mkdir()
     (gitrepo / "f.py").write_text("x = 1\n", encoding="utf-8")
     subprocess.run(["git", "-C", str(gitrepo), "init", "-q"], check=True)
+    subprocess.run(["git", "-C", str(gitrepo), "add", "-A"], check=True)
+    subprocess.run(
+        ["git", "-C", str(gitrepo), "-c", "user.email=t@t", "-c", "user.name=t",
+         "commit", "-qm", "init"],
+        check=True,
+    )
     r_path, r_source, r_snap = server.resolve_review_target(str(gitrepo))
     assert r_snap is False
     assert r_path == r_source == gitrepo.resolve()
+
+
+def test_git_repo_without_commits_is_snapshotted(monkeypatch, tmp_path):
+    _isolate(monkeypatch, tmp_path)
+    # `git init` but no commit → unborn HEAD, nothing to diff against.
+    proj = _folder(tmp_path, "uncommitted")
+    subprocess.run(["git", "-C", str(proj), "init", "-q"], check=True)
+    assert snapshot.is_git_work_tree(proj) is True
+    assert snapshot.has_commit(proj) is False
+    assert snapshot.reviewable_in_place(proj) is False
+
+    review_path, source_path, is_snapshot = server.resolve_review_target(str(proj))
+    assert is_snapshot is True
+    assert snapshot.has_commit(review_path) is True  # snapshot has its baseline
+
+    pf = server.preflight_review({"repoPath": str(proj)})
+    assert pf["metadata"]["snapshot"] is True
+    assert set(pf["changedFiles"]) == {"app.py", "util.js"}
 
 
 def test_resolve_review_target_rejects_missing_path(monkeypatch, tmp_path):

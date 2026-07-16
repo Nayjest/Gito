@@ -586,9 +586,11 @@ def resolve_review_target(raw_path: str) -> tuple[Path, Path, bool]:
     source = Path(text).expanduser().resolve()
     if not source.exists() or not source.is_dir():
         raise ValueError("Repository path does not exist or is not a directory.")
-    if snapshot.is_git_work_tree(source):
+    if snapshot.reviewable_in_place(source):
         top = require_git_repo(str(source))
         return top, top, False
+    # Non-git folders and git repos with no commits (unborn HEAD) can't be
+    # diffed in place — both are reviewed from a managed snapshot.
     review_path = snapshot.build_snapshot(source, SNAPSHOTS_DIR)
     return review_path, source, True
 
@@ -2007,7 +2009,7 @@ def preflight_review(payload: dict[str, Any]) -> dict[str, Any]:
         payload = dict(payload) | {"repoPath": repo.get("path")}
     raw_path = str(payload.get("repoPath") or "").strip()
     source = Path(raw_path).expanduser().resolve() if raw_path else None
-    if source and source.is_dir() and not snapshot.is_git_work_tree(source):
+    if source and source.is_dir() and not snapshot.reviewable_in_place(source):
         return snapshot_preflight(source)
     repo_path = require_git_repo(raw_path)
     options = review_options(payload)
