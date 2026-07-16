@@ -97,14 +97,17 @@ is needed, add `fingerprint_v2` alongside and match on either.
 
 | Release | Items | Theme |
 | --- | --- | --- |
-| **v5.0** | 1. Semantic cross-file (AST) · 2. Incremental re-review · 4. CI webhook mode | Live-in-the-merge-path |
-| **v5.1** | 3. Auto-fix apply · 6. SSE live streaming · 9. Ollama watchdog | Reviewer ergonomics |
-| **v5.2** | 7. Job queue · 8. Multi-user identity · 10. Retention & trends | Scale & operations |
-| **v5.3** | 5. Publish upgrades · 11. Supply-chain checks · 12. Custom rule packs | Breadth |
+| **v5.0** | QW quick wins · 1. Semantic cross-file (AST) · 2. Incremental re-review · 4. CI webhook mode | Live-in-the-merge-path |
+| **v5.1** | 3. Auto-fix apply · 6. SSE live streaming · 9. Ollama watchdog · 14. Per-pass model routing | Reviewer ergonomics |
+| **v5.2** | 7. Job queue · 8. Multi-user identity · 10. Retention & trends · 15. Server config file | Scale & operations |
+| **v5.3** | 5. Publish upgrades · 11. Supply-chain checks · 12. Custom rule packs · 13. SARIF export | Breadth |
 
 Dependency order inside v5.0: **Item 2 before Item 4** (the webhook re-uses
 incremental re-review), Item 1 independent. Inside v5.2: **Item 7 before 8**
-(queue rows carry the user id).
+(queue rows carry the user id). Item 13 pairs naturally with Item 4 (upload
+SARIF from CI mode) but only depends on the export path, so it can land any
+time. The Section 7 security backlog and Section 9 schema contract tests
+start in v5.0 and carry through every release.
 
 ---
 
@@ -758,6 +761,126 @@ the `custom:<id>` tag.
 
 ---
 
+### Item 13 — SARIF export + GitHub Code Scanning — v5.3
+
+**Goal.** Export reviews as SARIF 2.1.0 — the industry-standard static-analysis
+format — so findings flow into GitHub Code Scanning, VS Code SARIF viewers,
+and every enterprise aggregation tool. This is table stakes for "best in
+industry" evidence handling and costs little.
+
+**Design.**
+- Extend `export_review(run_id, "sarif")` in `server.py` (the format switch
+  already raises `ValueError` on unknown formats, so adding a branch is
+  additive; the UI export grid gains a fourth card).
+- Mapping (one pure function `sarif_from_detail(detail) -> dict` in a new
+  `code_doctor_app/sarif.py`, fully unit-testable without a server):
+  - `runs[0].tool.driver` = "Code Doctor" + `APP_VERSION`; one
+    `rules[]` entry per distinct finding source/tag combination
+    (`llm-review`, `static:<rule>`, `crossfile`, `deps`).
+  - Each issue → `result`: `level` from severity (1–2 → `error`,
+    3 → `warning`, 4+ → `note`), `message.text` = title + details,
+    `locations[0].physicalLocation` from `file` + `affected_lines[0]`,
+    `partialFingerprints.codeDoctor/v1` = `issue_fingerprint(issue)` so
+    GitHub's alert dedup aligns with ours, `properties` carries
+    `verified`, `suppressed`, `tags`.
+  - Suppressed findings map to SARIF's native
+    `suppressions: [{kind: "external"}]` rather than being dropped —
+    consumers decide.
+- Optional upload: `publisher.py` gains
+  `upload_sarif(slug, commit_sha, ref, sarif_text)` → gzip + base64 → `POST
+  /repos/{slug}/code-scanning/sarifs` (same token/env pattern). Exposed as
+  `POST /api/reviews/<id>/publish` with `{"sarif": true}` (additive key) and
+  as `--sarif-upload` in Item 4's CI mode; `--sarif out.sarif` writes the
+  file for any CI system.
+
+**Execution steps.** `sarif.py` + `tests/test_sarif.py` (schema-shape
+assertions: required keys, level mapping table, fingerprint passthrough,
+suppression mapping); export branch + UI card; publisher upload with
+monkeypatched `_request_json`; CI flags; docs.
+
+**Compatibility.** Pure addition. Existing export formats untouched
+(their tests prove it).
+
+---
+
+### Item 14 — Per-pass model routing — v5.1
+
+**Goal.** Different passes have different needs: the reviewer benefits from a
+stronger model, the verifier and PR-drafter run fine (and faster) on a small
+non-reasoning model. Today one `MODEL` env drives all four passes — this
+session's qwen3.5 `<think>`-token incident is exactly the failure mode this
+removes.
+
+**Design.**
+- Payload keys `verifyModel` and `generateModel`, both defaulting to `model`
+  (absent → byte-identical behavior, R2).
+- `subprocess_env(payload)` gains an optional `model_override: str = ""`
+  parameter appended last; `run_verification` calls
+  `subprocess_env(payload, model_override=payload.get("verifyModel") or "")`,
+  `run_generation` likewise with `generateModel`. No other call site changes.
+- Meta additions: `verify_model`, `generate_model` (additive) so runs are
+  reproducible evidence.
+- Workspace defaults via policies: `models: {verify: "", generate: ""}` in
+  `DEFAULT_POLICIES` (deep-merge safe); payload wins over policy wins over
+  `model`.
+- UI: "Advanced" collapsible in Run Setup with two datalist inputs fed from
+  the same `#modelList`; empty = inherit. Governance shows the workspace
+  defaults.
+- Guardrail: reasoning-model detection — if the chosen verify/generate model
+  name matches a known-reasoning pattern (config list, default
+  `["qwen3*", "*r1*", "*think*"]`), show a UI hint ("reasoning models are
+  slower for structured JSON output") but never block; `parse_llm_json`
+  already strips `<think>` blocks.
+
+**Execution steps.** `subprocess_env` param + tests (override present/absent,
+policy fallback ordering); meta fields; UI accordion; docs. Small item —
+half a day.
+
+**Compatibility.** All existing tests pass unmodified; the parameter defaults
+to today's behavior.
+
+---
+
+### Item 15 — Server config file — v5.2
+
+**Goal.** One `config.toml` instead of a growing pile of env vars
+(`CODE_DOCTOR_TOKEN`, `GITHUB_TOKEN`, `GITLAB_BASE`, `CODE_DOCTOR_WORKERS`,
+`OLLAMA_MODEL`, webhook secret…), while keeping env vars working for
+container/CI use.
+
+**Design.**
+- New module `code_doctor_app/config.py`: `load_config(path=None) -> Config`
+  (a frozen dataclass). Search order: `--config` CLI flag →
+  `<data-dir>/config.toml` → defaults. Read once at boot with `tomllib`.
+- **Precedence: CLI flag > environment variable > config file > default.**
+  Implemented as one resolution function per key,
+  `resolve("workers", cli=args.workers, env="CODE_DOCTOR_WORKERS", file=cfg.workers, default=2)`,
+  so the rule is uniform and testable.
+- Keys: `host`, `port`, `workers`, `ollama_base`, `default_model`,
+  `verify_model`, `generate_model`, `data_dir`, plus a `[secrets]` table for
+  tokens. Secrets in the file are **allowed but discouraged**: boot prints a
+  warning unless the file mode is `0600` (check `stat.st_mode`), and the docs
+  push env vars for anything shared.
+- The resolved config is injected instead of scattered `os.getenv` calls —
+  but **incrementally**: each `os.getenv` site is replaced only when its
+  feature area is already being touched by another item, never in a big-bang
+  sweep. Until replaced, `config.py` sets resolved values *into*
+  `os.environ` at boot for keys that came from the file, so every existing
+  `os.getenv` reader works unchanged. That bridge is the whole compatibility
+  story.
+- `python -m code_doctor_app --print-config` dumps the resolved effective
+  config (secrets masked) for support/debugging.
+
+**Execution steps.** `config.py` + `tests/test_config.py` (precedence matrix,
+missing file, malformed file → clear error naming the line, secrets-mode
+warning, env bridge); `main()`/`serve()` wiring; `--print-config`; docs with
+a full annotated example file.
+
+**Compatibility.** No config file → identical behavior. Env vars always win
+over the file, so existing deployments change nothing.
+
+---
+
 ## 4. Cross-Cutting Execution Order (per release)
 
 For **every** release, in order:
@@ -784,6 +907,180 @@ For **every** release, in order:
    (R3); `CODE_DOCTOR_WORKERS=0` reverts the queue; deleting a rules file
    reverts custom rules; unset env tokens revert publishing/webhooks.
 
+## 4a. Security Hardening Backlog (starts v5.0, carries through all releases)
+
+Quick wins first — each is a small, isolated change with an existing test to
+extend:
+
+- **QW-1 (applied alongside this plan): constant-time token comparison.**
+  `authorized()` compared the bearer token with `==`, which leaks timing
+  information. Now uses `hmac.compare_digest`. One line; behavior identical.
+- **QW-2: warn on non-loopback bind without a token.** `serve()` prints a
+  loud warning when `host` is not `127.0.0.1`/`localhost` and
+  `CODE_DOCTOR_TOKEN` is unset. Never refuse (labs exist) — just warn.
+- **QW-3: auth-failure rate limiting.** In-memory counter per client IP in
+  the handler: after 10 consecutive 401s within 60s, respond 429 for that IP
+  for 60s. Audit event `auth_throttled`. Stdlib only, resets on restart —
+  good enough for a local/team tool; the queue release can persist it if
+  ever needed.
+- **QW-4: CSP tightening.** Add `form-action 'self'; object-src 'none'` to
+  the existing CSP header in `end_headers()`. Verify the SPA in the browser
+  smoke afterward (no forms post cross-origin today, so zero expected
+  breakage).
+- **QW-5: mask tokens in subprocess environments where possible.** Review
+  runs inherit the full parent env (`os.environ.copy()` in
+  `subprocess_env`), which hands `GITHUB_TOKEN`/`CODE_DOCTOR_TOKEN` to gito
+  and the generator, neither of which needs them. Strip
+  `CODE_DOCTOR_TOKEN`, `CODE_DOCTOR_GITHUB_TOKEN`, `GITHUB_TOKEN`,
+  `GITLAB_TOKEN`, `CODE_DOCTOR_WEBHOOK_SECRET` from the child env. Test:
+  assert the built env lacks the keys while `LLM_*` remain.
+
+Structural items (scheduled with their feature releases):
+
+- Webhook HMAC verification and 503-without-secret (Item 4).
+- Token hashing at rest and roles (Item 8) — plain tokens never stored.
+- TLS guidance: Code Doctor stays plain-HTTP on loopback by design; for any
+  network exposure, document a reverse-proxy recipe (Caddy two-liner and
+  nginx snippet) in an `docs/OPERATIONS.md` — terminating TLS in a stdlib
+  HTTP server is not worth owning.
+- Supply-chain honesty for **our own app**: pin runtime deps
+  (`uv pip compile` lockfile committed), and run Item 11's OSV check against
+  this repo in CI once Item 4's CI mode exists (dogfooding).
+- Log hygiene review each release: no Authorization headers are logged today
+  (`log_message` only formats method/path/status — keep it that way; add a
+  test that greps the access-log format string for header interpolation).
+
+## 4b. Performance Budgets and Benchmarks (enforced from v5.0)
+
+Budgets (measured by `scripts/bench.py`, added in v5.0, run manually per
+release — not in the unit-test gate to keep tests fast):
+
+| Operation | Budget | Current risk |
+| --- | --- | --- |
+| Preflight on a 5k-file repo | < 1.5s | `collect_changed_files` is one git call — fine |
+| Import graph build (Item 1), 4k files | < 2.5s cold | AST parse of every file is the new cost |
+| `GET /api/overview` with 500 runs | < 150ms | `list_reviews()` reads every `meta.json` per call — **known hot spot** |
+| `GET /api/reviews` with 500 runs | < 150ms | same |
+| SQLite ops under 8 threads | no lock errors | WAL + store lock — covered by existing test |
+
+Planned mitigations, in order of trigger:
+
+- **Runs index (piggybacks Item 7's store work):** a `runs_index` table
+  (`run_id, kind, status, created_at, repo_path, stats_json`) written by
+  `update_meta()` (write-through; `meta.json` on disk stays the source of
+  truth and the fallback — rebuildable by a `reindex()` walk, guarded by a
+  `kv` flag). `list_reviews()` then reads one SQL query instead of N files.
+  Do this when overview latency crosses budget or run count crosses ~300,
+  not before — the file scan is simpler and correct.
+- **Import-graph cache (Item 1 follow-up):** cache
+  `{repo, HEAD sha, hash(ls-files)} -> graph` in a store table; invalidate
+  on key change. Only build it if bench shows cold-graph cost breaking the
+  budget on real repos; the cap (`MAX_GRAPH_FILES = 4000`) already bounds
+  worst case.
+- **SQLite maintenance:** `PRAGMA wal_checkpoint(TRUNCATE)` in the daily
+  retention tick (Item 10) keeps the WAL file bounded; backups use
+  `VACUUM INTO` (see runbook) which also compacts.
+
+`scripts/bench.py`: generates a synthetic repo (parameterized file count),
+seeds N fake runs, times each budget row, prints a pass/fail table, exits
+non-zero on breach. Keep it dependency-free (`time.perf_counter`).
+
+## 4c. Testing Strategy Additions
+
+- **Schema contract tests (v5.0) — mechanical enforcement of rule R1.**
+  Check in JSON Schema files under `tests/schemas/` for the five run
+  artifacts (`meta`, `report`, `context-pack`, `generated-tests`,
+  `pr-draft`) capturing today's shapes with
+  `additionalProperties: true` (additive keys always pass) but every
+  *existing* key marked required-if-present with its current type.
+  `tests/test_artifact_contracts.py` validates the seeded sample run and a
+  committed fixture run against them (stdlib validator — write a ~60-line
+  subset validator, or vendor nothing and assert key/type pairs directly).
+  Any accidental rename/retype of an existing key now fails CI instead of
+  breaking old-run rendering silently.
+- **HTTP test harness (v5.0, prerequisite for Items 4 and 6):**
+  `tests/_server_harness.py` with a `run_test_server()` context manager —
+  binds port 0, isolated `DATA_DIR`/`DB_PATH` via the same monkeypatching as
+  `_isolated_store`, yields base URL, guarantees shutdown. Today all server
+  tests call functions directly; webhook HMAC and SSE cannot be tested that
+  way.
+- **Legacy-data fixture (v5.0):** `tests/fixtures/data-v4.3.tar.gz` — a
+  frozen copy of a real v4.3 `.code-doctor/` directory (sample run, one
+  suppression, audit history, pre-SQLite JSON files). A test boots the store
+  against an unpacked copy, asserts migration, asserts `get_review` renders
+  the old run, and asserts a second boot migrates nothing (idempotency).
+  Regenerate only deliberately, never automatically.
+- **Browser E2E smoke (manual checklist now, scripted later):**
+  documented click-path in `docs/SMOKE.md` — seed sample → open each of the
+  7 views → expand a finding → dismiss/restore → export JSON → publish
+  preview. Automating with Playwright is deliberately deferred (new heavy
+  dep, R7); the checklist plus `scripts/smoke.sh` (API-level) covers the gap
+  at this project size.
+- **Generator/LLM tests stay network-free:** the established pattern
+  (monkeypatch `mc.llm` / `urlopen`, fake `gito` on PATH) is the rule; any
+  test needing a live model goes in `scripts/smoke.sh`, never `tests/`.
+
+## 4d. Operations Runbook (ship as `docs/OPERATIONS.md` in v5.0)
+
+Content list — written for the person running Code Doctor, not developing it:
+
+- **Start/stop:** the run command with token, where logs go (server stderr;
+  per-run `gito.log`), how to run it under `launchd`/`systemd` (unit file
+  examples).
+- **Port conflicts:** symptom (`Address already in use`), diagnosis
+  (`lsof -ti tcp:8787`), the stale-server trap we hit twice this project
+  (an old process serving old code — always check *which* binary owns the
+  port before debugging "broken" features).
+- **Ollama:** health check (`curl localhost:11434/api/tags`), keep-alive
+  (`brew services start ollama` on macOS, `systemctl enable ollama` on
+  Linux), the watchdog banner meaning (Item 9), model pull guidance, and the
+  reasoning-model caveat for structured output.
+- **Backup:** `sqlite3 .code-doctor/code-doctor.db "VACUUM INTO 'backup.db'"`
+  plus `tar` of `runs/` — both while the server runs (WAL makes the vacuum
+  copy consistent). Restore = stop server, swap files, start.
+- **Reset:** what deleting `.code-doctor/` loses (everything) vs deleting
+  only `runs/` (history but not registry/suppressions/audit).
+- **Token rotation:** today (change env, restart, update browser); after
+  Item 8 (usertool disable + add).
+- **Upgrade:** `git pull` → `uv pip install -e .` → restart → migrations run
+  automatically → check `--print-config` (Item 15) and the readiness panel.
+  **Downgrade:** older code ignores newer SQLite tables (R4); run artifacts
+  are forward-readable because of R1 — document the one real caveat: runs
+  created by newer versions may show fewer details in older UIs, never
+  errors.
+
+## 4e. Portability Notes
+
+- **Python floor: 3.11** (already implied by `tomllib` in Item 12/15 and the
+  current dev venv on 3.13) — declare `requires-python = ">=3.11"` in
+  `pyproject.toml` in v5.0 so failures are upfront, not mid-import.
+- **Windows:** the codebase is close to portable (pathlib throughout,
+  `signal.signal` already wrapped in try/except, `os.replace` atomic on
+  NTFS). Known gaps to fix when a Windows user appears — not before:
+  `proc.terminate()`/`kill()` semantics differ (no SIGTERM grace),
+  `lsof`-based docs need `netstat` equivalents, and `.code-doctor/token`
+  `chmod 600` is a no-op. Track as a labeled backlog item; don't gate
+  releases on an untested platform.
+- **Locales/encoding:** all file IO already passes `encoding="utf-8"`
+  explicitly (plus `errors="ignore"` on repo reads) — keep that as a review
+  checklist item; it's what makes non-UTF8 repos degrade instead of crash.
+
+## 4f. Versioning, Changelog, and Release Mechanics
+
+- `APP_VERSION` in `server.py` bumps per release (5.0.0, 5.1.0, …); patch
+  releases for fixes between phases. The version already surfaces in the
+  server banner; also return it in `/api/health` (additive key `version`)
+  so the UI and bug reports can state it.
+- `CHANGELOG.md` in Keep-a-Changelog format, one entry per item id
+  ("Item 7 — job queue…"), written in the same commit as the feature.
+- Git tag `v5.x.y` on the release commit; the release commit message lists
+  shipped item numbers and any flag/env switches introduced.
+- `kv.schema_version` (R4) maps releases to store schema:
+  document the mapping table in the changelog entry whenever it bumps.
+- Definition of a "release": all items merged, Section 4 gate green,
+  smoke + bench green, `CODE_DOCTOR.md` + `CHANGELOG.md` updated, tag
+  pushed.
+
 ## 5. Risk Register (top items)
 
 | Risk | Where | Mitigation |
@@ -795,6 +1092,9 @@ For **every** release, in order:
 | OSV call leaks metadata unexpectedly | Item 11 | default-off, docs privacy note, cache, offline-tolerant |
 | tree-sitter dependency friction | Item 1 | optional import, heuristic fallback, mode surfaced in health |
 | SSE thread exhaustion | Item 6 | semaphore cap + polling fallback retained |
+| Overview latency degrades as runs accumulate | §4b | runs_index write-through table, triggered by budget breach, disk stays source of truth |
+| Secrets leak via config file or child processes | Item 15, QW-5 | file-mode warning, env-precedence, token stripping from subprocess env |
+| Artifact schema drift breaks old-run rendering | all | §4c schema contract tests fail CI on any existing-key change |
 
 ## 6. Definition of Done (applies to every item)
 

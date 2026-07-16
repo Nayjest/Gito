@@ -5,6 +5,7 @@ import copy
 import fnmatch
 import gzip
 import hashlib
+import hmac
 import json
 import mimetypes
 import os
@@ -2124,7 +2125,8 @@ class CodeDoctorHandler(BaseHTTPRequestHandler):
         expected = os.getenv("CODE_DOCTOR_TOKEN")
         if not expected:
             return True
-        return self.headers.get("Authorization") == f"Bearer {expected}"
+        presented = self.headers.get("Authorization") or ""
+        return hmac.compare_digest(presented, f"Bearer {expected}")
 
     def handle_review_get(self, path: str) -> None:
         parts = [unquote(part) for part in path.split("/") if part]
