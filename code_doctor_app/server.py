@@ -112,6 +112,77 @@ DEFAULT_POLICIES = {
 PROCESS_LOCK = threading.Lock()
 PROCESSES: dict[str, subprocess.Popen] = {}
 
+# Secrets the review/generation subprocesses never need (QW-5). Gito and the
+# generator only consume the LLM_* contract; handing them workspace or
+# publishing tokens widens the blast radius of any subprocess compromise.
+SUBPROCESS_ENV_STRIP = (
+    "CODE_DOCTOR_TOKEN",
+    "CODE_DOCTOR_GITHUB_TOKEN",
+    "GITHUB_TOKEN",
+    "CODE_DOCTOR_GITLAB_TOKEN",
+    "GITLAB_TOKEN",
+    "CODE_DOCTOR_WEBHOOK_SECRET",
+)
+
+# Browser security headers (QW-4): forms never post cross-origin and plugins
+# are never embedded, so lock both down explicitly.
+CSP_POLICY = (
+    "default-src 'self'; img-src 'self' data:; script-src 'self'; style-src 'self'; "
+    "connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; "
+    "form-action 'self'; object-src 'none'"
+)
+
+# ── Auth-failure throttling (QW-3) ──────────────────────────────────────────
+# In-memory per-client-IP counter: 10 consecutive 401s within 60s → 429 for
+# 60s. Resets on any successful auth and on restart — adequate for a
+# local/team tool without persisting attacker state.
+AUTH_THROTTLE_LIMIT = 10
+AUTH_THROTTLE_WINDOW = 60.0
+_AUTH_THROTTLE_LOCK = threading.Lock()
+_AUTH_FAILURES: dict[str, dict[str, float]] = {}
+
+
+def auth_throttled(client_ip: str, now: float | None = None) -> bool:
+    now = time.monotonic() if now is None else now
+    with _AUTH_THROTTLE_LOCK:
+        entry = _AUTH_FAILURES.get(client_ip)
+        return bool(entry and entry.get("blocked_until", 0.0) > now)
+
+
+def record_auth_failure(client_ip: str, now: float | None = None) -> bool:
+    """Count a 401 for this IP. Returns True when the IP just became throttled."""
+    now = time.monotonic() if now is None else now
+    with _AUTH_THROTTLE_LOCK:
+        entry = _AUTH_FAILURES.setdefault(
+            client_ip, {"count": 0.0, "window_start": now, "blocked_until": 0.0}
+        )
+        if now - entry["window_start"] > AUTH_THROTTLE_WINDOW:
+            entry["count"] = 0.0
+            entry["window_start"] = now
+        entry["count"] += 1
+        if entry["count"] >= AUTH_THROTTLE_LIMIT:
+            entry["blocked_until"] = now + AUTH_THROTTLE_WINDOW
+            entry["count"] = 0.0
+            entry["window_start"] = now
+            return True
+        return False
+
+
+def clear_auth_failures(client_ip: str) -> None:
+    with _AUTH_THROTTLE_LOCK:
+        _AUTH_FAILURES.pop(client_ip, None)
+
+
+def bind_warning(host: str) -> str:
+    """QW-2: a non-loopback bind without a token exposes every endpoint."""
+    if host in {"127.0.0.1", "localhost", "::1"} or os.getenv("CODE_DOCTOR_TOKEN"):
+        return ""
+    return (
+        f"WARNING: Code Doctor is binding to {host} without CODE_DOCTOR_TOKEN set. "
+        "Anyone who can reach this address can read reviews and start runs. "
+        "Set CODE_DOCTOR_TOKEN or bind to 127.0.0.1."
+    )
+
 # ── ETag cache (path → etag string) ────────────────────────────────────────
 _ETAG_CACHE: dict[str, str] = {}
 _ETAG_LOCK  = threading.Lock()
@@ -1195,6 +1266,8 @@ def summarize_report(run_id: str) -> dict[str, Any]:
 def subprocess_env(payload: dict[str, Any]) -> dict[str, str]:
     """Environment for review/generation subprocesses: Gito's LLM_* contract."""
     env = os.environ.copy()
+    for key in SUBPROCESS_ENV_STRIP:
+        env.pop(key, None)
     python_path = str(PROJECT_ROOT)
     if env.get("PYTHONPATH"):
         python_path += os.pathsep + env["PYTHONPATH"]
@@ -2032,8 +2105,8 @@ class CodeDoctorHandler(BaseHTTPRequestHandler):
         path = parsed.path
         query = parse_qs(parsed.query)
         try:
-            if path.startswith("/api/") and path != "/api/health" and not self.authorized():
-                return self.send_error_json(HTTPStatus.UNAUTHORIZED, "Authorization required.")
+            if path.startswith("/api/") and path != "/api/health" and not self.require_auth():
+                return
             if path == "/api/health":
                 self.send_json(system_health(query, include_ollama_check=self.authorized()))
             elif path == "/api/overview":
@@ -2066,8 +2139,8 @@ class CodeDoctorHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
         try:
-            if path.startswith("/api/") and not self.authorized():
-                return self.send_error_json(HTTPStatus.UNAUTHORIZED, "Authorization required.")
+            if path.startswith("/api/") and not self.require_auth():
+                return
             if path == "/api/reviews":
                 payload = self.read_json_body()
                 self.send_json(start_review(payload), HTTPStatus.CREATED)
@@ -2108,8 +2181,8 @@ class CodeDoctorHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
         try:
-            if path.startswith("/api/") and not self.authorized():
-                return self.send_error_json(HTTPStatus.UNAUTHORIZED, "Authorization required.")
+            if path.startswith("/api/") and not self.require_auth():
+                return
             if path.startswith("/api/repos/"):
                 repo_id = unquote(path.split("/")[3])
                 delete_repo(repo_id)
@@ -2127,6 +2200,23 @@ class CodeDoctorHandler(BaseHTTPRequestHandler):
             return True
         presented = self.headers.get("Authorization") or ""
         return hmac.compare_digest(presented, f"Bearer {expected}")
+
+    def require_auth(self) -> bool:
+        """Auth gate with per-IP 401 throttling (QW-3). Sends the error itself."""
+        client_ip = self.client_address[0] if self.client_address else ""
+        if auth_throttled(client_ip):
+            self.send_error_json(
+                HTTPStatus.TOO_MANY_REQUESTS,
+                "Too many failed authorization attempts. Try again in a minute.",
+            )
+            return False
+        if self.authorized():
+            clear_auth_failures(client_ip)
+            return True
+        if record_auth_failure(client_ip):
+            audit_event("auth_throttled", client=client_ip)
+        self.send_error_json(HTTPStatus.UNAUTHORIZED, "Authorization required.")
+        return False
 
     def handle_review_get(self, path: str) -> None:
         parts = [unquote(part) for part in path.split("/") if part]
@@ -2241,10 +2331,7 @@ class CodeDoctorHandler(BaseHTTPRequestHandler):
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("X-Frame-Options", "DENY")
         self.send_header("Referrer-Policy", "no-referrer")
-        self.send_header(
-            "Content-Security-Policy",
-            "default-src 'self'; img-src 'self' data:; script-src 'self'; style-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'",
-        )
+        self.send_header("Content-Security-Policy", CSP_POLICY)
         super().end_headers()
 
 
@@ -2252,6 +2339,9 @@ def serve(host: str, port: int) -> None:
     RUNS_DIR.mkdir(parents=True, exist_ok=True)
     if store.migrate_legacy(AUDIT_LOG, SUPPRESSIONS_FILE, REPOS_FILE):
         sys.stderr.write("Code Doctor: migrated legacy JSON store into SQLite.\n")
+    warning = bind_warning(host)
+    if warning:
+        sys.stderr.write(warning + "\n")
     httpd = ThreadingHTTPServer((host, port), CodeDoctorHandler)
     httpd.daemon_threads = True   # threads exit when main thread exits
 
