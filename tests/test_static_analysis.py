@@ -83,6 +83,31 @@ def test_python_danger_rules_report_correct_lines():
     assert by_rule["bare-except"]["affected_lines"][0]["start_line"] == 14
 
 
+def test_flags_flask_debug_and_bind_all_interfaces():
+    diff = make_diff(
+        "svc/server.py",
+        ['app.run(host="0.0.0.0", port=3000, debug=True)'],
+        start=100,
+    )
+    findings = issues_for(diff, "svc/server.py")
+    by_rule = {finding["rule"]: finding for finding in findings}
+    assert by_rule["flask-debug-true"]["affected_lines"][0]["start_line"] == 100
+    assert by_rule["bind-all-interfaces"]["affected_lines"][0]["start_line"] == 100
+    # debug bound to a variable/env flag must NOT trip the rule.
+    safe = make_diff("svc/server.py", ["app.run(debug=settings.DEBUG)"])
+    assert "flask-debug-true" not in rule_ids(issues_for(safe, "svc/server.py"))
+
+
+def test_flags_wildcard_cors_in_python_and_js():
+    py = make_diff("svc/api.py", ['CORS(app, resources={r"/*": {"origins": "*"}})'])
+    assert "cors-wildcard-origin" in rule_ids(issues_for(py, "svc/api.py"))
+    js = make_diff("web/server.js", ['app.use(cors({ origin: "*" }))'])
+    assert "cors-wildcard-origin" in rule_ids(issues_for(js, "web/server.js"))
+    # A specific allowlisted origin must not trip it.
+    ok = make_diff("svc/api.py", ['CORS(app, origins="https://app.example.com")'])
+    assert "cors-wildcard-origin" not in rule_ids(issues_for(ok, "svc/api.py"))
+
+
 def test_python_rules_do_not_apply_to_other_languages():
     diff = make_diff("notes.md", ["subprocess.run(cmd, shell=True)", "except:"])
     assert issues_for(diff, "notes.md") == []

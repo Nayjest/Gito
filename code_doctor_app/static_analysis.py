@@ -282,6 +282,51 @@ RULES: tuple[Rule, ...] = (
         file_patterns=PY_FILES,
     ),
     Rule(
+        id="flask-debug-true",
+        title="Web server started with debug mode enabled.",
+        details=(
+            "Running Flask/Werkzeug with debug=True exposes the interactive debugger, "
+            "which executes arbitrary code on any unhandled error. Never enable it "
+            "outside local development; gate it behind an environment flag."
+        ),
+        severity=2,
+        confidence=1,
+        tags=("security",),
+        pattern=re.compile(r"\.run\s*\([^)]*\bdebug\s*=\s*True\b"),
+        file_patterns=PY_FILES,
+    ),
+    Rule(
+        id="bind-all-interfaces",
+        title="Service binds to all network interfaces (0.0.0.0).",
+        details=(
+            "Binding to 0.0.0.0 exposes the service on every network interface, not just "
+            "localhost. With no authentication in front, that reaches the whole network. "
+            "Bind to 127.0.0.1 unless external exposure is intended and protected."
+        ),
+        severity=3,
+        confidence=2,
+        tags=("security",),
+        pattern=re.compile(r"""['"]0\.0\.0\.0['"]"""),
+        file_patterns=PY_FILES + JS_FILES,
+    ),
+    Rule(
+        id="cors-wildcard-origin",
+        title="CORS allows any origin (*).",
+        details=(
+            "A wildcard CORS origin lets any website call this API from a victim's browser "
+            "session. Restrict origins to a known allowlist, especially for state-changing "
+            "or credentialed endpoints."
+        ),
+        severity=2,
+        confidence=2,
+        tags=("security",),
+        pattern=re.compile(
+            r"""(?:origins?|Access-Control-Allow-Origin)["']?\s*[:=]\s*\[?\s*["']\*["']""",
+            re.IGNORECASE,
+        ),
+        file_patterns=PY_FILES + JS_FILES,
+    ),
+    Rule(
         id="bare-except",
         title="Bare except swallows every error, including exit signals.",
         details=(
