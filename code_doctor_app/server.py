@@ -35,6 +35,7 @@ GZIP_MIN_SIZE   = 860                  # compress responses larger than this
 STATIC_CACHE_TTL = 3600               # 1-hour cache for static assets
 APP_VERSION     = "5.0.0"
 REVIEW_TIMEOUT_DEFAULT = 3600         # hard cap on a single review subprocess (seconds)
+LARGE_REVIEW_FILE_HINT = 20           # warn a whole-repo review this big may time out on local models
 GENERATION_TIMEOUT_DEFAULT = 1200     # hard cap on a test/PR generation subprocess
 VERIFY_TIMEOUT_DEFAULT = 900          # hard cap on the finding-verification subprocess
 GENERATION_KINDS = {"tests", "pr"}
@@ -2040,6 +2041,9 @@ def snapshot_preflight(source: Path) -> dict[str, Any]:
     files = snapshot.list_files(source)
     classified = classify_scope_files(files)
     over_limit = len(files) >= snapshot.MAX_SNAPSHOT_FILES
+    # A snapshot review covers the whole tree; on a slow local model each file
+    # is a separate call, so a big repo can exceed the review timeout.
+    heavy_review = len(classified["changed"]) > LARGE_REVIEW_FILE_HINT
     return {
         "repo_path": str(source),
         "scope": {
@@ -2063,6 +2067,12 @@ def snapshot_preflight(source: Path) -> dict[str, Any]:
                 "Folder is too large to snapshot; point at a git repository or a "
                 "smaller folder."
             ] if over_limit else []),
+            *([
+                f"Whole-repo review of {len(classified['changed'])} files: on a local "
+                "model each file is a separate call, so this can exceed the default "
+                "1-hour timeout. Raise 'timeoutSeconds', use a faster model, or commit "
+                "the code and review the diff instead."
+            ] if heavy_review else []),
             *(["Sensitive files present — review carefully."] if classified["sensitive"] else []),
         ],
     }
