@@ -1,0 +1,26 @@
+{
+  "type": "object",
+  "properties": {
+    "generated_at": {"type": "string"},
+    "graph_files": {"type": "integer"},
+    "files": {
+      "type": "object",
+      "values": {
+        "type": "object",
+        "properties": {
+          "imports": {"type": "array"},
+          "dependents": {"type": "array"},
+          "symbols": {
+            "type": "object",
+            "properties": {
+              "added": {"type": "array"},
+              "removed": {"type": "array"},
+              "signature_changed": {"type": "array"}
+            }
+          },
+          "usages": {"type": "object"}
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "type": "object",
+  "properties": {
+    "kind": {"type": "string"},
+    "created_at": {"type": "string"},
+    "title": {"type": "string"},
+    "body_markdown": {"type": "string"},
+    "labels": {"type": "array"},
+    "checklist": {"type": "array"}
+  }
+}

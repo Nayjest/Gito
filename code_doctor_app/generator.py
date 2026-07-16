@@ -167,13 +167,17 @@ def build_pr_prompt(diff: str) -> str:
     return f"{PR_INSTRUCTIONS}\n----DIFF----\n{diff}\n"
 
 
-def issues_for_verification(report: dict) -> list[dict]:
+def issues_for_verification(report: dict, skip_ids: tuple | list = ()) -> list[dict]:
     """Flatten LLM findings for the verifier; deterministic static findings are
-    rule-based evidence and are never second-guessed by a model."""
+    rule-based evidence and are never second-guessed by a model. ``skip_ids``
+    excludes findings whose verdicts were carried over from a previous run."""
+    skipped = {str(item) for item in skip_ids}
     findings = []
     for file, issues in (report.get("issues") or {}).items():
         for issue in issues:
             if issue.get("source") == "static":
+                continue
+            if str(issue.get("id")) in skipped:
                 continue
             findings.append(
                 {
@@ -358,6 +362,11 @@ def main() -> int:
     parser.add_argument("--out", required=True)
     parser.add_argument("--report", default="", help="Review report JSON (verify kind)")
     parser.add_argument("--context", default="", help="Cross-file context pack JSON (verify kind)")
+    parser.add_argument(
+        "--skip-ids",
+        default="",
+        help="Comma-separated finding ids with verdicts carried from a prior run (verify kind)",
+    )
     parser.add_argument("--mode", default="working")
     parser.add_argument("--refs", default="")
     parser.add_argument("--what", default="")
@@ -378,7 +387,8 @@ def main() -> int:
     findings: list[dict] = []
     if args.kind == "verify":
         report = json.loads(Path(args.report).read_text(encoding="utf-8")) if args.report else {}
-        findings = issues_for_verification(report)
+        skip_ids = [item.strip() for item in args.skip_ids.split(",") if item.strip()]
+        findings = issues_for_verification(report, skip_ids)
         if not findings:
             print("No LLM findings to verify.")
             return 3

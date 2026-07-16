@@ -193,6 +193,10 @@ function renderHealth() {
   $("#ollamaStatusDot").dataset.state = ollamaOk ? "ok" : "error";
   setText("#ollamaStatus", ollamaOk ? "Online" : "Offline");
 
+  // Item 9: persistent banner when the server-side watchdog says down
+  const watchState = h.ollamaWatch?.state;
+  $("#ollamaBanner")?.classList.toggle("hidden", watchState !== "down");
+
   // Git
   const gitOk = h.git?.ok;
   $("#gitStatusDot").dataset.state = gitOk ? "ok" : "error";
@@ -330,11 +334,13 @@ function renderSelectedRun() {
     ? `${genNoun} run — open Reports to view the generated artifacts.`
     : "";
   setText("#summaryBox", genSummary || stats.summary || "No completed review selected.");
+  const reused = meta?.reused_verdicts;
   const trustBits = [
     `${stats.total_issues ?? 0} open`,
     ...(stats.verification?.confirmed ? [`${stats.verification.confirmed} verified`] : []),
     ...(stats.rejected_issues ? [`${stats.rejected_issues} auto-rejected`] : []),
     ...(stats.suppressed ? [`${stats.suppressed} dismissed`] : []),
+    ...(reused ? [`${(reused.confirmed ?? 0) + (reused.rejected ?? 0)} verdicts reused from ${reused.from_run ?? "previous run"}`] : []),
   ];
   setText("#findingMeta", trustBits.join(" · "));
 
@@ -380,6 +386,9 @@ function renderFindings() {
       : issue.verified === false
         ? `<span class="verdict-chip verdict-uncertain" title="${esc(issue.verifier_reason || "The verifier could not confirm this from the diff")}">? unverified</span>`
         : "";
+    const carriedChip = issue.carried_from
+      ? `<span class="verdict-chip verdict-carried" title="Verdict reused from run ${esc(issue.carried_from)}">carried</span>`
+      : "";
 
     return `
       <article class="finding-card fade-in${issue.suppressed ? " suppressed" : ""}" id="finding-${esc(issue.id)}">
@@ -388,7 +397,7 @@ function renderFindings() {
             <div class="finding-title-row">
               <span class="sev-pill ${sevClass(issue.severity)}">S${esc(issue.severity || "?")}</span>
               <h3 class="finding-title">#${esc(issue.id)} ${esc(issue.title)}</h3>
-              ${verdictChip}
+              ${verdictChip}${carriedChip}
               ${issue.suppressed ? `<span class="verdict-chip verdict-suppressed">dismissed</span>` : ""}
             </div>
             <div class="finding-loc">${esc(loc)}</div>
@@ -412,6 +421,7 @@ function renderFindings() {
           ${proposal ? `
             <div class="code-block-label">Proposed fix</div>
             <pre class="code-block proposal">${esc(proposal)}</pre>
+            ${renderFixControls(issue)}
           ` : ""}
         </div>
       </article>
@@ -421,6 +431,11 @@ function renderFindings() {
   $$(".finding-feedback").forEach((btn) => btn.addEventListener("click", (event) => {
     event.stopPropagation();
     sendFindingFeedback(btn.dataset.issue, btn.dataset.action);
+  }));
+
+  $$(".fix-action").forEach((btn) => btn.addEventListener("click", (event) => {
+    event.stopPropagation();
+    handleFixAction(btn.dataset.issue, btn.dataset.fixAction);
   }));
 
   // Wire expand/collapse
@@ -703,10 +718,16 @@ function renderRepos() {
 function renderPolicies() {
   const p = state.policies || {};
   const r = p.risk || {};
+  const ci = p.ci || {};
   if ($("#blockSeverity"))       $("#blockSeverity").value       = r.blockSeverity ?? 1;
   if ($("#reviewSeverity"))      $("#reviewSeverity").value      = r.reviewSeverity ?? 2;
   if ($("#maxRiskScore"))        $("#maxRiskScore").value        = r.maxRiskScore ?? 24;
   if ($("#sensitiveFileReview")) $("#sensitiveFileReview").checked = r.sensitiveFileReview !== false;
+  if ($("#ciAutoPublish"))       $("#ciAutoPublish").checked     = ci.autoPublish === true;
+  if ($("#ciFailOn"))            $("#ciFailOn").value            = ci.failOn || "block";
+  const models = p.models || {};
+  if ($("#policyVerifyModel"))   $("#policyVerifyModel").value   = models.verify || "";
+  if ($("#policyGenerateModel")) $("#policyGenerateModel").value = models.generate || "";
 
   $("#guardrailList").innerHTML = (p.guardrails || []).map((g) => `
     <div class="guardrail-row">
@@ -867,6 +888,7 @@ async function selectRun(runId) {
   }
   hydrateFormFromMeta(selectedMeta());
   renderAll();
+  maybeStreamSelected();
 }
 
 async function refreshEverything() {
@@ -894,6 +916,8 @@ function formPayload() {
     filters:            $("#filters").value.trim(),
     maxConcurrentTasks: Number($("#maxConcurrentTasks").value || 4),
     mergeBase:          $("#mergeBase").checked,
+    verifyModel:        $("#verifyModel")?.value.trim() || "",
+    generateModel:      $("#generateModel")?.value.trim() || "",
   };
 }
 
@@ -1102,6 +1126,14 @@ async function savePolicies() {
           maxRiskScore:       Number($("#maxRiskScore").value   || 24),
           sensitiveFileReview: $("#sensitiveFileReview").checked,
         },
+        ci: {
+          autoPublish: $("#ciAutoPublish")?.checked === true,
+          failOn:      $("#ciFailOn")?.value || "block",
+        },
+        models: {
+          verify:   $("#policyVerifyModel")?.value.trim() || "",
+          generate: $("#policyGenerateModel")?.value.trim() || "",
+        },
       }),
     });
     renderPolicies();
@@ -1236,6 +1268,84 @@ function wireEvents() {
   updateScopeControls();
 }
 
+// ── Item 6: live streaming (SSE over fetch; polling stays as the fallback) ──
+let _streamCtrl = null;
+let _streamRunId = null;
+
+function stopStream() {
+  if (_streamCtrl) _streamCtrl.abort();
+  _streamCtrl = null;
+  _streamRunId = null;
+}
+
+function maybeStreamSelected() {
+  const meta = selectedMeta();
+  if (!meta) return;
+  const active = meta.status === "running" || meta.status === "queued";
+  if (!active) {
+    if (_streamRunId === meta.id) stopStream();
+    return;
+  }
+  if (_streamRunId === meta.id) return; // already streaming this run
+  streamRun(meta.id);
+}
+
+async function streamRun(runId) {
+  stopStream();
+  if (!window.ReadableStream) return; // ancient browser → polling only
+  const ctrl = new AbortController();
+  _streamCtrl = ctrl;
+  _streamRunId = runId;
+  try {
+    const headers = state.token ? { Authorization: `Bearer ${state.token}` } : {};
+    const res = await fetch(`/api/reviews/${encodeURIComponent(runId)}/events`, {
+      headers, signal: ctrl.signal,
+    });
+    if (!res.ok || !res.body) return; // 429 (stream cap) or error → keep polling
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      let cut;
+      while ((cut = buf.indexOf("\n\n")) >= 0) {
+        handleStreamFrame(runId, buf.slice(0, cut));
+        buf = buf.slice(cut + 2);
+      }
+    }
+  } catch (_) {
+    // aborted on run switch, or network hiccup — the 5s poll stays correct
+  } finally {
+    if (_streamCtrl === ctrl) {
+      _streamCtrl = null;
+      _streamRunId = null;
+    }
+  }
+}
+
+function handleStreamFrame(runId, frame) {
+  if (state.selectedRunId !== runId) return;
+  const lines = frame.split("\n");
+  const event = (lines.find((l) => l.startsWith("event:")) || "").replace("event:", "").trim();
+  const data = lines.filter((l) => l.startsWith("data:")).map((l) => l.replace(/^data: ?/, "")).join("\n");
+  if (event === "log" && data) {
+    state.log = (state.log || "") + data + "\n";
+    renderLog();
+  } else if (event === "meta" && data) {
+    try {
+      const meta = JSON.parse(data);
+      if (state.detail) state.detail.meta = meta;
+      renderAll();
+    } catch (_) { /* partial frame — the next poll corrects it */ }
+  } else if (event === "done") {
+    stopStream();
+    loadSelected().then(renderAll).catch(() => {});
+    refreshRuns().catch(() => {});
+  }
+}
+
 // ── Smart polling ─────────────────────────────────────────────────────────────
 let _pollRunning = false;
 
@@ -1259,6 +1369,7 @@ async function poll() {
         toastError(`${runNoun} for "${basename(newMeta.repo_path)}" failed. Check the execution log.`);
       }
     }
+    maybeStreamSelected();
   } finally {
     _pollRunning = false;
   }

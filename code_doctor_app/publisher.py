@@ -230,6 +230,60 @@ def _publish_gitlab(slug: str, number: int, summary: str) -> dict[str, Any]:
     return {"mode": "mr_note", "url": "", "note_id": note.get("id"), "comments_posted": 0}
 
 
+GATE_STATUS_STATES = {
+    "github": {"block": "failure", "review": "success", "pass": "success"},
+    "gitlab": {"block": "failed", "review": "success", "pass": "success"},
+}
+GATE_STATUS_DESCRIPTIONS = {
+    "block": "Blocking findings — fix before merge",
+    "review": "Completed — needs human review",
+    "pass": "No blocking findings",
+}
+
+
+def post_commit_status(
+    platform: str, slug: str, sha: str, gate: str, target_url: str = ""
+) -> dict[str, Any]:
+    """Post the review gate as a commit status (context ``code-doctor/gate``)."""
+    platform = str(platform or "").strip().lower()
+    gate = str(gate or "pass").strip().lower()
+    if platform not in GATE_STATUS_STATES:
+        raise ValueError("Unsupported platform. Use 'github' or 'gitlab'.")
+    if not slug or not sha:
+        raise ValueError("Commit status needs a repository slug and a commit sha.")
+    state = GATE_STATUS_STATES[platform].get(gate, "success")
+    description = f"Code Doctor: {GATE_STATUS_DESCRIPTIONS.get(gate, gate)}"
+
+    if platform == "github":
+        token = _github_token()
+        if not token:
+            raise ValueError("GitHub publishing is not configured. Set GITHUB_TOKEN on the server.")
+        url = f"https://api.github.com/repos/{slug}/statuses/{sha}"
+        headers = {"Authorization": f"Bearer {token}", "X-GitHub-Api-Version": "2022-11-28"}
+        payload: dict[str, Any] = {
+            "state": state,
+            "context": "code-doctor/gate",
+            "description": description,
+        }
+    else:
+        token = _gitlab_token()
+        if not token:
+            raise ValueError("GitLab publishing is not configured. Set GITLAB_TOKEN on the server.")
+        url = f"{gitlab_base()}/api/v4/projects/{quote(slug, safe='')}/statuses/{sha}"
+        headers = {"PRIVATE-TOKEN": token}
+        payload = {"state": state, "name": "code-doctor/gate", "description": description}
+    if target_url:
+        payload["target_url"] = target_url
+
+    try:
+        _request_json(url, headers, payload)
+    except HTTPError as exc:
+        raise ValueError(f"{platform} status API returned {exc.code}: {exc.reason}") from exc
+    except URLError as exc:
+        raise ValueError(f"Could not reach the {platform} API: {exc.reason}") from exc
+    return {"platform": platform, "sha": sha, "state": state, "description": description}
+
+
 def publish_review(
     meta: dict[str, Any],
     report: dict[str, Any] | None,

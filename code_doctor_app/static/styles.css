@@ -1559,6 +1559,7 @@ img { display: block; max-width: 100%; }
 .verdict-confirmed  { background: var(--green-dim);  color: var(--green); }
 .verdict-uncertain  { background: var(--amber-dim);  color: var(--amber); }
 .verdict-suppressed { background: var(--surface-3);  color: var(--text-muted); }
+.verdict-carried    { background: var(--surface-3);  color: var(--text-muted); }
 
 .finding-card.suppressed { opacity: 0.55; }
 .finding-card.suppressed .finding-title { text-decoration: line-through; }
@@ -1628,3 +1629,20 @@ img { display: block; max-width: 100%; }
 /* ── Publish panel ─────────────────────────────────────────────────────────── */
 #pubResult { margin-top: 12px; }
 #pubResult a { color: var(--cyan); }
+
+/* ── Item 14: per-pass model routing ─────────────────────────────────────── */
+.advanced-models summary { cursor: pointer; user-select: none; }
+.advanced-models[open] summary { margin-bottom: 10px; }
+.advanced-models .form-grid { margin-top: 4px; }
+
+/* ── Item 9: Ollama watchdog banner ──────────────────────────────────────── */
+.info-banner.banner-error {
+  background: var(--red-dim, rgba(248,81,73,0.12));
+  border-color: rgba(248,81,73,0.35);
+  color: var(--red, #f85149);
+}
+.info-banner.banner-error code {
+  background: rgba(0,0,0,0.25);
+  padding: 1px 5px;
+  border-radius: 4px;
+}

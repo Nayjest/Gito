@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import collections
 import copy
 import fnmatch
 import gzip
@@ -26,13 +27,13 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, unquote, urlparse
 from urllib.request import Request, urlopen
 
-from . import context_engine, publisher, semantic_js, static_analysis, store
+from . import context_engine, patcher, publisher, semantic_js, static_analysis, store
 
 # ── Production constants ────────────────────────────────────────────────────
 MAX_REQUEST_BODY = 16 * 1024 * 1024   # 16 MB hard limit on JSON request bodies
 GZIP_MIN_SIZE   = 860                  # compress responses larger than this
 STATIC_CACHE_TTL = 3600               # 1-hour cache for static assets
-APP_VERSION     = "4.3.1"
+APP_VERSION     = "5.0.0"
 REVIEW_TIMEOUT_DEFAULT = 3600         # hard cap on a single review subprocess (seconds)
 GENERATION_TIMEOUT_DEFAULT = 1200     # hard cap on a test/PR generation subprocess
 VERIFY_TIMEOUT_DEFAULT = 900          # hard cap on the finding-verification subprocess
@@ -75,6 +76,17 @@ DEFAULT_POLICIES = {
         "requireTestsForNode": True,
         "watchPatterns": ["tests/*", "test/*", "*.spec.ts", "*.test.ts", "*_test.py"],
     },
+    "ci": {
+        # Webhook-triggered reviews stay dashboard-only unless a human opts in.
+        "autoPublish": False,
+        "failOn": "block",
+    },
+    "models": {
+        # Workspace defaults for per-pass model routing; empty = inherit the
+        # run's main model. Per-run verifyModel/generateModel win over these.
+        "verify": "",
+        "generate": "",
+    },
     "guardrails": [
         {
             "id": "private-model",
@@ -111,6 +123,13 @@ DEFAULT_POLICIES = {
 
 PROCESS_LOCK = threading.Lock()
 PROCESSES: dict[str, subprocess.Popen] = {}
+
+# Item 6: each SSE viewer holds one server thread; cap them so a tab storm
+# cannot exhaust the ThreadingHTTPServer. Excess viewers get 429 and the UI
+# silently stays on its 5-second polling (kept as the permanent fallback).
+SSE_SEMAPHORE = threading.Semaphore(8)
+SSE_MAX_SECONDS = 2 * 3600
+SSE_TICK_SECONDS = 0.5
 
 # Secrets the review/generation subprocesses never need (QW-5). Gito and the
 # generator only consume the LLM_* contract; handing them workspace or
@@ -1166,6 +1185,161 @@ def previous_fingerprints(run_id: str, repo_path: str, created_at: str) -> set[s
     return set(best[1]) if best else None
 
 
+def verdict_fingerprint(issue: dict[str, Any]) -> str:
+    """Fingerprint for verdict matching, ignoring verifier decoration: a prior
+    confirmed finding carries a "verified" tag its fresh twin does not."""
+    tags = [tag for tag in (issue.get("tags") or []) if tag != "verified"]
+    return issue_fingerprint(issue | {"tags": tags})
+
+
+def issue_line_span(issue: dict[str, Any]) -> tuple[int, int] | None:
+    """Overall (first, last) affected line of a finding, or None."""
+    spans = [
+        (block["start_line"], block.get("end_line") or block["start_line"])
+        for block in issue.get("affected_lines") or []
+        if isinstance(block, dict) and isinstance(block.get("start_line"), int)
+    ]
+    if not spans:
+        return None
+    return min(start for start, _ in spans), max(
+        end if isinstance(end, int) else start for start, end in spans
+    )
+
+
+def previous_run_context(run_id: str, repo_path: str, created_at: str) -> dict[str, Any]:
+    """Verifier verdicts from the most recent earlier completed review of the
+    same repo. ``verdicts`` is keyed by issue fingerprint for exact matches;
+    ``by_file`` holds per-file candidates (line span + tags) for the
+    position-based fallback — LLM findings rarely keep identical wording
+    across runs, so exact fingerprints alone would almost never carry.
+    Empty dict when there is no prior run."""
+    best: tuple[str, str] | None = None
+    for path in RUNS_DIR.glob("*/meta.json"):
+        meta = read_json(path, {})
+        if meta.get("id") == run_id or meta.get("repo_path") != repo_path:
+            continue
+        if meta.get("status") != "completed" or (meta.get("kind") or "review") != "review":
+            continue
+        when = meta.get("created_at", "")
+        if created_at and when >= created_at:
+            continue
+        if best is None or when > best[0]:
+            best = (when, str(meta.get("id")))
+    if not best:
+        return {}
+    prior_id = best[1]
+    report = read_json(report_path(prior_id), {}) or {}
+    verdicts: dict[str, dict[str, str]] = {}
+    by_file: dict[str, list[dict[str, Any]]] = {}
+
+    def record(file: str, issue: dict[str, Any], verdict: str) -> None:
+        issue = issue | {"file": issue.get("file") or file}
+        entry = {"verdict": verdict, "reason": str(issue.get("verifier_reason") or "")}
+        verdicts[verdict_fingerprint(issue)] = entry
+        by_file.setdefault(file, []).append(
+            entry
+            | {
+                "span": issue_line_span(issue),
+                "tags": {tag for tag in issue.get("tags") or [] if tag != "verified"},
+            }
+        )
+
+    for file, file_issues in (report.get("issues") or {}).items():
+        for issue in file_issues:
+            if issue.get("verified") is True and issue.get("source") != "static":
+                record(file, issue, "confirmed")
+    for file, file_issues in (report.get("rejected_issues") or {}).items():
+        for issue in file_issues:
+            if issue.get("source") != "static":
+                record(file, issue, "rejected")
+    return {"run_id": prior_id, "verdicts": verdicts, "by_file": by_file}
+
+
+def positional_verdict_match(
+    issue: dict[str, Any], candidates: list[dict[str, Any]]
+) -> dict[str, str] | None:
+    """Fallback verdict match by location: carries only when exactly one prior
+    verdict-bearing finding sits on overlapping lines (±3) of the same file
+    and shares at least one tag. Any ambiguity means no carry."""
+    span = issue_line_span(issue)
+    if span is None:
+        return None
+    tags = {tag for tag in issue.get("tags") or [] if tag != "verified"}
+    hits = [
+        candidate
+        for candidate in candidates
+        if candidate.get("span") is not None
+        and candidate["span"][0] - 3 <= span[1]
+        and span[0] <= candidate["span"][1] + 3
+        and tags & candidate["tags"]
+    ]
+    if len(hits) != 1:
+        return None
+    return {"verdict": hits[0]["verdict"], "reason": hits[0]["reason"]}
+
+
+def maybe_reuse_verdicts(
+    run_id: str, repo_path: Path, payload: dict[str, Any]
+) -> tuple[dict[str, int], list[Any]]:
+    """Item 2: stamp prior confirmed/rejected verdicts onto matching findings
+    so only genuinely new findings reach the verifier LLM.
+
+    Returns (counts, skip_ids) where skip_ids are the finding ids whose
+    verdicts were carried and must be excluded from fresh verification.
+    """
+    counts = {"confirmed": 0, "rejected": 0}
+    if payload.get("reuseVerdicts") is False:
+        return counts, []
+    meta = read_json(meta_path(run_id), {}) or {}
+    prior = previous_run_context(run_id, str(repo_path), meta.get("created_at", ""))
+    verdicts = prior.get("verdicts") or {}
+    by_file = prior.get("by_file") or {}
+    report = read_json(report_path(run_id), None)
+    if not verdicts or not report:
+        return counts, []
+    prior_run_id = prior["run_id"]
+    skip_ids: list[Any] = []
+    issues = report.get("issues") or {}
+    for file in list(issues):
+        kept = []
+        for issue in issues[file]:
+            prior_verdict = None
+            if issue.get("source") != "static":
+                prior_verdict = verdicts.get(
+                    verdict_fingerprint(issue | {"file": issue.get("file") or file})
+                ) or positional_verdict_match(issue, by_file.get(file) or [])
+            if not prior_verdict:
+                kept.append(issue)
+                continue
+            reason = prior_verdict.get("reason") or ""
+            if prior_verdict.get("verdict") == "confirmed":
+                counts["confirmed"] += 1
+                issue["verified"] = True
+                issue["verifier_reason"] = reason
+                issue["carried_from"] = prior_run_id
+                tags = issue.setdefault("tags", [])
+                if "verified" not in tags:
+                    tags.append("verified")
+                skip_ids.append(issue.get("id"))
+                kept.append(issue)
+            else:
+                counts["rejected"] += 1
+                report.setdefault("rejected_issues", {}).setdefault(file, []).append(
+                    issue | {"verifier_reason": reason, "carried_from": prior_run_id}
+                )
+        if kept:
+            issues[file] = kept
+        else:
+            issues.pop(file, None)
+    if not (counts["confirmed"] or counts["rejected"]):
+        return counts, []
+    report["total_issues"] = sum(len(file_issues) for file_issues in issues.values())
+    atomic_write_json(report_path(run_id), report)
+    update_meta(run_id, reused_verdicts={**counts, "from_run": prior_run_id})
+    audit_event("verdicts_reused", run_id=run_id, from_run=prior_run_id, **counts)
+    return counts, skip_ids
+
+
 def compute_risk_score(plain_issues: list[dict[str, Any]]) -> int:
     """Confidence-weighted severity score with a security multiplier."""
     severity_weights = {1: 10, 2: 6, 3: 3, 4: 1}
@@ -1228,6 +1402,16 @@ def summarize_report(run_id: str) -> dict[str, Any]:
     elif sensitive_files and risk_policy.get("sensitiveFileReview", True):
         gate = "review"
 
+    carried = sum(1 for issue in plain_issues if issue.get("carried_from")) + sum(
+        1
+        for file_issues in (report.get("rejected_issues") or {}).values()
+        for issue in file_issues
+        if issue.get("carried_from")
+    )
+    verification = dict(report.get("verification") or {})
+    if carried:
+        verification["carried"] = carried
+
     fingerprints = sorted({issue_fingerprint(issue) for issue in plain_issues})
     meta = read_json(meta_path(run_id), {}) or {}
     baseline = previous_fingerprints(
@@ -1254,7 +1438,7 @@ def summarize_report(run_id: str) -> dict[str, Any]:
         "static_issues": sum(1 for issue in plain_issues if issue.get("source") == "static"),
         "cross_file_issues": sum(1 for issue in plain_issues if issue.get("source") == "crossfile"),
         "suppressed": len(plain_issues) - len(scored_issues),
-        "verification": report.get("verification") or {},
+        "verification": verification,
         "rejected_issues": sum(
             len(file_issues) for file_issues in (report.get("rejected_issues") or {}).values()
         ),
@@ -1263,7 +1447,20 @@ def summarize_report(run_id: str) -> dict[str, Any]:
     }
 
 
-def subprocess_env(payload: dict[str, Any]) -> dict[str, str]:
+def pass_model(payload: dict[str, Any], payload_key: str, policy_key: str) -> str:
+    """Item 14: model override for a specific pass (verify/generate).
+
+    Resolution: per-run payload key > workspace policy `models.<key>` > ""
+    (empty = inherit the run's main model — today's behavior).
+    """
+    value = str(payload.get(payload_key) or "").strip()
+    if value:
+        return value
+    models_policy = load_policies().get("models") or {}
+    return str(models_policy.get(policy_key) or "").strip()
+
+
+def subprocess_env(payload: dict[str, Any], model_override: str = "") -> dict[str, str]:
     """Environment for review/generation subprocesses: Gito's LLM_* contract."""
     env = os.environ.copy()
     for key in SUBPROCESS_ENV_STRIP:
@@ -1277,7 +1474,7 @@ def subprocess_env(payload: dict[str, Any]) -> dict[str, str]:
             "LLM_API_TYPE": "openai",
             "LLM_API_KEY": payload.get("apiKey") or "ollama",
             "LLM_API_BASE": openai_compatible_base(payload.get("ollamaBase")),
-            "MODEL": (payload.get("model") or DEFAULT_MODEL).strip(),
+            "MODEL": (model_override or payload.get("model") or DEFAULT_MODEL).strip(),
             "MAX_CONCURRENT_TASKS": str(payload.get("maxConcurrentTasks") or 4),
             "GITO_EXTRA_PROJECT_CONFIG": str(REVIEW_PROFILE),
         }
@@ -1285,11 +1482,28 @@ def subprocess_env(payload: dict[str, Any]) -> dict[str, str]:
     return env
 
 
+def note_ollama_warning(run_id: str) -> None:
+    """Item 9 pre-run guard: still attempt the run (Ollama may be back), but
+    make a later failure explainable."""
+    try:
+        if OLLAMA_WATCHDOG.snapshot()["state"] != "down":
+            return
+        update_meta(run_id, ollama_warning=True)
+        with log_path(run_id).open("ab") as log_file:
+            log_file.write(
+                b"Code Doctor: warning - the Ollama watchdog reports the model "
+                b"runtime down; attempting the run anyway.\n"
+            )
+    except Exception:  # noqa: BLE001 - advisory only
+        pass
+
+
 def run_review(run_id: str, repo_path: Path, payload: dict[str, Any], command: list[str]) -> None:
     started = time.monotonic()
     env = subprocess_env(payload)
 
     update_meta(run_id, status="running", started_at=utc_now())
+    note_ollama_warning(run_id)
     audit_event(
         "review_started",
         run_id=run_id,
@@ -1386,9 +1600,17 @@ def run_review(run_id: str, repo_path: Path, payload: dict[str, Any], command: l
                 PROCESSES.pop(run_id, None)
 
     static_count = merge_static()
+    skip_ids: list[Any] = []
+    if report_path(run_id).exists():
+        # Verdict reuse must never fail a review (R3): fall back to full verification.
+        try:
+            _, skip_ids = maybe_reuse_verdicts(run_id, repo_path, payload)
+        except Exception as exc:
+            audit_event("verdict_reuse_failed", run_id=run_id, error=str(exc))
+            skip_ids = []
     verification_counts: dict[str, int] = {}
     if payload.get("verifyFindings") is not False and report_path(run_id).exists():
-        verification_counts = run_verification(run_id, repo_path, payload, env)
+        verification_counts = run_verification(run_id, repo_path, payload, env, skip_ids)
     status = "completed" if exit_code == 0 and report_path(run_id).exists() else "failed"
     stats = summarize_report(run_id) if report_path(run_id).exists() else {}
     update_meta(
@@ -1416,23 +1638,42 @@ def run_review(run_id: str, repo_path: Path, payload: dict[str, Any], command: l
 
 
 def run_verification(
-    run_id: str, repo_path: Path, payload: dict[str, Any], env: dict[str, str]
+    run_id: str,
+    repo_path: Path,
+    payload: dict[str, Any],
+    env: dict[str, str],
+    skip_ids: list[Any] | None = None,
 ) -> dict[str, int]:
-    """Run the skeptical second-pass verifier over the run's LLM findings."""
+    """Run the skeptical second-pass verifier over the run's LLM findings.
+
+    Findings whose ids are in ``skip_ids`` already carry a verdict reused from
+    a previous run and are excluded; when nothing else remains, the verifier
+    subprocess is not started at all.
+    """
+    skipped = {str(item) for item in (skip_ids or [])}
     report = read_json(report_path(run_id), {}) or {}
     has_llm_findings = any(
-        issue.get("source") != "static"
+        issue.get("source") != "static" and str(issue.get("id")) not in skipped
         for file_issues in (report.get("issues") or {}).values()
         for issue in file_issues
     )
     if not has_llm_findings:
+        if skipped:
+            audit_event("verification_skipped", run_id=run_id, reason="all verdicts reused")
         return {}
     try:
         options = review_options(payload)
     except ValueError:
         return {}
+    verify_model = pass_model(payload, "verifyModel", "verify")
+    if verify_model:
+        # Item 14: the verifier can run on a different (usually smaller) model.
+        env = subprocess_env(payload, model_override=verify_model)
+        update_meta(run_id, verify_model=verify_model)
     command = build_generation_command("verify", repo_path, run_dir(run_id), options)
     command.extend(["--report", str(report_path(run_id))])
+    if skipped:
+        command.extend(["--skip-ids", ",".join(sorted(skipped))])
     if context_pack_path(run_id).exists():
         # Cross-file context lets the verifier judge findings beyond the diff.
         command.extend(["--context", str(context_pack_path(run_id))])
@@ -1473,7 +1714,12 @@ def run_verification(
     return counts
 
 
-def start_review(payload: dict[str, Any]) -> dict[str, Any]:
+def create_review_run(payload: dict[str, Any]) -> tuple[str, Path, dict[str, Any], list[str]]:
+    """Validate a review request and materialize its run directory + meta.
+
+    Returns (run_id, repo_path, effective_payload, command) so callers decide
+    how to execute: `start_review` spawns a thread, `ci.py` runs inline.
+    """
     if payload.get("repoId"):
         repo = next((item for item in list_repos() if item.get("id") == payload.get("repoId")), None)
         if not repo:
@@ -1519,7 +1765,11 @@ def start_review(payload: dict[str, Any]) -> dict[str, Any]:
         mode=meta["mode"],
         filters=meta["filters"],
     )
+    return run_id, repo_path, payload, command
 
+
+def start_review(payload: dict[str, Any]) -> dict[str, Any]:
+    run_id, repo_path, payload, command = create_review_run(payload)
     thread = threading.Thread(
         target=run_review,
         args=(run_id, repo_path, payload, command),
@@ -1527,7 +1777,7 @@ def start_review(payload: dict[str, Any]) -> dict[str, Any]:
         daemon=True,
     )
     thread.start()
-    return read_json(meta_path(run_id), meta)
+    return read_json(meta_path(run_id), {})
 
 
 def build_generation_command(
@@ -1570,8 +1820,12 @@ def run_generation(
     run_id: str, repo_path: Path, payload: dict[str, Any], command: list[str], kind: str
 ) -> None:
     started = time.monotonic()
-    env = subprocess_env(payload)
+    generate_model = pass_model(payload, "generateModel", "generate")
+    env = subprocess_env(payload, model_override=generate_model)
     update_meta(run_id, status="running", started_at=utc_now())
+    note_ollama_warning(run_id)
+    if generate_model:
+        update_meta(run_id, generate_model=generate_model)
     audit_event("generation_started", run_id=run_id, repo_path=str(repo_path), kind=kind)
 
     timeout_seconds = int(payload.get("timeoutSeconds") or GENERATION_TIMEOUT_DEFAULT)
@@ -1748,7 +2002,79 @@ def get_review(run_id: str) -> dict[str, Any]:
     detail["pr_draft"] = read_json(pr_draft_json_path(run_id), None)
     detail["context_pack"] = read_json(context_pack_path(run_id), None)
     detail["publish_result"] = read_json(publish_result_path(run_id), None)
+    detail["fixes"] = patcher.load_ledger(run_dir(run_id))
     return detail
+
+
+def find_report_issue(run_id: str, issue_id: Any) -> dict[str, Any]:
+    report = read_json(report_path(run_id), None)
+    if not report:
+        raise FileNotFoundError(run_id)
+    issue = next(
+        (
+            item | {"file": item.get("file") or file}
+            for file, file_issues in (report.get("issues") or {}).items()
+            for item in file_issues
+            if str(item.get("id")) == str(issue_id)
+        ),
+        None,
+    )
+    if issue is None:
+        raise FileNotFoundError(f"finding {issue_id}")
+    return issue
+
+
+def run_repo_path(run_id: str) -> Path:
+    meta = read_json(meta_path(run_id), {}) or {}
+    repo = str(meta.get("repo_path") or "")
+    if not repo:
+        raise ValueError("This run has no repository path.")
+    path = Path(repo)
+    if not path.is_dir():
+        raise ValueError("The run's repository path no longer exists.")
+    return path
+
+
+def fix_plan(run_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+    issue = find_report_issue(run_id, payload.get("issueId"))
+    plan = patcher.plan_fix(run_repo_path(run_id), issue)
+    ledger = patcher.load_ledger(run_dir(run_id))
+    return plan | {"ledger": ledger.get(str(issue.get("id"))) or {}}
+
+
+def fix_apply(run_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+    issue = find_report_issue(run_id, payload.get("issueId"))
+    result = patcher.apply_fix(run_repo_path(run_id), run_dir(run_id), issue)
+    ledger = patcher.load_ledger(run_dir(run_id))
+    ledger[str(issue.get("id"))] = {
+        "applied_at": utc_now(),
+        "backup": result["backup"],
+        "file": result["file"],
+    }
+    patcher.save_ledger(run_dir(run_id), ledger)
+    audit_event("fix_applied", run_id=run_id, issue_id=issue.get("id"), file=result["file"])
+    return result | {"applied": True}
+
+
+def fix_revert(run_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+    issue = find_report_issue(run_id, payload.get("issueId"))
+    ledger = patcher.load_ledger(run_dir(run_id))
+    entry = ledger.get(str(issue.get("id")))
+    if not entry or entry.get("reverted_at"):
+        raise ValueError("This fix is not currently applied.")
+    file = patcher.revert_fix(run_repo_path(run_id), run_dir(run_id), issue, entry)
+    entry["reverted_at"] = utc_now()
+    patcher.save_ledger(run_dir(run_id), ledger)
+    audit_event("fix_reverted", run_id=run_id, issue_id=issue.get("id"), file=file)
+    return {"file": file, "reverted": True}
+
+
+def tests_write(run_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+    written = patcher.write_generated_tests(
+        run_repo_path(run_id), run_dir(run_id), overwrite=payload.get("overwrite") is True
+    )
+    audit_event("tests_written", run_id=run_id, count=len(written))
+    return {"written": written}
 
 
 def get_review_tests(run_id: str) -> dict[str, Any]:
@@ -2011,6 +2337,166 @@ def publish_run(run_id: str, payload: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
+def webhook_secret() -> str:
+    return os.getenv("CODE_DOCTOR_WEBHOOK_SECRET") or ""
+
+
+def verify_webhook_signature(
+    platform: str, headers: Any, raw_body: bytes, secret: str
+) -> bool:
+    """GitHub: HMAC-SHA256 over the raw body; GitLab: shared-token header."""
+    if platform == "github":
+        presented = headers.get("X-Hub-Signature-256") or ""
+        expected = "sha256=" + hmac.new(secret.encode("utf-8"), raw_body, hashlib.sha256).hexdigest()
+        return hmac.compare_digest(presented, expected)
+    return hmac.compare_digest(headers.get("X-Gitlab-Token") or "", secret)
+
+
+GITHUB_PR_ACTIONS = {"opened", "synchronize", "reopened", "ready_for_review"}
+GITLAB_MR_ACTIONS = {"open", "update", "reopen"}
+
+
+def parse_webhook_event(
+    platform: str, event_name: str, payload: dict[str, Any]
+) -> dict[str, Any] | None:
+    """Normalize a PR/MR update event to {slug, head_sha, base_ref, pr}.
+
+    Returns None for anything that is not a reviewable pull/merge request
+    change (pings, comments, pushes, closes) — those are ignored, never errors.
+    """
+    if platform == "github":
+        if event_name != "pull_request" or payload.get("action") not in GITHUB_PR_ACTIONS:
+            return None
+        pr = payload.get("pull_request") or {}
+        return {
+            "slug": str((payload.get("repository") or {}).get("full_name") or ""),
+            "head_sha": str((pr.get("head") or {}).get("sha") or ""),
+            "base_ref": str((pr.get("base") or {}).get("ref") or ""),
+            "pr": pr.get("number"),
+        }
+    if payload.get("object_kind") != "merge_request":
+        return None
+    attrs = payload.get("object_attributes") or {}
+    if attrs.get("action") not in GITLAB_MR_ACTIONS:
+        return None
+    return {
+        "slug": str((payload.get("project") or {}).get("path_with_namespace") or ""),
+        "head_sha": str((attrs.get("last_commit") or {}).get("id") or ""),
+        "base_ref": str(attrs.get("target_branch") or ""),
+        "pr": attrs.get("iid"),
+    }
+
+
+def match_registered_repo(slug: str) -> dict[str, Any] | None:
+    """Map a webhook repository slug onto a registered local clone by its
+    origin remote. Repo paths never come from the webhook payload itself."""
+    want = slug.strip().strip("/").lower()
+    if not want:
+        return None
+    for repo in list_repos():
+        path = str(repo.get("path") or "")
+        if not path or not Path(path).is_dir():
+            continue
+        remote = git_output(Path(path), "remote", "get-url", "origin")
+        parsed = publisher.parse_remote(remote) if remote else None
+        if parsed and parsed["slug"].lower() == want:
+            return repo
+    return None
+
+
+def handle_webhook_event(
+    platform: str, event_name: str, payload: dict[str, Any]
+) -> dict[str, Any]:
+    event = parse_webhook_event(platform, event_name, payload)
+    if not event:
+        audit_event("webhook_ignored", platform=platform, reason="unsupported event", received=event_name)
+        return {"status": "ignored", "reason": "unsupported event"}
+    repo = match_registered_repo(event["slug"])
+    if not repo:
+        audit_event("webhook_ignored", platform=platform, reason="unknown repository", slug=event["slug"])
+        return {"status": "ignored", "reason": "repository not registered", "slug": event["slug"]}
+    audit_event(
+        "webhook_accepted",
+        platform=platform,
+        slug=event["slug"],
+        pr=event["pr"],
+        head_sha=event["head_sha"],
+    )
+    enqueue_ci_review(platform, repo, event)
+    return {"status": "accepted", "slug": event["slug"], "pr": event["pr"]}
+
+
+def enqueue_ci_review(platform: str, repo: dict[str, Any], event: dict[str, Any]) -> None:
+    """Run the CI review off the webhook response thread. (The job queue in a
+    later release replaces exactly this function.)"""
+    thread = threading.Thread(
+        target=execute_ci_review,
+        args=(platform, repo, event),
+        name=f"code-doctor-webhook-{event.get('pr')}",
+        daemon=True,
+    )
+    thread.start()
+
+
+def execute_ci_review(platform: str, repo: dict[str, Any], event: dict[str, Any]) -> None:
+    repo_path = Path(str(repo.get("path")))
+    try:
+        subprocess.run(
+            ["git", "-C", str(repo_path), "fetch", "origin", "--quiet"],
+            check=False,
+            timeout=180,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+    except Exception as exc:
+        audit_event("webhook_fetch_failed", slug=event["slug"], error=str(exc))
+
+    review_payload: dict[str, Any] = {
+        "repoPath": str(repo_path),
+        "mode": "refs",
+        "what": event["head_sha"],
+        "against": f"origin/{event['base_ref']}" if event.get("base_ref") else "",
+    }
+    try:
+        run_id, path, review_payload, command = create_review_run(review_payload)
+    except (ValueError, FileNotFoundError) as exc:
+        audit_event("webhook_review_failed", platform=platform, slug=event["slug"], error=str(exc))
+        return
+    update_meta(
+        run_id,
+        trigger={
+            "source": f"{platform}-webhook",
+            "slug": event["slug"],
+            "pr": event["pr"],
+            "head_sha": event["head_sha"],
+        },
+    )
+    run_review(run_id, path, review_payload, command)
+
+    ci_policy = load_policies().get("ci") or {}
+    if not ci_policy.get("autoPublish"):
+        return
+    meta = read_json(meta_path(run_id), {}) or {}
+    if meta.get("status") != "completed":
+        audit_event("webhook_publish_skipped", run_id=run_id, reason="review did not complete")
+        return
+    if event.get("pr"):
+        try:
+            publish_run(
+                run_id,
+                {"platform": platform, "repo": event["slug"], "pr": event["pr"], "dryRun": False},
+            )
+        except Exception as exc:
+            audit_event("webhook_publish_failed", run_id=run_id, error=str(exc))
+    if event.get("head_sha"):
+        gate = (meta.get("stats") or {}).get("gate") or "pass"
+        try:
+            status = publisher.post_commit_status(platform, event["slug"], event["head_sha"], gate)
+            audit_event("commit_status_posted", run_id=run_id, **status)
+        except Exception as exc:
+            audit_event("commit_status_failed", run_id=run_id, error=str(exc))
+
+
 def cancel_review(run_id: str) -> dict[str, Any]:
     with PROCESS_LOCK:
         proc = PROCESSES.get(run_id)
@@ -2045,6 +2531,79 @@ def ollama_health(base: str | None) -> dict[str, Any]:
         return {"ok": False, "base": ollama_base, "models": [], "error": str(exc)}
 
 
+class OllamaWatchdog:
+    """Item 9: background Ollama health sampling.
+
+    State transitions audit `ollama_down` / `ollama_recovered` so a dead model
+    runtime is visible before a run fails, never only after. The watchdog only
+    observes — it never (re)starts anything on the user's machine.
+    """
+
+    def __init__(self, interval: float = 30.0, max_history: int = 20):
+        self.interval = interval
+        self.checks: collections.deque = collections.deque(maxlen=max_history)
+        self.state = "unknown"  # unknown | up | down
+        self.since = ""
+        self._lock = threading.Lock()
+        self._stop = threading.Event()
+        self._on_tick: list[Any] = []  # extra periodic work (retention piggybacks here)
+
+    def sample(self) -> dict[str, Any]:
+        result = ollama_health(None)
+        check = {
+            "ts": utc_now(),
+            "ok": bool(result.get("ok")),
+            "error": str(result.get("error") or ""),
+        }
+        emit = ""
+        with self._lock:
+            previous = self.state
+            self.checks.append(check)
+            new_state = "up" if check["ok"] else "down"
+            if new_state != previous:
+                self.state = new_state
+                self.since = check["ts"]
+                if new_state == "down":
+                    emit = "ollama_down"
+                elif previous == "down":
+                    emit = "ollama_recovered"
+        if emit:
+            audit_event(emit, base=result.get("base", ""), error=check["error"])
+        return check
+
+    def snapshot(self) -> dict[str, Any]:
+        with self._lock:
+            return {"state": self.state, "since": self.since, "checks": list(self.checks)[-5:]}
+
+    def add_tick_hook(self, hook: Any) -> None:
+        self._on_tick.append(hook)
+
+    def _run(self) -> None:
+        while not self._stop.wait(self.interval):
+            try:
+                self.sample()
+            except Exception:  # noqa: BLE001 - the watchdog must never die
+                pass
+            for hook in self._on_tick:
+                try:
+                    hook()
+                except Exception:  # noqa: BLE001
+                    pass
+
+    def start(self) -> None:
+        try:
+            self.sample()
+        except Exception:  # noqa: BLE001
+            pass
+        threading.Thread(target=self._run, name="code-doctor-ollama-watchdog", daemon=True).start()
+
+    def stop(self) -> None:
+        self._stop.set()
+
+
+OLLAMA_WATCHDOG = OllamaWatchdog()
+
+
 def system_health(
     query: dict[str, list[str]],
     include_ollama_check: bool = True,
@@ -2072,8 +2631,10 @@ def system_health(
             "error": "Authorization required for model probe.",
         }
     return {
+        "version": APP_VERSION,
         "git": {"ok": bool(git_path), "version": git_version},
         "ollama": ollama,
+        "ollamaWatch": OLLAMA_WATCHDOG.snapshot(),
         "engines": {"semanticJs": semantic_js.SEMANTIC_JS_MODE},
         "defaults": {
             "repoPath": str(Path.cwd()),
@@ -2140,6 +2701,11 @@ class CodeDoctorHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
         try:
+            if path.startswith("/api/hooks/"):
+                # Webhooks authenticate with the HMAC secret, not the bearer
+                # token (GitHub/GitLab cannot send our Authorization header).
+                self.handle_webhook(path)
+                return
             if path.startswith("/api/") and not self.require_auth():
                 return
             if path == "/api/reviews":
@@ -2169,6 +2735,18 @@ class CodeDoctorHandler(BaseHTTPRequestHandler):
                 run_id = unquote(path.split("/")[3])
                 payload = self.read_json_body()
                 self.send_json(publish_run(run_id, payload))
+            elif path.startswith("/api/reviews/") and path.endswith("/fixes/plan"):
+                run_id = unquote(path.split("/")[3])
+                self.send_json(fix_plan(run_id, self.read_json_body()))
+            elif path.startswith("/api/reviews/") and path.endswith("/fixes/apply"):
+                run_id = unquote(path.split("/")[3])
+                self.send_json(fix_apply(run_id, self.read_json_body()))
+            elif path.startswith("/api/reviews/") and path.endswith("/fixes/revert"):
+                run_id = unquote(path.split("/")[3])
+                self.send_json(fix_revert(run_id, self.read_json_body()))
+            elif path.startswith("/api/reviews/") and path.endswith("/tests/write"):
+                run_id = unquote(path.split("/")[3])
+                self.send_json(tests_write(run_id, self.read_json_body()))
             else:
                 self.send_error_json(HTTPStatus.NOT_FOUND, "Not found.")
         except FileNotFoundError:
@@ -2194,6 +2772,44 @@ class CodeDoctorHandler(BaseHTTPRequestHandler):
             self.send_error_json(HTTPStatus.NOT_FOUND, "Not found.")
         except Exception as exc:
             self.send_error_json(HTTPStatus.INTERNAL_SERVER_ERROR, str(exc))
+
+    def handle_webhook(self, path: str) -> None:
+        platform = path.removeprefix("/api/hooks/").strip("/")
+        if platform not in {"github", "gitlab"}:
+            self.send_error_json(HTTPStatus.NOT_FOUND, "Not found.")
+            return
+        secret = webhook_secret()
+        if not secret:
+            self.send_error_json(
+                HTTPStatus.SERVICE_UNAVAILABLE,
+                "Webhook not configured. Set CODE_DOCTOR_WEBHOOK_SECRET on the server.",
+            )
+            return
+        length = int(self.headers.get("Content-Length", "0"))
+        if length > MAX_REQUEST_BODY:
+            self.send_error_json(
+                HTTPStatus.BAD_REQUEST,
+                f"Request body too large ({length} bytes; limit {MAX_REQUEST_BODY}).",
+            )
+            return
+        raw = self.rfile.read(length)
+        if not verify_webhook_signature(platform, self.headers, raw, secret):
+            audit_event("webhook_rejected", platform=platform, reason="signature mismatch")
+            self.send_error_json(HTTPStatus.UNAUTHORIZED, "Webhook signature verification failed.")
+            return
+        try:
+            payload = json.loads(raw.decode("utf-8"))
+            if not isinstance(payload, dict):
+                raise ValueError("payload must be a JSON object")
+        except (json.JSONDecodeError, UnicodeDecodeError, ValueError):
+            self.send_error_json(HTTPStatus.BAD_REQUEST, "Malformed JSON body.")
+            return
+        event_name = (
+            self.headers.get("X-GitHub-Event") or ""
+            if platform == "github"
+            else str(payload.get("object_kind") or "")
+        )
+        self.send_json(handle_webhook_event(platform, event_name, payload), HTTPStatus.ACCEPTED)
 
     def authorized(self) -> bool:
         expected = os.getenv("CODE_DOCTOR_TOKEN")
@@ -2231,12 +2847,77 @@ class CodeDoctorHandler(BaseHTTPRequestHandler):
         if len(parts) == 4 and parts[3] == "tests":
             self.send_json(get_review_tests(parts[2]))
             return
+        if len(parts) == 4 and parts[3] == "events":
+            self.stream_run_events(parts[2])
+            return
         if len(parts) == 4 and parts[3] == "export":
             export_format = (parse_qs(urlparse(self.path).query).get("format") or ["json"])[0]
             body, content_type = export_review(parts[2], export_format)
             self.send_text(body, content_type)
             return
         self.send_error_json(HTTPStatus.NOT_FOUND, "Not found.")
+
+    def _write_sse(self, event: str, data: str) -> None:
+        lines = data.splitlines() or [""]
+        frame = f"event: {event}\n" + "".join(f"data: {line}\n" for line in lines) + "\n"
+        self.wfile.write(frame.encode("utf-8"))
+        self.wfile.flush()
+
+    def stream_run_events(self, run_id: str) -> None:
+        """Item 6: SSE stream of log increments + meta changes for one run.
+
+        Terminates with `event: done` when the run reaches a final status,
+        on client disconnect, or after SSE_MAX_SECONDS. Auth is the normal
+        bearer header — the client uses fetch-streaming, not EventSource.
+        """
+        if not meta_path(run_id).exists():
+            self.send_error_json(HTTPStatus.NOT_FOUND, "Not found.")
+            return
+        if not SSE_SEMAPHORE.acquire(blocking=False):
+            self.send_error_json(
+                HTTPStatus.TOO_MANY_REQUESTS,
+                "Too many live streams; keep polling instead.",
+            )
+            return
+        try:
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("X-Accel-Buffering", "no")
+            self.end_headers()
+
+            deadline = time.monotonic() + SSE_MAX_SECONDS
+            log_offset = 0
+            meta_stamp = -1.0
+            while time.monotonic() < deadline:
+                log_file = log_path(run_id)
+                if log_file.exists():
+                    size = log_file.stat().st_size
+                    if size > log_offset:
+                        with log_file.open("rb") as handle:
+                            handle.seek(log_offset)
+                            chunk = handle.read(size - log_offset)
+                        log_offset = size
+                        self._write_sse("log", chunk.decode("utf-8", errors="ignore"))
+                meta: dict[str, Any] = {}
+                if meta_path(run_id).exists():
+                    stamp = meta_path(run_id).stat().st_mtime
+                    if stamp != meta_stamp:
+                        meta_stamp = stamp
+                        meta = read_json(meta_path(run_id), {}) or {}
+                        self._write_sse("meta", json.dumps(meta))
+                status = str(
+                    (meta or read_json(meta_path(run_id), {}) or {}).get("status") or ""
+                )
+                if status in {"completed", "failed", "cancelled", "unknown"}:
+                    self._write_sse("done", status)
+                    return
+                time.sleep(SSE_TICK_SECONDS)
+            self._write_sse("done", "timeout")
+        except (BrokenPipeError, ConnectionResetError, OSError):
+            return  # client went away — normal
+        finally:
+            SSE_SEMAPHORE.release()
 
     def read_json_body(self) -> dict[str, Any]:
         length = int(self.headers.get("Content-Length", "0"))
@@ -2343,6 +3024,7 @@ def serve(host: str, port: int) -> None:
     warning = bind_warning(host)
     if warning:
         sys.stderr.write(warning + "\n")
+    OLLAMA_WATCHDOG.start()
     httpd = ThreadingHTTPServer((host, port), CodeDoctorHandler)
     httpd.daemon_threads = True   # threads exit when main thread exits
 

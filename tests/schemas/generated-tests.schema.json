@@ -1,0 +1,21 @@
+{
+  "type": "object",
+  "properties": {
+    "kind": {"type": "string"},
+    "created_at": {"type": "string"},
+    "notes": {"type": "string"},
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "path": {"type": "string"},
+          "framework": {"type": "string"},
+          "content": {"type": "string"},
+          "covers": {"type": "array"},
+          "rationale": {"type": "string"}
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "type": "object",
+  "properties": {
+    "id": {"type": "string"},
+    "kind": {"type": "string"},
+    "status": {"type": "string"},
+    "created_at": {"type": "string"},
+    "updated_at": {"type": "string"},
+    "repo_path": {"type": "string"},
+    "model": {"type": "string"},
+    "ollama_base": {"type": "string"},
+    "mode": {"type": "string"},
+    "refs": {"type": "string"},
+    "what": {"type": "string"},
+    "against": {"type": "string"},
+    "filters": {"type": "string"},
+    "merge_base": {"type": "boolean"},
+    "changed_files": {"type": "array"},
+    "sensitive_files": {"type": "array"},
+    "test_files": {"type": "array"},
+    "command": {"type": "array"},
+    "started_at": {"type": "string"},
+    "completed_at": {"type": "string"},
+    "exit_code": {"type": ["integer", "null"]},
+    "timed_out": {"type": "boolean"},
+    "error": {"type": "string"},
+    "static_issues": {"type": "integer"},
+    "verification": {"type": "object"},
+    "duration_seconds": {"type": "number"},
+    "reused_verdicts": {"type": "object"},
+    "stats": {
+      "type": "object",
+      "properties": {
+        "summary": {"type": "string"},
+        "total_issues": {"type": "integer"},
+        "processed_files": {"type": "integer"},
+        "highest_severity": {"type": ["integer", "null"]},
+        "risk_score": {"type": "integer"},
+        "gate": {"type": "string"},
+        "tags": {"type": "array"},
+        "severity_counts": {"type": "object"},
+        "sensitive_files": {"type": "array"},
+        "warnings": {"type": "integer"},
+        "static_issues": {"type": "integer"},
+        "cross_file_issues": {"type": "integer"},
+        "suppressed": {"type": "integer"},
+        "verification": {"type": "object"},
+        "rejected_issues": {"type": "integer"},
+        "fingerprints": {"type": "array"},
+        "lifecycle": {
+          "type": "object",
+          "properties": {
+            "new": {"type": "integer"},
+            "recurring": {"type": "integer"},
+            "resolved": {"type": "integer"},
+            "baselined": {"type": "boolean"}
+          }
+        }
+      }
+    }
+  }
+}

@@ -124,6 +124,11 @@
           </button>
         </div>
 
+        <div id="ollamaBanner" class="info-banner banner-error hidden">
+          <svg class="banner-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <span>Ollama is not responding — reviews will fail. Start it with <code>ollama serve</code> or <code>brew services start ollama</code>.</span>
+        </div>
+
         <main class="main" id="main">
 
           <!-- COCKPIT -->
@@ -240,6 +245,21 @@
                       <span>Use merge base</span>
                     </label>
                   </div>
+                  <details class="field wide advanced-models">
+                    <summary class="field-label">Advanced: per-pass models</summary>
+                    <div class="form-grid">
+                      <div class="field">
+                        <label class="field-label">Verifier Model</label>
+                        <input id="verifyModel" name="verifyModel" list="modelList" type="text" class="field-input" autocomplete="off" placeholder="inherit main model" />
+                        <span class="field-hint">Second-pass verifier; small non-reasoning models work best</span>
+                      </div>
+                      <div class="field">
+                        <label class="field-label">Generator Model</label>
+                        <input id="generateModel" name="generateModel" list="modelList" type="text" class="field-input" autocomplete="off" placeholder="inherit main model" />
+                        <span class="field-hint">Unit-test and PR-draft passes</span>
+                      </div>
+                    </div>
+                  </details>
                 </form>
                 <div class="panel-footer">
                   <button id="runPreflight" class="btn btn-secondary" type="button">Run Preflight</button>
@@ -484,6 +504,29 @@
                       <input id="sensitiveFileReview" type="checkbox" />
                       <span>Sensitive file changes require manual review</span>
                     </label>
+                  </div>
+                  <div class="field wide check-field">
+                    <label class="check-label">
+                      <input id="ciAutoPublish" type="checkbox" />
+                      <span>Webhook reviews auto-publish to the PR/MR (needs server tokens)</span>
+                    </label>
+                  </div>
+                  <div class="field wide">
+                    <label class="field-label">CI Fail On</label>
+                    <select id="ciFailOn" class="field-input">
+                      <option value="block">block — fail CI only on blocking findings</option>
+                      <option value="review">review — fail CI when human review is needed</option>
+                      <option value="none">none — report only, never fail CI</option>
+                    </select>
+                    <span class="field-hint">Default gate for CI batch runs (python -m code_doctor_app.ci)</span>
+                  </div>
+                  <div class="field">
+                    <label class="field-label">Default Verifier Model</label>
+                    <input id="policyVerifyModel" type="text" class="field-input" autocomplete="off" placeholder="inherit run model" />
+                  </div>
+                  <div class="field">
+                    <label class="field-label">Default Generator Model</label>
+                    <input id="policyGenerateModel" type="text" class="field-input" autocomplete="off" placeholder="inherit run model" />
                   </div>
                 </form>
                 <div class="gate-legend">

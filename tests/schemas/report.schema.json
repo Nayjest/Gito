@@ -1,0 +1,60 @@
+{
+  "type": "object",
+  "properties": {
+    "summary": {"type": "string"},
+    "number_of_processed_files": {"type": "integer"},
+    "total_issues": {"type": "integer"},
+    "processing_warnings": {"type": "array"},
+    "created_at": {"type": "string"},
+    "model": {"type": "string"},
+    "verification": {
+      "type": "object",
+      "properties": {
+        "confirmed": {"type": "integer"},
+        "rejected": {"type": "integer"},
+        "uncertain": {"type": "integer"}
+      }
+    },
+    "issues": {
+      "type": "object",
+      "values": {"type": "array", "items": {"$ref": "issue"}}
+    },
+    "rejected_issues": {
+      "type": "object",
+      "values": {"type": "array", "items": {"$ref": "issue"}}
+    }
+  },
+  "definitions": {
+    "issue": {
+      "type": "object",
+      "properties": {
+        "id": {"type": ["integer", "string"]},
+        "file": {"type": "string"},
+        "title": {"type": "string"},
+        "details": {"type": "string"},
+        "severity": {"type": "integer"},
+        "confidence": {"type": "integer"},
+        "tags": {"type": "array"},
+        "source": {"type": "string"},
+        "rule": {"type": "string"},
+        "verified": {"type": "boolean"},
+        "verifier_reason": {"type": "string"},
+        "carried_from": {"type": "string"},
+        "suppressed": {"type": "boolean"},
+        "affected_lines": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "file": {"type": "string"},
+              "start_line": {"type": "integer"},
+              "end_line": {"type": "integer"},
+              "affected_code": {"type": "string"},
+              "proposal": {"type": "string"}
+            }
+          }
+        }
+      }
+    }
+  }
+}
