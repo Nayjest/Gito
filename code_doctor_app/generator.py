@@ -48,6 +48,25 @@ Respond with ONLY valid JSON (no prose, no markdown fences) matching:
 "notes": "<caveats or empty string>"}
 """
 
+VERIFY_INSTRUCTIONS = """\
+You are Code Doctor's verification pass: a skeptical senior engineer re-checking a reviewer's draft findings.
+Answer with the JSON immediately; do not include reasoning or commentary.
+
+For every finding, judge it strictly against the DIFF and file content provided:
+- "confirmed": the evidence clearly supports the finding as described.
+- "rejected": the finding is factually wrong, describes code that is not in the change,
+  is already handled elsewhere in the shown code, or is speculative style preference.
+- "uncertain": plausible, but the provided context cannot prove it either way.
+
+Be strict: a finding that names the wrong line, wrong behavior, or invents an API is "rejected".
+Do not invent new findings.
+
+Respond with ONLY valid JSON (no prose, no markdown fences) matching:
+{"verdicts": [{"id": <finding id>, "verdict": "confirmed|rejected|uncertain", "reason": "<one sentence>"}]}
+"""
+
+MAX_VERIFY_FINDINGS = 40
+
 PR_INSTRUCTIONS = """\
 You are Code Doctor, a senior engineer drafting a pull request for the change below.
 Answer with the JSON immediately; do not include reasoning or commentary.
@@ -148,6 +167,103 @@ def build_pr_prompt(diff: str) -> str:
     return f"{PR_INSTRUCTIONS}\n----DIFF----\n{diff}\n"
 
 
+def issues_for_verification(report: dict) -> list[dict]:
+    """Flatten LLM findings for the verifier; deterministic static findings are
+    rule-based evidence and are never second-guessed by a model."""
+    findings = []
+    for file, issues in (report.get("issues") or {}).items():
+        for issue in issues:
+            if issue.get("source") == "static":
+                continue
+            findings.append(
+                {
+                    "id": issue.get("id"),
+                    "file": issue.get("file") or file,
+                    "title": issue.get("title"),
+                    "details": issue.get("details"),
+                    "severity": issue.get("severity"),
+                    "affected_lines": [
+                        {k: block.get(k) for k in ("start_line", "end_line", "affected_code")}
+                        for block in issue.get("affected_lines") or []
+                    ],
+                }
+            )
+    return findings[:MAX_VERIFY_FINDINGS]
+
+
+def cross_file_context_block(repo: Path, context_pack_path: str) -> str:
+    """Dependent-file excerpts from the run's context pack, so the verifier can
+    judge cross-file claims (changed signatures, removed symbols) beyond the diff."""
+    if not context_pack_path:
+        return ""
+    try:
+        pack = json.loads(Path(context_pack_path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return ""
+    sections: list[str] = []
+    budget = MAX_CONTEXT_CHARS // 3
+    seen: set[str] = set()
+    for file, info in (pack.get("files") or {}).items():
+        dependents = info.get("dependents") or []
+        symbols = info.get("symbols") or {}
+        if symbols.get("removed") or symbols.get("signature_changed"):
+            sections.append(
+                f"{file}: removed={symbols.get('removed')} "
+                f"signature_changed={[c.get('name') for c in symbols.get('signature_changed') or []]} "
+                f"dependents={dependents}"
+            )
+        for dependent in dependents[:3]:
+            if dependent in seen or budget <= 0:
+                continue
+            seen.add(dependent)
+            try:
+                text = (repo / dependent).read_text(encoding="utf-8", errors="ignore")[:4000]
+            except OSError:
+                continue
+            snippet = text[: min(len(text), budget)]
+            budget -= len(snippet)
+            sections.append(f"----- dependent: {dependent} -----\n{snippet}")
+    if not sections:
+        return ""
+    return "----CROSS-FILE CONTEXT (files that import the changed files)----\n" + "\n\n".join(sections) + "\n\n"
+
+
+def build_verify_prompt(
+    diff: str, contents: dict[str, str], findings: list[dict], cross_context: str = ""
+) -> str:
+    files_block = "\n\n".join(
+        f"----- {path} -----\n{text}" for path, text in contents.items()
+    )
+    return (
+        f"{VERIFY_INSTRUCTIONS}\n"
+        f"----FINDINGS TO VERIFY----\n{json.dumps(findings, indent=1)}\n\n"
+        f"----DIFF----\n{diff}\n\n"
+        f"{cross_context}"
+        f"----FULL CONTENT OF CHANGED FILES----\n{files_block or '(none)'}\n"
+    )
+
+
+def normalize_verify(result: dict, findings: list[dict]) -> dict:
+    known_ids = {finding["id"] for finding in findings}
+    verdicts = []
+    for item in result.get("verdicts") or []:
+        if not isinstance(item, dict) or item.get("id") not in known_ids:
+            continue
+        verdict = str(item.get("verdict") or "").strip().lower()
+        if verdict not in {"confirmed", "rejected", "uncertain"}:
+            continue
+        verdicts.append(
+            {
+                "id": item["id"],
+                "verdict": verdict,
+                "reason": str(item.get("reason") or "").strip()[:400],
+            }
+        )
+    if not verdicts:
+        raise ValueError("Model returned no usable verdicts.")
+    return {"verdicts": verdicts}
+
+
 def tests_markdown(result: dict) -> str:
     lines = ["# Code Doctor — Generated Unit Tests", ""]
     for item in result.get("files", []):
@@ -237,9 +353,11 @@ def write_pr_artifacts(out_dir: Path, payload: dict) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Code Doctor LLM generator")
-    parser.add_argument("--kind", choices=("tests", "pr"), required=True)
+    parser.add_argument("--kind", choices=("tests", "pr", "verify"), required=True)
     parser.add_argument("--repo", required=True)
     parser.add_argument("--out", required=True)
+    parser.add_argument("--report", default="", help="Review report JSON (verify kind)")
+    parser.add_argument("--context", default="", help="Cross-file context pack JSON (verify kind)")
     parser.add_argument("--mode", default="working")
     parser.add_argument("--refs", default="")
     parser.add_argument("--what", default="")
@@ -257,8 +375,22 @@ def main() -> int:
         print("No changes found for the selected scope; nothing to generate.")
         return 3
 
+    findings: list[dict] = []
+    if args.kind == "verify":
+        report = json.loads(Path(args.report).read_text(encoding="utf-8")) if args.report else {}
+        findings = issues_for_verification(report)
+        if not findings:
+            print("No LLM findings to verify.")
+            return 3
+
     mc.configure(USE_LOGGING=True, EMBEDDING_DB_TYPE=mc.EmbeddingDbType.NONE)
-    prompt = build_tests_prompt(diff, contents) if args.kind == "tests" else build_pr_prompt(diff)
+    if args.kind == "tests":
+        prompt = build_tests_prompt(diff, contents)
+    elif args.kind == "verify":
+        cross_context = cross_file_context_block(repo, args.context)
+        prompt = build_verify_prompt(diff, contents, findings, cross_context)
+    else:
+        prompt = build_pr_prompt(diff)
     print(f"Code Doctor generator: kind={args.kind}, files={len(contents)}, diff_chars={len(diff)}")
 
     payload = None
@@ -274,7 +406,12 @@ def main() -> int:
         try:
             response = mc.llm(attempt_prompt)
             parsed = parse_llm_json(response)
-            payload = normalize_tests(parsed) if args.kind == "tests" else normalize_pr(parsed)
+            if args.kind == "tests":
+                payload = normalize_tests(parsed)
+            elif args.kind == "verify":
+                payload = normalize_verify(parsed, findings)
+            else:
+                payload = normalize_pr(parsed)
             break
         except Exception as exc:  # noqa: BLE001 - subprocess boundary, retried then reported
             last_error = exc
@@ -290,6 +427,11 @@ def main() -> int:
     try:
         if args.kind == "tests":
             write_tests_artifacts(out_dir, payload)
+        elif args.kind == "verify":
+            artifact = {"kind": "verify", "created_at": utc_now(), **payload}
+            (out_dir / "verification.json").write_text(
+                json.dumps(artifact, indent=2), encoding="utf-8"
+            )
         else:
             write_pr_artifacts(out_dir, payload)
     except Exception as exc:  # noqa: BLE001 - subprocess boundary, reported via log + exit code

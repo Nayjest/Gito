@@ -281,6 +281,14 @@
 
             <div class="panel gap-top">
               <div class="panel-header">
+                <h2 class="panel-title">Cross-File Impact</h2>
+                <span class="meta-label" id="crossFileMeta">No run</span>
+              </div>
+              <div id="crossFileBox" class="panel-body"></div>
+            </div>
+
+            <div class="panel gap-top">
+              <div class="panel-header">
                 <h2 class="panel-title">Generated Test Cases</h2>
                 <span class="meta-label" id="testCaseMeta">No run</span>
               </div>
@@ -411,6 +419,38 @@
               <div class="panel-body">
                 <p class="help-text">Drafts a pull-request title, description, labels, and reviewer checklist from the same diff scope.</p>
                 <div id="prDraft"><div class="empty-state"><p>No PR draft for the selected run.</p></div></div>
+              </div>
+            </div>
+
+            <div class="panel gap-top">
+              <div class="panel-header">
+                <h2 class="panel-title">Publish to Pull Request</h2>
+                <span class="meta-label" id="pubConfigState">Checking…</span>
+              </div>
+              <div class="panel-body">
+                <p class="help-text">Posts the selected review as a PR review (GitHub, with inline line comments) or an MR note (GitLab). Preview first — nothing is sent until you confirm. Tokens stay on the server (<code>GITHUB_TOKEN</code> / <code>GITLAB_TOKEN</code>).</p>
+                <form id="publishForm" class="form-grid">
+                  <div class="field">
+                    <label class="field-label">Platform</label>
+                    <select id="pubPlatform" class="field-input">
+                      <option value="github">GitHub</option>
+                      <option value="gitlab">GitLab</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label class="field-label">Repository Slug</label>
+                    <input id="pubRepo" type="text" class="field-input" autocomplete="off" placeholder="auto from origin remote" />
+                  </div>
+                  <div class="field">
+                    <label class="field-label">PR / MR Number</label>
+                    <input id="pubNumber" type="number" class="field-input" min="1" placeholder="123" />
+                  </div>
+                </form>
+                <div class="panel-footer" style="padding-left:0;padding-right:0">
+                  <button id="pubPreview" class="btn btn-secondary" type="button">Preview</button>
+                  <button id="pubPublish" class="btn btn-primary" type="button" disabled>Publish</button>
+                </div>
+                <div id="pubResult"></div>
               </div>
             </div>
           </section>

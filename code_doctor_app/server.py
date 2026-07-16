@@ -25,7 +25,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, unquote, urlparse
 from urllib.request import Request, urlopen
 
-from . import static_analysis
+from . import context_engine, publisher, static_analysis, store
 
 # ── Production constants ────────────────────────────────────────────────────
 MAX_REQUEST_BODY = 16 * 1024 * 1024   # 16 MB hard limit on JSON request bodies
@@ -34,6 +34,7 @@ STATIC_CACHE_TTL = 3600               # 1-hour cache for static assets
 APP_VERSION     = "4.3.1"
 REVIEW_TIMEOUT_DEFAULT = 3600         # hard cap on a single review subprocess (seconds)
 GENERATION_TIMEOUT_DEFAULT = 1200     # hard cap on a test/PR generation subprocess
+VERIFY_TIMEOUT_DEFAULT = 900          # hard cap on the finding-verification subprocess
 GENERATION_KINDS = {"tests", "pr"}
 
 
@@ -45,6 +46,7 @@ RUNS_DIR = DATA_DIR / "runs"
 AUDIT_LOG = DATA_DIR / "audit.jsonl"
 REPOS_FILE = DATA_DIR / "repos.json"
 POLICIES_FILE = DATA_DIR / "policies.json"
+SUPPRESSIONS_FILE = DATA_DIR / "suppressions.json"
 REVIEW_PROFILE = Path(__file__).resolve().parent / "review_profile.toml"
 DEFAULT_FILTERS = "*.py,*.js,*.jsx,*.ts,*.tsx,*.mjs,*.cjs"
 DEFAULT_OLLAMA_BASE = "http://localhost:11434"
@@ -83,7 +85,7 @@ DEFAULT_POLICIES = {
             "id": "audit-retention",
             "name": "Review audit retention",
             "enabled": True,
-            "evidence": ".code-doctor/audit.jsonl",
+            "evidence": "SQLite audit store + JSONL evidence mirror",
         },
         {
             "id": "mentor-profile",
@@ -202,6 +204,18 @@ def pr_draft_json_path(run_id: str) -> Path:
     return run_dir(run_id) / "pr-draft.json"
 
 
+def verification_path(run_id: str) -> Path:
+    return run_dir(run_id) / "verification.json"
+
+
+def context_pack_path(run_id: str) -> Path:
+    return run_dir(run_id) / "context-pack.json"
+
+
+def publish_result_path(run_id: str) -> Path:
+    return run_dir(run_id) / "publish.json"
+
+
 def log_path(run_id: str) -> Path:
     return run_dir(run_id) / "gito.log"
 
@@ -216,23 +230,19 @@ def update_meta(run_id: str, **updates: Any) -> dict[str, Any]:
 
 
 def audit_event(event: str, **payload: Any) -> None:
-    AUDIT_LOG.parent.mkdir(parents=True, exist_ok=True)
     record = {"ts": utc_now(), "event": event, **payload}
-    with AUDIT_LOG.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(record, sort_keys=True) + "\n")
+    store.append_audit(record)
+    # Human-readable JSONL mirror for evidence exports and offline review.
+    try:
+        AUDIT_LOG.parent.mkdir(parents=True, exist_ok=True)
+        with AUDIT_LOG.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(record, sort_keys=True) + "\n")
+    except OSError:
+        pass
 
 
 def read_audit(limit: int = 100) -> list[dict[str, Any]]:
-    if not AUDIT_LOG.exists():
-        return []
-    lines = AUDIT_LOG.read_text(encoding="utf-8").splitlines()[-limit:]
-    records = []
-    for line in lines:
-        try:
-            records.append(json.loads(line))
-        except json.JSONDecodeError:
-            continue
-    return list(reversed(records))
+    return store.read_audit(limit)
 
 
 def load_policies() -> dict[str, Any]:
@@ -363,23 +373,18 @@ def ensure_sample_repo() -> Path:
 
 
 def list_repos() -> list[dict[str, Any]]:
-    repos = read_json(REPOS_FILE, [])
-    if not isinstance(repos, list):
-        return []
+    repos = store.list_repos()
     reviews = list_reviews()
     for repo in repos:
         repo_reviews = [item for item in reviews if item.get("repo_path") == repo.get("path")]
         repo["lastReview"] = repo_reviews[0] if repo_reviews else None
-    return sorted(repos, key=lambda item: item.get("updated_at", ""), reverse=True)
+    return repos
 
 
 def register_repo(payload: dict[str, Any]) -> dict[str, Any]:
     repo_path = require_git_repo(payload.get("path") or payload.get("repoPath") or "")
-    repos = read_json(REPOS_FILE, [])
-    if not isinstance(repos, list):
-        repos = []
     now = utc_now()
-    existing = next((item for item in repos if item.get("path") == str(repo_path)), None)
+    existing = store.get_repo_by_path(str(repo_path))
     metadata = repo_metadata(repo_path)
     repo = {
         "id": existing.get("id") if existing else uuid.uuid5(uuid.NAMESPACE_URL, str(repo_path)).hex[:12],
@@ -391,21 +396,14 @@ def register_repo(payload: dict[str, Any]) -> dict[str, Any]:
         "updated_at": now,
         "metadata": metadata,
     }
-    repos = [item for item in repos if item.get("path") != str(repo_path)]
-    repos.append(repo)
-    atomic_write_json(REPOS_FILE, repos)
+    store.save_repo(repo)
     audit_event("repo_registered", repo_path=str(repo_path), repo_id=repo["id"])
     return repo
 
 
 def delete_repo(repo_id: str) -> None:
-    repos = read_json(REPOS_FILE, [])
-    if not isinstance(repos, list):
-        repos = []
-    next_repos = [repo for repo in repos if repo.get("id") != repo_id]
-    if len(next_repos) == len(repos):
+    if not store.delete_repo(repo_id):
         raise FileNotFoundError(repo_id)
-    atomic_write_json(REPOS_FILE, next_repos)
     audit_event("repo_removed", repo_id=repo_id)
 
 
@@ -971,6 +969,111 @@ def generate_review_test_cases(meta: dict[str, Any], report: dict[str, Any] | No
     }
 
 
+def load_suppressions() -> dict[str, dict[str, Any]]:
+    """Fingerprint → suppression record, learned from reviewer feedback."""
+    return store.get_suppressions()
+
+
+def record_finding_feedback(payload: dict[str, Any]) -> dict[str, Any]:
+    """Dismiss or restore a finding; dismissals suppress the finding's
+    fingerprint from risk scoring in every future run."""
+    run_id = str(payload.get("runId") or "").strip()
+    action = str(payload.get("action") or "").strip().lower()
+    if action not in {"dismiss", "restore"}:
+        raise ValueError("Unsupported feedback action. Use 'dismiss' or 'restore'.")
+    issue_id = payload.get("issueId")
+    report = read_json(report_path(run_id), None)
+    if not report:
+        raise FileNotFoundError(run_id)
+    issue = next(
+        (
+            item | {"file": item.get("file") or file}
+            for file, file_issues in (report.get("issues") or {}).items()
+            for item in file_issues
+            if str(item.get("id")) == str(issue_id)
+        ),
+        None,
+    )
+    if issue is None:
+        raise FileNotFoundError(f"finding {issue_id}")
+    fingerprint = issue_fingerprint(issue)
+    if action == "dismiss":
+        store.put_suppression(
+            fingerprint,
+            {
+                "fingerprint": fingerprint,
+                "file": issue.get("file"),
+                "title": issue.get("title"),
+                "reason": str(payload.get("reason") or "").strip()[:400],
+                "run_id": run_id,
+                "issue_id": issue_id,
+                "created_at": utc_now(),
+            },
+        )
+    else:
+        store.delete_suppression(fingerprint)
+    audit_event(
+        "finding_feedback",
+        run_id=run_id,
+        issue_id=issue_id,
+        action=action,
+        fingerprint=fingerprint,
+    )
+    # Recompute stats so gates reflect the feedback immediately.
+    meta = update_meta(run_id, stats=summarize_report(run_id))
+    return {"fingerprint": fingerprint, "suppressed": action == "dismiss", "stats": meta.get("stats", {})}
+
+
+def apply_verification(report: dict[str, Any], verification: dict[str, Any]) -> dict[str, int]:
+    """Apply verifier verdicts to a report in place.
+
+    Rejected findings are quarantined under ``rejected_issues`` (kept for audit
+    and export, excluded from risk). Confirmed findings gain a ``verified`` tag.
+    Deterministic static findings are never touched.
+    """
+    verdicts = {
+        item.get("id"): item
+        for item in (verification or {}).get("verdicts") or []
+        if isinstance(item, dict)
+    }
+    counts = {"confirmed": 0, "rejected": 0, "uncertain": 0}
+    rejected: dict[str, list[dict[str, Any]]] = {}
+    issues = report.get("issues") or {}
+    for file in list(issues):
+        kept = []
+        for issue in issues[file]:
+            verdict_info = verdicts.get(issue.get("id"))
+            if issue.get("source") == "static" or not verdict_info:
+                kept.append(issue)
+                continue
+            verdict = str(verdict_info.get("verdict") or "").lower()
+            reason = str(verdict_info.get("reason") or "")
+            if verdict == "rejected":
+                counts["rejected"] += 1
+                rejected.setdefault(file, []).append(issue | {"verifier_reason": reason})
+                continue
+            if verdict == "confirmed":
+                counts["confirmed"] += 1
+                issue["verified"] = True
+                tags = issue.setdefault("tags", [])
+                if "verified" not in tags:
+                    tags.append("verified")
+            else:
+                counts["uncertain"] += 1
+                issue["verified"] = False
+            issue["verifier_reason"] = reason
+            kept.append(issue)
+        if kept:
+            issues[file] = kept
+        else:
+            issues.pop(file, None)
+    if rejected:
+        report["rejected_issues"] = rejected
+    report["verification"] = counts
+    report["total_issues"] = sum(len(file_issues) for file_issues in issues.values())
+    return counts
+
+
 def previous_fingerprints(run_id: str, repo_path: str, created_at: str) -> set[str] | None:
     """Fingerprints from the most recent earlier completed run of the same repo."""
     best: tuple[str, list[str]] | None = None
@@ -1015,14 +1118,19 @@ def summarize_report(run_id: str) -> dict[str, Any]:
         for file, issues in issues_by_file.items()
         for issue in issues
     ]
+    # Reviewer-dismissed fingerprints never count toward risk or gates.
+    suppressed_fps = set(load_suppressions())
+    scored_issues = [
+        issue for issue in plain_issues if issue_fingerprint(issue) not in suppressed_fps
+    ]
     severities = [
-        severity for issue in plain_issues
+        severity for issue in scored_issues
         if isinstance((severity := issue.get("severity")), int)
     ]
-    risk_score = compute_risk_score(plain_issues)
-    tags = sorted({tag for issue in plain_issues for tag in issue.get("tags", [])})
+    risk_score = compute_risk_score(scored_issues)
+    tags = sorted({tag for issue in scored_issues for tag in issue.get("tags", [])})
     severity_counts = {
-        str(severity): sum(1 for issue in plain_issues if issue.get("severity") == severity)
+        str(severity): sum(1 for issue in scored_issues if issue.get("severity") == severity)
         for severity in (1, 2, 3, 4, 5)
     }
     sensitive_files = [
@@ -1034,7 +1142,7 @@ def summarize_report(run_id: str) -> dict[str, Any]:
     if any(
         isinstance(issue.get("severity"), int)
         and issue.get("severity") <= risk_policy.get("blockSeverity", 1)
-        for issue in plain_issues
+        for issue in scored_issues
     ):
         gate = "block"
     elif risk_score >= risk_policy.get("maxRiskScore", 24):
@@ -1042,7 +1150,7 @@ def summarize_report(run_id: str) -> dict[str, Any]:
     elif any(
         isinstance(issue.get("severity"), int)
         and issue.get("severity") <= risk_policy.get("reviewSeverity", 2)
-        for issue in plain_issues
+        for issue in scored_issues
     ):
         gate = "review"
     elif sensitive_files and risk_policy.get("sensitiveFileReview", True):
@@ -1072,6 +1180,12 @@ def summarize_report(run_id: str) -> dict[str, Any]:
         "sensitive_files": sensitive_files,
         "warnings": len(report.get("processing_warnings") or []),
         "static_issues": sum(1 for issue in plain_issues if issue.get("source") == "static"),
+        "cross_file_issues": sum(1 for issue in plain_issues if issue.get("source") == "crossfile"),
+        "suppressed": len(plain_issues) - len(scored_issues),
+        "verification": report.get("verification") or {},
+        "rejected_issues": sum(
+            len(file_issues) for file_issues in (report.get("rejected_issues") or {}).values()
+        ),
         "fingerprints": fingerprints,
         "lifecycle": lifecycle,
     }
@@ -1109,7 +1223,7 @@ def run_review(run_id: str, repo_path: Path, payload: dict[str, Any], command: l
         model=(payload.get("model") or DEFAULT_MODEL).strip(),
     )
 
-    # Deterministic pass runs up front so its findings survive even a failed LLM run.
+    # Deterministic passes run up front so their findings survive even a failed LLM run.
     static_issues: dict[str, list[dict[str, Any]]] = {}
     if payload.get("staticAnalysis") is not False:
         try:
@@ -1126,11 +1240,33 @@ def run_review(run_id: str, repo_path: Path, payload: dict[str, Any], command: l
         except Exception as exc:
             audit_event("static_analysis_failed", run_id=run_id, error=str(exc))
 
+    crossfile_issues: dict[str, list[dict[str, Any]]] = {}
+    if payload.get("crossFileAnalysis") is not False:
+        try:
+            options = review_options(payload)
+            cross = context_engine.analyze_cross_file(
+                repo_path,
+                mode=options["mode"],
+                refs=options["refs"],
+                what=options["what"],
+                against=options["against"],
+                use_merge_base=options["use_merge_base"],
+                filters=options["filters"],
+            )
+            crossfile_issues = cross["findings"]
+            atomic_write_json(context_pack_path(run_id), cross["pack"])
+        except Exception as exc:
+            audit_event("cross_file_analysis_failed", run_id=run_id, error=str(exc))
+
     def merge_static() -> int:
-        if not static_issues:
+        if not static_issues and not crossfile_issues:
             return 0
         report = read_json(report_path(run_id), None) or static_analysis.empty_report()
-        added = static_analysis.merge_into_report(report, static_issues)
+        added = 0
+        if static_issues:
+            added += static_analysis.merge_into_report(report, static_issues)
+        if crossfile_issues:
+            added += context_engine.merge_into_report(report, crossfile_issues)
         atomic_write_json(report_path(run_id), report)
         return added
 
@@ -1176,6 +1312,9 @@ def run_review(run_id: str, repo_path: Path, payload: dict[str, Any], command: l
                 PROCESSES.pop(run_id, None)
 
     static_count = merge_static()
+    verification_counts: dict[str, int] = {}
+    if payload.get("verifyFindings") is not False and report_path(run_id).exists():
+        verification_counts = run_verification(run_id, repo_path, payload, env)
     status = "completed" if exit_code == 0 and report_path(run_id).exists() else "failed"
     stats = summarize_report(run_id) if report_path(run_id).exists() else {}
     update_meta(
@@ -1184,6 +1323,7 @@ def run_review(run_id: str, repo_path: Path, payload: dict[str, Any], command: l
         exit_code=exit_code,
         timed_out=timed_out,
         static_issues=static_count,
+        verification=verification_counts,
         completed_at=utc_now(),
         duration_seconds=round(time.monotonic() - started, 2),
         stats=stats,
@@ -1196,8 +1336,67 @@ def run_review(run_id: str, repo_path: Path, payload: dict[str, Any], command: l
         exit_code=exit_code,
         timed_out=timed_out,
         static_issues=static_count,
+        verification=verification_counts,
         stats=stats,
     )
+
+
+def run_verification(
+    run_id: str, repo_path: Path, payload: dict[str, Any], env: dict[str, str]
+) -> dict[str, int]:
+    """Run the skeptical second-pass verifier over the run's LLM findings."""
+    report = read_json(report_path(run_id), {}) or {}
+    has_llm_findings = any(
+        issue.get("source") != "static"
+        for file_issues in (report.get("issues") or {}).values()
+        for issue in file_issues
+    )
+    if not has_llm_findings:
+        return {}
+    try:
+        options = review_options(payload)
+    except ValueError:
+        return {}
+    command = build_generation_command("verify", repo_path, run_dir(run_id), options)
+    command.extend(["--report", str(report_path(run_id))])
+    if context_pack_path(run_id).exists():
+        # Cross-file context lets the verifier judge findings beyond the diff.
+        command.extend(["--context", str(context_pack_path(run_id))])
+    audit_event("verification_started", run_id=run_id, repo_path=str(repo_path))
+    timeout_seconds = int(payload.get("verifyTimeoutSeconds") or VERIFY_TIMEOUT_DEFAULT)
+    with log_path(run_id).open("ab") as log_file:
+        try:
+            proc = subprocess.Popen(
+                command,
+                cwd=repo_path,
+                env=env,
+                stdout=log_file,
+                stderr=subprocess.STDOUT,
+            )
+            with PROCESS_LOCK:
+                PROCESSES[run_id] = proc
+            try:
+                proc.wait(timeout=timeout_seconds)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait()
+                log_file.write(
+                    f"\nCode Doctor: verification timed out after {timeout_seconds}s; keeping unverified findings.\n".encode("utf-8")
+                )
+        except Exception as exc:
+            log_file.write(f"\nCode Doctor: verification failed to start: {exc}\n".encode("utf-8"))
+        finally:
+            with PROCESS_LOCK:
+                PROCESSES.pop(run_id, None)
+
+    verification = read_json(verification_path(run_id), None)
+    if not verification:
+        audit_event("verification_skipped", run_id=run_id, reason="no verdicts produced")
+        return {}
+    counts = apply_verification(report, verification)
+    atomic_write_json(report_path(run_id), report)
+    audit_event("verification_finished", run_id=run_id, **counts)
+    return counts
 
 
 def start_review(payload: dict[str, Any]) -> dict[str, Any]:
@@ -1461,9 +1660,20 @@ def review_detail(run_id: str) -> dict[str, Any]:
 
 def get_review(run_id: str) -> dict[str, Any]:
     detail = review_detail(run_id)
-    detail["test_cases"] = generate_review_test_cases(detail["meta"], detail.get("report"))
+    report = detail.get("report")
+    if report:
+        suppressed_fps = set(load_suppressions())
+        if suppressed_fps:
+            for file, file_issues in (report.get("issues") or {}).items():
+                for issue in file_issues:
+                    fp = issue_fingerprint(issue | {"file": issue.get("file") or file})
+                    if fp in suppressed_fps:
+                        issue["suppressed"] = True
+    detail["test_cases"] = generate_review_test_cases(detail["meta"], report)
     detail["generated_tests"] = read_json(tests_json_path(run_id), None)
     detail["pr_draft"] = read_json(pr_draft_json_path(run_id), None)
+    detail["context_pack"] = read_json(context_pack_path(run_id), None)
+    detail["publish_result"] = read_json(publish_result_path(run_id), None)
     return detail
 
 
@@ -1511,12 +1721,22 @@ def overview() -> dict[str, Any]:
     readiness_items = [
         {"label": "Private model path", "ready": True, "detail": "Ollama compatible runtime"},
         {"label": "Policy gates", "ready": bool(policies.get("risk")), "detail": "Severity and risk score thresholds"},
-        {"label": "Audit evidence", "ready": AUDIT_LOG.exists(), "detail": "JSONL event trail"},
+        {"label": "Audit evidence", "ready": store.audit_count() > 0, "detail": "SQLite store + JSONL mirror"},
         {"label": "Repository onboarding", "ready": bool(repos), "detail": f"{len(repos)} registered"},
         {"label": "Access control", "ready": bool(os.getenv("CODE_DOCTOR_TOKEN")), "detail": "CODE_DOCTOR_TOKEN"},
         {"label": "Evidence exports", "ready": True, "detail": "JSON, Markdown, CSV"},
         {"label": "Test & PR generation", "ready": True, "detail": "LLM unit tests and PR drafts"},
+        {"label": "Cross-file impact analysis", "ready": True, "detail": "Import graph + API-contract checks"},
+        {
+            "label": "PR publishing",
+            "ready": any(item["configured"] for item in publisher.publish_config().values()),
+            "detail": "GITHUB_TOKEN / GITLAB_TOKEN",
+        },
     ]
+    latest_review = next(
+        (run for run in review_runs if run.get("status") == "completed"),
+        review_runs[0] if review_runs else None,
+    )
     return {
         "metrics": {
             "repos": len(repos),
@@ -1530,7 +1750,7 @@ def overview() -> dict[str, Any]:
             "topTags": sorted(tag_counts.items(), key=lambda item: item[1], reverse=True)[:6],
             "generations": len(generations),
         },
-        "latestReview": reviews[0] if reviews else None,
+        "latestReview": latest_review,
         "readiness": readiness_items,
         "guardrails": guardrails,
     }
@@ -1665,29 +1885,56 @@ def seed_sample_data() -> dict[str, Any]:
         "stats": summarize_report(run_id),
     }
     atomic_write_json(meta_path(run_id), meta)
-    repos = read_json(REPOS_FILE, [])
-    if not isinstance(repos, list):
-        repos = []
-    repos = [
-        repo for repo in repos
-        if repo.get("path") not in {"/demo/acme-payments-api", "/sample/acme-payments-api"}
-    ]
-    existing = next((repo for repo in repos if repo.get("path") == str(sample_repo)), None)
-    sample_repo_record = {
-        "id": existing.get("id") if existing else "sample-acme",
-        "name": "Acme Payments API",
-        "path": str(sample_repo),
-        "owner": "Platform Engineering",
-        "tier": "production",
-        "created_at": existing.get("created_at") if existing else utc_now(),
-        "updated_at": utc_now(),
-        "metadata": repo_metadata(sample_repo),
-    }
-    repos = [repo for repo in repos if repo.get("path") != str(sample_repo)]
-    repos.append(sample_repo_record)
-    atomic_write_json(REPOS_FILE, repos)
+    # Drop legacy fake demo entries that predate the real sample repository.
+    for stale_path in ("/demo/acme-payments-api", "/sample/acme-payments-api"):
+        store.delete_repo_by_path(stale_path)
+    existing = store.get_repo_by_path(str(sample_repo))
+    store.save_repo(
+        {
+            "id": existing.get("id") if existing else "sample-acme",
+            "name": "Acme Payments API",
+            "path": str(sample_repo),
+            "owner": "Platform Engineering",
+            "tier": "production",
+            "created_at": existing.get("created_at") if existing else utc_now(),
+            "updated_at": utc_now(),
+            "metadata": repo_metadata(sample_repo),
+        }
+    )
     audit_event("sample_data_seeded", run_id=run_id)
     return meta
+
+
+def publish_run(run_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+    """Preview (dry run) or post a run's review to a GitHub PR / GitLab MR."""
+    meta = read_json(meta_path(run_id))
+    if not meta:
+        raise FileNotFoundError(run_id)
+    report = read_json(report_path(run_id), None)
+    if not report:
+        raise ValueError("This run has no review report to publish.")
+    stats = meta.get("stats") or summarize_report(run_id)
+    remote = ""
+    if meta.get("repo_path"):
+        remote = git_output(Path(meta["repo_path"]), "remote", "get-url", "origin")
+    result = publisher.publish_review(meta, report, stats, payload, remote)
+    if result.get("dry_run"):
+        audit_event(
+            "review_publish_previewed",
+            run_id=run_id,
+            platform=result["platform"],
+            target=result["target"],
+        )
+    else:
+        atomic_write_json(publish_result_path(run_id), result)
+        audit_event(
+            "review_published",
+            run_id=run_id,
+            platform=result["platform"],
+            target=result["target"],
+            mode=(result.get("posted") or {}).get("mode"),
+        )
+    return result
 
 
 def cancel_review(run_id: str) -> dict[str, Any]:
@@ -1801,6 +2048,8 @@ class CodeDoctorHandler(BaseHTTPRequestHandler):
                 self.send_json({"events": read_audit(limit)})
             elif path == "/api/reviews":
                 self.send_json({"reviews": list_reviews()})
+            elif path == "/api/publish/config":
+                self.send_json(publisher.publish_config())
             elif path.startswith("/api/reviews/"):
                 self.handle_review_get(path)
             else:
@@ -1824,6 +2073,9 @@ class CodeDoctorHandler(BaseHTTPRequestHandler):
             elif path == "/api/generate":
                 payload = self.read_json_body()
                 self.send_json(start_generation(payload), HTTPStatus.CREATED)
+            elif path == "/api/findings/feedback":
+                payload = self.read_json_body()
+                self.send_json(record_finding_feedback(payload))
             elif path == "/api/repos":
                 payload = self.read_json_body()
                 self.send_json(register_repo(payload), HTTPStatus.CREATED)
@@ -1838,8 +2090,14 @@ class CodeDoctorHandler(BaseHTTPRequestHandler):
             elif path.startswith("/api/reviews/") and path.endswith("/cancel"):
                 run_id = unquote(path.split("/")[3])
                 self.send_json(cancel_review(run_id))
+            elif path.startswith("/api/reviews/") and path.endswith("/publish"):
+                run_id = unquote(path.split("/")[3])
+                payload = self.read_json_body()
+                self.send_json(publish_run(run_id, payload))
             else:
                 self.send_error_json(HTTPStatus.NOT_FOUND, "Not found.")
+        except FileNotFoundError:
+            self.send_error_json(HTTPStatus.NOT_FOUND, "Not found.")
         except ValueError as exc:
             self.send_error_json(HTTPStatus.BAD_REQUEST, str(exc))
         except Exception as exc:
@@ -1930,9 +2188,10 @@ class CodeDoctorHandler(BaseHTTPRequestHandler):
         accept_enc = self.headers.get("Accept-Encoding", "")
         body, enc = maybe_gzip(data, accept_enc)
 
-        # HTML is revalidated each request; assets get a short TTL
-        is_html = resolved.suffix.lower() == ".html"
-        cache_ctrl = "no-cache, must-revalidate" if is_html else f"public, max-age={STATIC_CACHE_TTL}"
+        # Everything revalidates via ETag on each request. A TTL cache breaks the
+        # SPA whenever the server updates mid-session: browsers keep hour-old JS
+        # against a changed API. 304 responses keep revalidation cheap locally.
+        cache_ctrl = "no-cache, must-revalidate"
 
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", content_type)
@@ -1989,6 +2248,8 @@ class CodeDoctorHandler(BaseHTTPRequestHandler):
 
 def serve(host: str, port: int) -> None:
     RUNS_DIR.mkdir(parents=True, exist_ok=True)
+    if store.migrate_legacy(AUDIT_LOG, SUPPRESSIONS_FILE, REPOS_FILE):
+        sys.stderr.write("Code Doctor: migrated legacy JSON store into SQLite.\n")
     httpd = ThreadingHTTPServer((host, port), CodeDoctorHandler)
     httpd.daemon_threads = True   # threads exit when main thread exits
 

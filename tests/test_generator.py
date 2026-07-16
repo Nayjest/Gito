@@ -74,6 +74,37 @@ def test_write_tests_artifacts_skips_unsafe_paths(tmp_path):
     assert "tests/test_ok.py" in markdown
 
 
+def test_issues_for_verification_skips_static_findings():
+    report = {
+        "issues": {
+            "a.py": [
+                {"id": 1, "title": "LLM finding", "severity": 2},
+                {"id": 10001, "title": "Static finding", "severity": 2, "source": "static"},
+            ]
+        }
+    }
+    findings = generator.issues_for_verification(report)
+    assert [finding["id"] for finding in findings] == [1]
+
+
+def test_normalize_verify_filters_unknown_ids_and_verdicts():
+    findings = [{"id": 1}, {"id": 2}]
+    result = generator.normalize_verify(
+        {
+            "verdicts": [
+                {"id": 1, "verdict": "Confirmed", "reason": "ok"},
+                {"id": 2, "verdict": "maybe", "reason": "bad verdict value"},
+                {"id": 99, "verdict": "rejected", "reason": "unknown id"},
+            ]
+        },
+        findings,
+    )
+    assert result["verdicts"] == [{"id": 1, "verdict": "confirmed", "reason": "ok"}]
+
+    with pytest.raises(ValueError):
+        generator.normalize_verify({"verdicts": []}, findings)
+
+
 def test_pr_markdown_includes_labels_and_checklist():
     text = generator.pr_markdown(
         {

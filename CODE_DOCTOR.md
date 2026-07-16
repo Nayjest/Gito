@@ -94,6 +94,53 @@ Both appear in the Reports view with copy buttons, run under the same
 private-model env contract as reviews, respect `timeoutSeconds` (default
 1200), and can be cancelled through the existing cancel endpoint.
 
+## Cross-File Impact Analysis
+
+Each review also runs a repo-wide cross-file pass (`code_doctor_app/context_engine.py`):
+
+- An import graph over all tracked Python and JS/TS files maps every changed
+  file to its dependents (files that import it).
+- Symbols the diff removed or re-signed are checked against call sites in
+  those dependents. Contract breaks become deterministic findings with
+  `source: "crossfile"` (removed-symbol-still-referenced, signature-changed
+  callers) and usage evidence pointing into the dependent files.
+- The full context pack (imports, dependents, symbol changes, usage sites) is
+  stored as `context-pack.json` per run, shown in the Review view's
+  "Cross-File Impact" panel, and fed to the LLM verification pass so verdicts
+  can see beyond the diff.
+- Disable per run with `"crossFileAnalysis": false`.
+
+## Publish to GitHub / GitLab
+
+The Reports view can post a completed review to a pull request (GitHub) or
+merge request (GitLab):
+
+- Configure tokens on the **server** (they never pass through the browser):
+  `GITHUB_TOKEN` (or `CODE_DOCTOR_GITHUB_TOKEN`), `GITLAB_TOKEN` (or
+  `CODE_DOCTOR_GITLAB_TOKEN`), and `GITLAB_BASE` for self-hosted GitLab.
+- Publishing is two-step: **Preview** (`dryRun`) renders the exact summary and
+  inline comments; **Publish** posts them only after that explicit confirm.
+- GitHub gets a PR review with inline line comments (falling back to a summary
+  comment if line positions are outside the diff); GitLab gets an MR note.
+- Platform and repository slug default from the run repository's `origin`
+  remote. Results are stored as `publish.json` per run and audited.
+- API: `GET /api/publish/config`, `POST /api/reviews/<run-id>/publish` with
+  `{platform, repo, pr, dryRun, lineComments}`.
+
+## Verification Pass and Feedback Loop
+
+After every review, a skeptical second-pass verifier re-checks each LLM
+finding against the diff (deterministic static findings are exempt).
+Confirmed findings gain a `verified` tag; rejected findings are quarantined
+under `rejected_issues` — kept for audit, excluded from risk. Disable per run
+with `"verifyFindings": false`; cap it with `verifyTimeoutSeconds`.
+
+Reviewers can dismiss any finding in the UI (or via
+`POST /api/findings/feedback`). Dismissals store the finding's fingerprint in
+`.code-doctor/suppressions.json` and exclude it from risk scores and gates in
+**every** run — recurring noise only has to be dismissed once. Restore undoes
+it. All feedback lands in the audit trail.
+
 ## Risk Engine and Issue Lifecycle
 
 - Risk scores weight severity by model confidence and apply a multiplier to
@@ -123,19 +170,29 @@ coverage, risk gates, and evidence exports run against an actual git worktree.
 
 ## Runtime Data
 
-Runs, policies, registered repositories, sample repositories, and audit events
-are stored under `.code-doctor/`, which is ignored by git:
+Shared mutable state — the audit trail, finding suppressions, and the
+repository registry — lives in a SQLite database in WAL mode
+(`.code-doctor/code-doctor.db`), so concurrent server threads and multiple
+server processes sharing the data directory read and write safely. Legacy
+`audit.jsonl` / `suppressions.json` / `repos.json` files are imported once at
+startup; the audit trail is additionally mirrored to `audit.jsonl` as
+human-readable evidence.
+
+Per-run artifacts stay on disk under `.code-doctor/` (ignored by git):
 
 - `.code-doctor/runs/<run-id>/meta.json`
 - `.code-doctor/runs/<run-id>/code-review-report.json`
 - `.code-doctor/runs/<run-id>/code-review-report.md`
 - `.code-doctor/runs/<run-id>/gito.log`
-- `.code-doctor/repos.json`
+- `.code-doctor/runs/<run-id>/context-pack.json`
+- `.code-doctor/runs/<run-id>/verification.json`
+- `.code-doctor/runs/<run-id>/generated-tests/`, `generated-tests.json`
+- `.code-doctor/runs/<run-id>/pr-draft.json`, `publish.json`
+- `.code-doctor/code-doctor.db` (+ WAL/SHM sidecars)
 - `.code-doctor/policies.json`
-- `.code-doctor/audit.jsonl`
+- `.code-doctor/audit.jsonl` (evidence mirror)
 - `.code-doctor/sample-repos/`
 
-For a scale-out enterprise deployment, move this store to Postgres or another
-durable database, put the app behind TLS and SSO, and run review jobs through a
-managed queue. The local edition exercises the same review path with a private
-Ollama runtime and file-backed evidence storage for workstation or lab use.
+For a scale-out enterprise deployment, swap the SQLite store for Postgres, put
+the app behind TLS and SSO, and run review jobs through a managed queue. The
+local edition exercises the same review path with a private Ollama runtime.

@@ -17,6 +17,8 @@ const state = {
   audit: [],
   preflight: null,
   currentView: "cockpit",
+  publishConfig: null,
+  publishPreviewed: false,
 };
 
 // ── Selector helpers ─────────────────────────────────────────────────────────
@@ -229,8 +231,9 @@ function renderOverview() {
   setText("#metricBlocked",     gc.block     ?? 0);
   setText("#metricReviewGate",  gc.review    ?? 0);
 
-  // Latest review
-  const latest = ov.latestReview || selectedMeta();
+  // Latest review — generation runs never stand in for a review here
+  const selected = selectedMeta();
+  const latest = ov.latestReview || (selected && !selected.kind ? selected : null);
   const ls = latest?.stats || {};
   const lg = $("#latestGate");
   lg.className = `gate-pill ${gateClass(ls.gate)}`;
@@ -309,6 +312,7 @@ function renderRuns() {
 function renderSelectedRun() {
   const meta = selectedMeta();
   const stats = meta?.stats || {};
+  const genNoun = { tests: "Unit-test generation", pr: "PR draft" }[meta?.kind];
 
   setText("#workspaceLabel", meta?.repo_path || $("#repoPath").value || "No repository selected");
   setText("#runState", meta?.status || "Idle");
@@ -322,17 +326,26 @@ function renderSelectedRun() {
   setText("#issueCount", stats.total_issues  ?? 0);
   setText("#fileCount",  stats.processed_files ?? 0);
   setText("#duration",   formatDuration(meta?.duration_seconds));
-  setText("#summaryBox", stats.summary || "No completed review selected.");
-  setText("#findingMeta", `${stats.total_issues ?? 0} open`);
+  const genSummary = genNoun
+    ? `${genNoun} run — open Reports to view the generated artifacts.`
+    : "";
+  setText("#summaryBox", genSummary || stats.summary || "No completed review selected.");
+  const trustBits = [
+    `${stats.total_issues ?? 0} open`,
+    ...(stats.verification?.confirmed ? [`${stats.verification.confirmed} verified`] : []),
+    ...(stats.rejected_issues ? [`${stats.rejected_issues} auto-rejected`] : []),
+    ...(stats.suppressed ? [`${stats.suppressed} dismissed`] : []),
+  ];
+  setText("#findingMeta", trustBits.join(" · "));
 
   setText("#reportRunState", meta?.status || "No Run");
-  setText("#reportSummary", stats.summary || "Select a review run from the sidebar.");
+  setText("#reportSummary", genSummary || stats.summary || "Select a review run from the sidebar.");
 
   const g  = stats.gate;
   const gp = $("#gatePill");
   if (gp) {
     gp.className = `gate-pill ${gateClass(g)}`;
-    gp.textContent = g ? g.toUpperCase() : "No Run";
+    gp.textContent = g ? g.toUpperCase() : (genNoun ? (meta?.status || "gen").toUpperCase() : "No Run");
   }
 
   $("#tagStrip").innerHTML = (stats.tags || []).map((t) => `<span class="tag">${esc(t)}</span>`).join("");
@@ -362,23 +375,36 @@ function renderFindings() {
       : issue.file;
     const proposal = issue.affected_lines?.find((l) => l.proposal)?.proposal;
     const affected = issue.affected_lines?.find((l) => l.affected_code)?.affected_code;
+    const verdictChip = issue.verified === true
+      ? `<span class="verdict-chip verdict-confirmed" title="${esc(issue.verifier_reason || "Confirmed by the verification pass")}">✓ verified</span>`
+      : issue.verified === false
+        ? `<span class="verdict-chip verdict-uncertain" title="${esc(issue.verifier_reason || "The verifier could not confirm this from the diff")}">? unverified</span>`
+        : "";
 
     return `
-      <article class="finding-card fade-in" id="finding-${esc(issue.id)}">
+      <article class="finding-card fade-in${issue.suppressed ? " suppressed" : ""}" id="finding-${esc(issue.id)}">
         <div class="finding-card-header" role="button" tabindex="0" data-finding="${esc(issue.id)}" aria-expanded="false">
           <div class="finding-meta">
             <div class="finding-title-row">
               <span class="sev-pill ${sevClass(issue.severity)}">S${esc(issue.severity || "?")}</span>
               <h3 class="finding-title">#${esc(issue.id)} ${esc(issue.title)}</h3>
+              ${verdictChip}
+              ${issue.suppressed ? `<span class="verdict-chip verdict-suppressed">dismissed</span>` : ""}
             </div>
             <div class="finding-loc">${esc(loc)}</div>
             <div class="tag-row" style="padding-top:6px">
               ${(issue.tags || []).map((t) => `<span class="tag">${esc(t)}</span>`).join("")}
             </div>
           </div>
+          <button class="btn btn-sm btn-ghost finding-feedback" data-issue="${esc(issue.id)}"
+                  data-action="${issue.suppressed ? "restore" : "dismiss"}" type="button"
+                  title="${issue.suppressed ? "Count this finding again" : "Suppress this finding from risk scoring in every run"}">
+            ${issue.suppressed ? "Restore" : "Dismiss"}
+          </button>
         </div>
         <div class="finding-body" id="finding-body-${esc(issue.id)}">
           <p class="finding-details">${esc(issue.details)}</p>
+          ${issue.verifier_reason ? `<p class="help-text">Verifier: ${esc(issue.verifier_reason)}</p>` : ""}
           ${affected ? `
             <div class="code-block-label">Affected code</div>
             <pre class="code-block">${esc(affected)}</pre>
@@ -391,6 +417,11 @@ function renderFindings() {
       </article>
     `;
   }).join("");
+
+  $$(".finding-feedback").forEach((btn) => btn.addEventListener("click", (event) => {
+    event.stopPropagation();
+    sendFindingFeedback(btn.dataset.issue, btn.dataset.action);
+  }));
 
   // Wire expand/collapse
   $$(".finding-card-header").forEach((header) => {
@@ -524,7 +555,75 @@ function renderGenerated() {
   }
 }
 
-// ── Render: finding queue (findings view) ────────────────────────────────────
+// ── Render: cross-file impact (review view) ─────────────────────────────────
+function renderCrossFile() {
+  const box = $("#crossFileBox");
+  if (!box) return;
+  const pack = state.detail?.context_pack;
+  const files = pack?.files || {};
+  const entries = Object.entries(files);
+  const crossFindings = state.detail?.meta?.stats?.cross_file_issues ?? 0;
+
+  setText(
+    "#crossFileMeta",
+    pack
+      ? `${entries.length} changed · ${pack.graph_files ?? 0} files in graph · ${crossFindings} contract findings`
+      : "No run"
+  );
+
+  if (!entries.length) {
+    box.innerHTML = state.detail
+      ? `<div class="empty-state"><p>No cross-file context for this run (older run, or no source changes).</p></div>`
+      : `<div class="empty-state"><p>No review selected.</p></div>`;
+    return;
+  }
+
+  box.innerHTML = entries.map(([file, info]) => {
+    const symbols = info.symbols || {};
+    const removed = symbols.removed || [];
+    const changed = (symbols.signature_changed || []).map((c) => c.name);
+    const dependents = info.dependents || [];
+    const usageRows = Object.entries(info.usages || {}).flatMap(([name, usages]) =>
+      usages.slice(0, 3).map((u) => `
+        <div class="crossfile-usage">
+          <span class="tag">${esc(name)}</span>
+          <code>${esc(u.file)}:${esc(u.line)}</code>
+          <span class="crossfile-code">${esc(u.code)}</span>
+        </div>
+      `)
+    ).join("");
+    return `
+      <article class="crossfile-row fade-in">
+        <div class="crossfile-head">
+          <strong>${esc(file)}</strong>
+          <span class="meta-label">${dependents.length} dependent(s) · ${esc((info.imports || []).length)} import(s)</span>
+        </div>
+        ${dependents.length ? `<div class="crossfile-deps">Imported by: ${dependents.slice(0, 6).map((d) => `<code>${esc(d)}</code>`).join(" ")}</div>` : ""}
+        ${removed.length ? `<div class="crossfile-alert">Removed symbols: ${removed.map((s) => `<code>${esc(s)}</code>`).join(" ")}</div>` : ""}
+        ${changed.length ? `<div class="crossfile-alert">Changed signatures: ${changed.map((s) => `<code>${esc(s)}</code>`).join(" ")}</div>` : ""}
+        ${usageRows}
+      </article>
+    `;
+  }).join("");
+}
+
+// ── Render: publish panel (reports view) ────────────────────────────────────
+function renderPublishConfig() {
+  const cfg = state.publishConfig;
+  if (!cfg) return;
+  const ready = [];
+  if (cfg.github?.configured) ready.push("GitHub");
+  if (cfg.gitlab?.configured) ready.push("GitLab");
+  setText("#pubConfigState", ready.length ? `${ready.join(" + ")} configured` : "No tokens configured");
+  const published = state.detail?.publish_result;
+  if (published?.posted && !state.publishPreviewed) {
+    $("#pubResult").innerHTML = `
+      <div class="warning-item" style="color:var(--green);background:var(--green-dim);border-color:rgba(63,185,80,0.2)">
+        Published to ${esc(published.target)} (${esc(published.posted.mode)})
+        ${published.posted.url ? ` — <a href="${esc(published.posted.url)}" target="_blank" rel="noreferrer">view</a>` : ""}
+      </div>`;
+  }
+}
 function renderFindingQueue(issues = flattenIssues(state.detail?.report)) {
   setText("#queueMeta", state.selectedRunId ? `${issues.length} findings` : "No run");
   const queue = $("#findingQueue");
@@ -680,6 +779,8 @@ function renderAll() {
   renderFindings();
   renderTestCases();
   renderGenerated();
+  renderCrossFile();
+  renderPublishConfig();
   renderRepos();
   renderPolicies();
   renderPreflight();
@@ -714,9 +815,11 @@ async function refreshRuns() {
   const data = await api("/api/reviews");
   state.reviews = data.reviews || [];
 
-  // Auto-select latest if nothing selected
+  // Auto-select latest if nothing selected — prefer review runs over
+  // generation runs so the cockpit and review panels stay populated.
   if (!state.selectedRunId && state.reviews.length) {
-    state.selectedRunId = state.reviews[0].id;
+    const preferred = state.reviews.find((run) => !run.kind || run.kind === "review") || state.reviews[0];
+    state.selectedRunId = preferred.id;
     await loadSelected();
     hydrateFormFromMeta(selectedMeta());
   }
@@ -725,12 +828,18 @@ async function refreshRuns() {
   renderFindings();
   renderTestCases();
   renderGenerated();
+  renderCrossFile();
 }
 
 async function refreshAudit() {
   const data = await api("/api/audit?limit=150");
   state.audit = data.events || [];
   renderAudit();
+}
+
+async function refreshPublishConfig() {
+  state.publishConfig = await api("/api/publish/config");
+  renderPublishConfig();
 }
 
 async function loadSelected() {
@@ -743,6 +852,12 @@ async function loadSelected() {
 
 async function selectRun(runId) {
   state.selectedRunId = runId;
+  // A publish preview belongs to one run — never carry it across.
+  state.publishPreviewed = false;
+  const pubPublish = $("#pubPublish");
+  if (pubPublish) pubPublish.disabled = true;
+  const pubResult = $("#pubResult");
+  if (pubResult) pubResult.innerHTML = "";
   try {
     await loadSelected();
   } catch (err) {
@@ -760,6 +875,7 @@ async function refreshEverything() {
     refreshPolicies(),
     refreshRuns(),
     refreshAudit(),
+    refreshPublishConfig(),
   ]);
 }
 
@@ -804,6 +920,24 @@ async function startReview(extraPayload = {}) {
   }
 }
 
+async function sendFindingFeedback(issueId, action) {
+  if (!state.selectedRunId) return;
+  try {
+    await api("/api/findings/feedback", {
+      method: "POST",
+      body: JSON.stringify({ runId: state.selectedRunId, issueId, action }),
+    });
+    await loadSelected();
+    await refreshRuns();
+    renderAll();
+    toastSuccess(action === "dismiss"
+      ? "Finding dismissed — its fingerprint is suppressed from risk scoring in all runs."
+      : "Finding restored — it counts toward risk again.");
+  } catch (err) {
+    toastError(`Feedback failed: ${err.message}`);
+  }
+}
+
 async function startGeneration(kind) {
   const btn = $(kind === "tests" ? "#generateTests" : "#generatePr");
   btn.disabled = true;
@@ -820,6 +954,66 @@ async function startGeneration(kind) {
     toastError(`Could not start generation: ${err.message}`);
   } finally {
     btn.disabled = false;
+  }
+}
+
+function publishPayload(dryRun) {
+  return {
+    platform: $("#pubPlatform").value,
+    repo:     $("#pubRepo").value.trim(),
+    pr:       Number($("#pubNumber").value || 0),
+    dryRun,
+  };
+}
+
+async function previewPublish() {
+  const meta = selectedMeta();
+  if (!meta) { toastError("Select a review run first."); return; }
+  const btn = $("#pubPreview");
+  btn.disabled = true;
+  try {
+    const preview = await api(`/api/reviews/${encodeURIComponent(meta.id)}/publish`, {
+      method: "POST",
+      body: JSON.stringify(publishPayload(true)),
+    });
+    state.publishPreviewed = true;
+    $("#pubPublish").disabled = false;
+    $("#pubResult").innerHTML = `
+      <div class="code-block-label">Preview — will post to <strong>${esc(preview.target)}</strong> on ${esc(preview.platform)}
+        ${preview.line_comments?.length ? ` with ${preview.line_comments.length} inline comment(s)` : ""}</div>
+      <pre class="code-block pr-draft-body">${esc(preview.summary_markdown)}</pre>
+    `;
+    toastInfo("Preview ready. Nothing has been posted yet — click Publish to confirm.");
+  } catch (err) {
+    state.publishPreviewed = false;
+    $("#pubPublish").disabled = true;
+    toastError(`Preview failed: ${err.message}`);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function doPublish() {
+  const meta = selectedMeta();
+  if (!meta || !state.publishPreviewed) return;
+  const btn = $("#pubPublish");
+  btn.disabled = true;
+  try {
+    const result = await api(`/api/reviews/${encodeURIComponent(meta.id)}/publish`, {
+      method: "POST",
+      body: JSON.stringify(publishPayload(false)),
+    });
+    state.publishPreviewed = false;
+    $("#pubResult").innerHTML = `
+      <div class="warning-item" style="color:var(--green);background:var(--green-dim);border-color:rgba(63,185,80,0.2)">
+        Published to ${esc(result.target)} (${esc(result.posted?.mode || "posted")})
+        ${result.posted?.url ? ` — <a href="${esc(result.posted.url)}" target="_blank" rel="noreferrer">view</a>` : ""}
+      </div>`;
+    await loadSelected().catch(() => {});
+    toastSuccess(`Review published to ${result.target}.`);
+  } catch (err) {
+    btn.disabled = false;
+    toastError(`Publish failed: ${err.message}`);
   }
 }
 
@@ -1016,6 +1210,16 @@ function wireEvents() {
   // Generators
   $("#generateTests").addEventListener("click", () => startGeneration("tests"));
   $("#generatePr").addEventListener("click",    () => startGeneration("pr"));
+
+  // Publish to PR/MR — preview first, publish only after an explicit confirm
+  $("#pubPreview").addEventListener("click", previewPublish);
+  $("#pubPublish").addEventListener("click", doPublish);
+  ["#pubPlatform", "#pubRepo", "#pubNumber"].forEach((sel) => {
+    $(sel)?.addEventListener("input", () => {
+      state.publishPreviewed = false;
+      $("#pubPublish").disabled = true;
+    });
+  });
 
   // Ollama URL change → re-check health
   $("#ollamaBase").addEventListener("change", () => {

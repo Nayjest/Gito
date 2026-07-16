@@ -1540,3 +1540,85 @@ img { display: block; max-width: 100%; }
   color: var(--text-muted);
   font-size: 13px;
 }
+
+/* ── Verification + feedback ───────────────────────────────────────────────── */
+.verdict-chip {
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.verdict-confirmed  { background: var(--green-dim);  color: var(--green); }
+.verdict-uncertain  { background: var(--amber-dim);  color: var(--amber); }
+.verdict-suppressed { background: var(--surface-3);  color: var(--text-muted); }
+
+.finding-card.suppressed { opacity: 0.55; }
+.finding-card.suppressed .finding-title { text-decoration: line-through; }
+
+.finding-card-header .finding-feedback { flex-shrink: 0; margin-left: auto; }
+
+/* ── Cross-file impact ─────────────────────────────────────────────────────── */
+.crossfile-row {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.crossfile-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.crossfile-head strong {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+}
+
+.crossfile-deps,
+.crossfile-alert {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.crossfile-alert { color: var(--amber); }
+
+.crossfile-deps code,
+.crossfile-alert code {
+  background: var(--surface-3);
+  border-radius: 5px;
+  padding: 1px 6px;
+  font-size: 11.5px;
+}
+
+.crossfile-usage {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+  color: var(--text-muted);
+  min-width: 0;
+}
+
+.crossfile-usage code { color: var(--cyan); flex-shrink: 0; }
+
+.crossfile-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Publish panel ─────────────────────────────────────────────────────────── */
+#pubResult { margin-top: 12px; }
+#pubResult a { color: var(--cyan); }

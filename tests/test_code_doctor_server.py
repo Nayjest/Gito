@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from code_doctor_app import server
+from code_doctor_app import server, store
 
 
 def _git(repo: Path, *args: str) -> None:
@@ -33,6 +33,8 @@ def _isolated_store(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(server, "AUDIT_LOG", data_dir / "audit.jsonl")
     monkeypatch.setattr(server, "REPOS_FILE", data_dir / "repos.json")
     monkeypatch.setattr(server, "POLICIES_FILE", data_dir / "policies.json")
+    monkeypatch.setattr(server, "SUPPRESSIONS_FILE", data_dir / "suppressions.json")
+    monkeypatch.setattr(store, "DB_PATH", data_dir / "code-doctor.db")
     monkeypatch.delenv("CODE_DOCTOR_TOKEN", raising=False)
 
 
@@ -438,6 +440,147 @@ def test_overview_excludes_generation_runs_from_gate_metrics(monkeypatch, tmp_pa
     assert overview["metrics"]["completed"] == 1
     assert overview["metrics"]["avgRisk"] == 30
     assert overview["metrics"]["generations"] == 1
+
+
+def _report_with_issues() -> dict:
+    return {
+        "issues": {
+            "svc/refunds.py": [
+                {
+                    "id": 1,
+                    "severity": 1,
+                    "confidence": 1,
+                    "title": "Missing ownership check.",
+                    "tags": ["security"],
+                },
+                {
+                    "id": 2,
+                    "severity": 3,
+                    "confidence": 2,
+                    "title": "Speculative style nit.",
+                    "tags": ["readability"],
+                },
+                {
+                    "id": 10001,
+                    "severity": 2,
+                    "confidence": 1,
+                    "title": "shell=True usage.",
+                    "tags": ["security", "static-analysis"],
+                    "source": "static",
+                },
+            ]
+        },
+        "total_issues": 3,
+    }
+
+
+def test_apply_verification_quarantines_rejected_and_tags_confirmed():
+    report = _report_with_issues()
+    counts = server.apply_verification(
+        report,
+        {
+            "verdicts": [
+                {"id": 1, "verdict": "confirmed", "reason": "Diff removes the ownership check."},
+                {"id": 2, "verdict": "rejected", "reason": "Pure style preference."},
+                {"id": 10001, "verdict": "rejected", "reason": "Should be ignored for static."},
+            ]
+        },
+    )
+
+    assert counts == {"confirmed": 1, "rejected": 1, "uncertain": 0}
+    remaining = report["issues"]["svc/refunds.py"]
+    assert [issue["id"] for issue in remaining] == [1, 10001]  # static finding untouched
+    assert remaining[0]["verified"] is True
+    assert "verified" in remaining[0]["tags"]
+    rejected = report["rejected_issues"]["svc/refunds.py"]
+    assert rejected[0]["id"] == 2
+    assert rejected[0]["verifier_reason"] == "Pure style preference."
+    assert report["total_issues"] == 2
+
+
+def test_finding_feedback_suppresses_fingerprint_from_risk(monkeypatch, tmp_path):
+    _isolated_store(monkeypatch, tmp_path)
+    run_id = "run-feedback"
+    server.atomic_write_json(server.meta_path(run_id), {"id": run_id, "status": "completed"})
+    server.atomic_write_json(server.report_path(run_id), _report_with_issues())
+
+    before = server.summarize_report(run_id)
+    result = server.record_finding_feedback(
+        {"runId": run_id, "issueId": 1, "action": "dismiss", "reason": "By design here."}
+    )
+    after = server.summarize_report(run_id)
+
+    assert result["suppressed"] is True
+    assert after["suppressed"] == 1
+    assert after["risk_score"] < before["risk_score"]
+    assert before["gate"] == "block" and after["gate"] != "block"
+
+    server.record_finding_feedback({"runId": run_id, "issueId": 1, "action": "restore"})
+    restored = server.summarize_report(run_id)
+    assert restored["risk_score"] == before["risk_score"]
+    assert restored["suppressed"] == 0
+
+
+def test_finding_feedback_rejects_unknown_action_and_finding(monkeypatch, tmp_path):
+    _isolated_store(monkeypatch, tmp_path)
+    run_id = "run-feedback-errors"
+    server.atomic_write_json(server.report_path(run_id), _report_with_issues())
+
+    with pytest.raises(ValueError):
+        server.record_finding_feedback({"runId": run_id, "issueId": 1, "action": "shrug"})
+    with pytest.raises(FileNotFoundError):
+        server.record_finding_feedback({"runId": run_id, "issueId": 999, "action": "dismiss"})
+
+
+def test_publish_run_dry_run_previews_without_posting(monkeypatch, tmp_path):
+    _isolated_store(monkeypatch, tmp_path)
+    run_id = "run-publish"
+    server.atomic_write_json(
+        server.meta_path(run_id),
+        {"id": run_id, "status": "completed", "model": "gemma4:e4b", "stats": {}},
+    )
+    server.atomic_write_json(server.report_path(run_id), _report_with_issues())
+
+    result = server.publish_run(
+        run_id, {"platform": "github", "repo": "acme/payments", "pr": 12, "dryRun": True}
+    )
+
+    assert result["dry_run"] is True
+    assert result["target"] == "acme/payments#12"
+    assert "Missing ownership check." in result["summary_markdown"]
+    assert not server.publish_result_path(run_id).exists()
+    assert server.read_audit()[0]["event"] == "review_publish_previewed"
+
+    with pytest.raises(FileNotFoundError):
+        server.publish_run("missing-run", {"platform": "github", "repo": "a/b", "pr": 1})
+
+
+def test_summarize_report_counts_crossfile_issues_and_get_review_exposes_pack(monkeypatch, tmp_path):
+    _isolated_store(monkeypatch, tmp_path)
+    run_id = "run-crossfile"
+    report = _report_with_issues()
+    report["issues"]["svc/refunds.py"].append(
+        {
+            "id": 20000,
+            "severity": 2,
+            "confidence": 2,
+            "title": "Removed symbol `legacy_charge` is still referenced elsewhere.",
+            "tags": ["cross-file", "breaking-change"],
+            "source": "crossfile",
+        }
+    )
+    server.atomic_write_json(server.meta_path(run_id), {"id": run_id, "status": "completed"})
+    server.atomic_write_json(server.report_path(run_id), report)
+    server.atomic_write_json(
+        server.context_pack_path(run_id),
+        {"generated_at": "2026-07-16T00:00:00Z", "files": {"svc/refunds.py": {"dependents": ["svc/api.py"]}}, "graph_files": 2},
+    )
+
+    stats = server.summarize_report(run_id)
+    detail = server.get_review(run_id)
+
+    assert stats["cross_file_issues"] == 1
+    assert detail["context_pack"]["files"]["svc/refunds.py"]["dependents"] == ["svc/api.py"]
 
 
 def test_seed_sample_data_populates_enterprise_overview(monkeypatch, tmp_path):
