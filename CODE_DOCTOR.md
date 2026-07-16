@@ -44,6 +44,30 @@ adding stricter guidance for:
 Project-level `.gito/config.toml` files still load first; the Code Doctor
 profile merges after them.
 
+## Reviewing Local (Non-Git) Projects
+
+Code Doctor reviews any local folder, not just git repositories. Point the
+**Repository Path** at a plain directory and it just works:
+
+- If the path is a git work tree, it is reviewed in place as before (diffs,
+  branches, lifecycle tracking — everything).
+- If it is **not** under git, Code Doctor takes a **snapshot**: your folder is
+  copied into `.code-doctor/snapshots/<id>/` (skipping `node_modules`,
+  virtualenvs, build output, caches, etc.), `git init` + one baseline commit,
+  and the review diffs the git empty tree against that commit so **every file
+  is analyzed**. Your folder is never modified and never gets a `.git`.
+
+The whole analysis stack (LLM review, static analysis, cross-file) runs
+unchanged against the snapshot. Runs are marked `is_snapshot` in meta and
+carry the original `source_path`; the dashboard shows a `local snapshot`
+badge and a preflight note. Snapshots refresh on each review, so re-running
+picks up your latest edits. A size guardrail (20k files / 300 MB) refuses
+runaway copies — point at a git repo or a smaller folder in that case.
+
+Because a snapshot has a single baseline commit, its scope is always the
+whole tree; branch/ref options don't apply. Applied fixes (Item 3) write into
+the snapshot copy, not your original folder.
+
 ## Hybrid Analysis Engine
 
 Every run pairs the LLM review with a deterministic static-analysis pass

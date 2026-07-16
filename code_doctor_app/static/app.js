@@ -691,7 +691,9 @@ function renderRepos() {
           <div class="repo-path">${esc(repo.path)}</div>
           <div class="tag-row" style="padding-top:8px">
             ${(meta.languages || []).map((l) => `<span class="tag">${esc(l)}</span>`).join("")}
-            ${meta.branch ? `<span class="tag" style="background:var(--violet-dim);color:var(--violet);border-color:transparent">${esc(meta.branch)}</span>` : ""}
+            ${repo.is_snapshot
+              ? `<span class="tag" style="background:var(--amber-dim,rgba(210,153,34,0.15));color:var(--amber,#d29922);border-color:transparent" title="Not a git repo — analyzed from a local snapshot">local snapshot</span>`
+              : (meta.branch ? `<span class="tag" style="background:var(--violet-dim);color:var(--violet);border-color:transparent">${esc(meta.branch)}</span>` : "")}
           </div>
         </div>
         <div class="repo-meta">

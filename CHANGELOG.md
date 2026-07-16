@@ -58,6 +58,16 @@ the full set; no new tables this release).
   `generateModel` payload keys win over workspace policy `models.verify` /
   `models.generate`; empty inherits the run's main model (today's
   behavior).
+- **Review any local folder, git or not.** Pointing the repository path at a
+  non-git directory now works: Code Doctor materializes a managed git
+  **snapshot** under `.code-doctor/snapshots/` (heavy dirs like
+  `node_modules`, virtualenvs, and build output skipped), `git init` +
+  baseline commit, and reviews the empty-tree diff so every file is analyzed
+  — reusing the entire diff-based pipeline unchanged. The user's folder is
+  never modified and never gets a `.git`. Runs carry `is_snapshot` /
+  `source_path`; the dashboard shows a `local snapshot` badge and preflight
+  note; a 20k-file / 300 MB guardrail refuses runaway copies
+  (`snapshot.py`).
 - `/api/health` now reports the app `version`.
 - `scripts/smoke.sh` (live API smoke) and `scripts/bench.py` (performance
   budgets, §4b) for the per-release gate.

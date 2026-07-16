@@ -27,7 +27,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, unquote, urlparse
 from urllib.request import Request, urlopen
 
-from . import context_engine, patcher, publisher, semantic_js, static_analysis, store
+from . import context_engine, patcher, publisher, semantic_js, snapshot, static_analysis, store
 
 # ── Production constants ────────────────────────────────────────────────────
 MAX_REQUEST_BODY = 16 * 1024 * 1024   # 16 MB hard limit on JSON request bodies
@@ -49,6 +49,7 @@ AUDIT_LOG = DATA_DIR / "audit.jsonl"
 REPOS_FILE = DATA_DIR / "repos.json"
 POLICIES_FILE = DATA_DIR / "policies.json"
 SUPPRESSIONS_FILE = DATA_DIR / "suppressions.json"
+SNAPSHOTS_DIR = DATA_DIR / "snapshots"
 REVIEW_PROFILE = Path(__file__).resolve().parent / "review_profile.toml"
 DEFAULT_FILTERS = "*.py,*.js,*.jsx,*.ts,*.tsx,*.mjs,*.cjs"
 DEFAULT_OLLAMA_BASE = "http://localhost:11434"
@@ -473,14 +474,19 @@ def list_repos() -> list[dict[str, Any]]:
 
 
 def register_repo(payload: dict[str, Any]) -> dict[str, Any]:
-    repo_path = require_git_repo(payload.get("path") or payload.get("repoPath") or "")
+    review_path, source_path, is_snapshot = resolve_review_target(
+        payload.get("path") or payload.get("repoPath") or ""
+    )
     now = utc_now()
-    existing = store.get_repo_by_path(str(repo_path))
-    metadata = repo_metadata(repo_path)
+    existing = store.get_repo_by_path(str(source_path))
+    metadata = repo_metadata(review_path)
+    if is_snapshot:
+        metadata = {**metadata, "snapshot": True}
     repo = {
-        "id": existing.get("id") if existing else uuid.uuid5(uuid.NAMESPACE_URL, str(repo_path)).hex[:12],
-        "name": (payload.get("name") or repo_path.name).strip(),
-        "path": str(repo_path),
+        "id": existing.get("id") if existing else uuid.uuid5(uuid.NAMESPACE_URL, str(source_path)).hex[:12],
+        "name": (payload.get("name") or source_path.name).strip(),
+        "path": str(source_path),
+        "is_snapshot": is_snapshot,
         "owner": (payload.get("owner") or "Engineering").strip(),
         "tier": payload.get("tier") or "production",
         "created_at": existing.get("created_at") if existing else now,
@@ -488,7 +494,7 @@ def register_repo(payload: dict[str, Any]) -> dict[str, Any]:
         "metadata": metadata,
     }
     store.save_repo(repo)
-    audit_event("repo_registered", repo_path=str(repo_path), repo_id=repo["id"])
+    audit_event("repo_registered", repo_path=str(source_path), repo_id=repo["id"], snapshot=is_snapshot)
     return repo
 
 
@@ -563,6 +569,49 @@ def require_git_repo(repo_path: str) -> Path:
         check=True,
     ).stdout.strip()
     return Path(root).resolve()
+
+
+def resolve_review_target(raw_path: str) -> tuple[Path, Path, bool]:
+    """Resolve a user path to ``(review_path, source_path, is_snapshot)``.
+
+    A git work tree is reviewed in place. A plain local folder is materialized
+    into a managed git snapshot under ``SNAPSHOTS_DIR`` — the user's folder is
+    copied, never modified — so the entire diff-based pipeline works unchanged.
+    ``review_path`` is always a real git work tree; ``source_path`` is what the
+    user pointed at (used for identity and display).
+    """
+    text = str(raw_path or "").strip()
+    if not text:
+        raise ValueError("Provide a repository path.")
+    source = Path(text).expanduser().resolve()
+    if not source.exists() or not source.is_dir():
+        raise ValueError("Repository path does not exist or is not a directory.")
+    if snapshot.is_git_work_tree(source):
+        top = require_git_repo(str(source))
+        return top, top, False
+    review_path = snapshot.build_snapshot(source, SNAPSHOTS_DIR)
+    return review_path, source, True
+
+
+def resolve_review_payload(
+    payload: dict[str, Any],
+) -> tuple[Path, Path, bool, dict[str, Any]]:
+    """Resolve ``repoPath`` and, for a non-git folder, force whole-tree scope.
+
+    Returns ``(review_path, source_path, is_snapshot, effective_payload)``. A
+    snapshot only has one baseline commit, so its review always diffs the empty
+    tree against HEAD (every file reads as added) regardless of the requested
+    mode.
+    """
+    review_path, source_path, is_snapshot = resolve_review_target(payload.get("repoPath") or "")
+    payload = dict(payload)
+    if is_snapshot:
+        payload["mode"] = "refs"
+        payload["refs"] = snapshot.SNAPSHOT_REFS
+        payload["what"] = ""
+        payload["against"] = ""
+        payload["mergeBase"] = False
+    return review_path, source_path, is_snapshot, payload
 
 
 def build_review_command(
@@ -1725,7 +1774,8 @@ def create_review_run(payload: dict[str, Any]) -> tuple[str, Path, dict[str, Any
         if not repo:
             raise ValueError("Registered repository not found.")
         payload = dict(payload) | {"repoPath": repo.get("path")}
-    repo_path = require_git_repo(payload.get("repoPath") or "")
+    review_path, source_path, is_snapshot, payload = resolve_review_payload(payload)
+    repo_path = review_path
     options = review_options(payload)
     run_id = datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:8]
     out_dir = run_dir(run_id)
@@ -1744,6 +1794,8 @@ def create_review_run(payload: dict[str, Any]) -> tuple[str, Path, dict[str, Any
         "created_at": utc_now(),
         "updated_at": utc_now(),
         "repo_path": str(repo_path),
+        "source_path": str(source_path),
+        "is_snapshot": is_snapshot,
         "model": (payload.get("model") or DEFAULT_MODEL).strip(),
         "ollama_base": normalize_ollama_base(payload.get("ollamaBase")),
         "mode": options["mode"],
@@ -1892,7 +1944,7 @@ def start_generation(payload: dict[str, Any]) -> dict[str, Any]:
         if not repo:
             raise ValueError("Registered repository not found.")
         payload = dict(payload) | {"repoPath": repo.get("path")}
-    repo_path = require_git_repo(payload.get("repoPath") or "")
+    repo_path, _source_path, _is_snapshot, payload = resolve_review_payload(payload)
     options = review_options(payload)
     run_id = (
         f"{kind}-" + datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:8]
@@ -1953,7 +2005,11 @@ def preflight_review(payload: dict[str, Any]) -> dict[str, Any]:
         if not repo:
             raise ValueError("Registered repository not found.")
         payload = dict(payload) | {"repoPath": repo.get("path")}
-    repo_path = require_git_repo(payload.get("repoPath") or "")
+    raw_path = str(payload.get("repoPath") or "").strip()
+    source = Path(raw_path).expanduser().resolve() if raw_path else None
+    if source and source.is_dir() and not snapshot.is_git_work_tree(source):
+        return snapshot_preflight(source)
+    repo_path = require_git_repo(raw_path)
     options = review_options(payload)
     metadata = repo_metadata(repo_path)
     classified = classify_scope_files(collect_scope_files(repo_path, options))
@@ -1969,6 +2025,43 @@ def preflight_review(payload: dict[str, Any]) -> dict[str, Any]:
             *(["No changed files detected for the selected scope."] if not classified["changed"] else []),
             *(["Sensitive file changes require review."] if classified["sensitive"] else []),
             *(["No matching test changes detected."] if classified["changed"] and not classified["tests"] else []),
+        ],
+    }
+
+
+def snapshot_preflight(source: Path) -> dict[str, Any]:
+    """Preview scope for a non-git local folder without building a snapshot.
+
+    Reviewing this folder will materialize a git snapshot and analyze every
+    file; here we just list what that scope would be, cheaply.
+    """
+    files = snapshot.list_files(source)
+    classified = classify_scope_files(files)
+    over_limit = len(files) >= snapshot.MAX_SNAPSHOT_FILES
+    return {
+        "repo_path": str(source),
+        "scope": {
+            "mode": "refs",
+            "refs": snapshot.SNAPSHOT_REFS,
+            "what": "",
+            "against": "",
+            "filters": DEFAULT_FILTERS,
+            "use_merge_base": False,
+        },
+        "metadata": {"snapshot": True, "trackedFiles": len(files)},
+        "changedFiles": classified["changed"],
+        "sensitiveFiles": classified["sensitive"],
+        "testFiles": classified["tests"],
+        "ready": bool(classified["changed"]) and not over_limit,
+        "warnings": [
+            "Not a git repository — Code Doctor will analyze a local snapshot "
+            "(your folder is copied, never modified) and review every file.",
+            *(["No reviewable files detected in this folder."] if not classified["changed"] else []),
+            *([
+                "Folder is too large to snapshot; point at a git repository or a "
+                "smaller folder."
+            ] if over_limit else []),
+            *(["Sensitive files present — review carefully."] if classified["sensitive"] else []),
         ],
     }
 
