@@ -44,6 +44,16 @@ adding stricter guidance for:
 Project-level `.gito/config.toml` files still load first; the Code Doctor
 profile merges after them.
 
+## Concurrency: Bounded Job Queue
+
+Reviews and generations run through a fixed-size **worker pool**
+(`jobqueue.py`) instead of each spawning its own thread. At most
+`CODE_DOCTOR_REVIEW_WORKERS` (default 2) run at once; further requests wait in
+FIFO order with meta status `queued`, so a burst of reviews can't thrash a
+single local GPU or blow a cloud rate limit. Raise the worker count on beefier
+hardware or when using a cloud provider. `/api/health` reports live
+`queue: {workers, active, queued}`. A failing job never takes down its worker.
+
 ## Dependency / Supply-Chain Checks
 
 Code Doctor scans changed manifests (`requirements.txt`, `package.json`)

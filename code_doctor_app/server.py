@@ -30,6 +30,7 @@ from urllib.request import Request, urlopen
 from . import (
     context_engine,
     dependency_scan,
+    jobqueue,
     patcher,
     publisher,
     sarif,
@@ -1965,13 +1966,9 @@ def create_review_run(payload: dict[str, Any]) -> tuple[str, Path, dict[str, Any
 
 def start_review(payload: dict[str, Any]) -> dict[str, Any]:
     run_id, repo_path, payload, command = create_review_run(payload)
-    thread = threading.Thread(
-        target=run_review,
-        args=(run_id, repo_path, payload, command),
-        name=f"code-doctor-review-{run_id}",
-        daemon=True,
-    )
-    thread.start()
+    # Bounded worker pool: at most REVIEW_WORKERS run at once; the rest wait in
+    # the queue with meta status "queued".
+    JOB_QUEUE.submit(run_id, run_review, run_id, repo_path, payload, command)
     return read_json(meta_path(run_id), {})
 
 
@@ -2116,13 +2113,7 @@ def start_generation(payload: dict[str, Any]) -> dict[str, Any]:
     atomic_write_json(meta_path(run_id), meta)
     audit_event("generation_queued", run_id=run_id, repo_path=str(repo_path), kind=kind)
 
-    thread = threading.Thread(
-        target=run_generation,
-        args=(run_id, repo_path, payload, command, kind),
-        name=f"code-doctor-generate-{run_id}",
-        daemon=True,
-    )
-    thread.start()
+    JOB_QUEUE.submit(run_id, run_generation, run_id, repo_path, payload, command, kind)
     return read_json(meta_path(run_id), meta)
 
 
@@ -2853,6 +2844,12 @@ class OllamaWatchdog:
 
 OLLAMA_WATCHDOG = OllamaWatchdog()
 
+# Bounded worker pool for reviews/generations. Sized from the environment so a
+# server on beefier hardware (or pointed at a cloud provider) can run more in
+# parallel; defaults to 2 to stay gentle on a single local GPU.
+REVIEW_WORKERS = max(1, int(os.getenv("CODE_DOCTOR_REVIEW_WORKERS", "2")))
+JOB_QUEUE = jobqueue.JobQueue(workers=REVIEW_WORKERS, name="review")
+
 
 def system_health(
     query: dict[str, list[str]],
@@ -2886,6 +2883,7 @@ def system_health(
         "ollama": ollama,
         "ollamaWatch": OLLAMA_WATCHDOG.snapshot(),
         "engines": {"semanticJs": semantic_js.SEMANTIC_JS_MODE, "taint": "ast-dataflow"},
+        "queue": JOB_QUEUE.stats(),
         "providers": [
             {
                 "id": name,
@@ -3285,6 +3283,7 @@ def serve(host: str, port: int) -> None:
     if warning:
         sys.stderr.write(warning + "\n")
     OLLAMA_WATCHDOG.start()
+    JOB_QUEUE.start()
     httpd = ThreadingHTTPServer((host, port), CodeDoctorHandler)
     httpd.daemon_threads = True   # threads exit when main thread exits
 

@@ -10,6 +10,12 @@ Store schema: `kv.schema_version` unchanged (tables introduced in 4.3 remain
 the full set; no new tables this release).
 
 ### Added
+- **Bounded job queue with a worker pool (`jobqueue.py`).** Reviews and
+  generations run through a fixed-size pool instead of each spawning its own
+  unbounded thread: at most `CODE_DOCTOR_REVIEW_WORKERS` (default 2) run at
+  once, the rest wait FIFO with meta status `queued`, so a burst can't thrash a
+  single local GPU or a cloud rate limit. `/api/health` reports live
+  `queue: {workers, active, queued}`; a failing job never kills its worker.
 - **Dependency / supply-chain scanning (`dependency_scan.py`).** Offline
   checks over changed `requirements.txt` / `package.json`: typosquat detection
   (edit-distance-1, including adjacent transpositions, against a bundled

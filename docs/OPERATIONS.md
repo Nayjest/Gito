@@ -49,6 +49,23 @@ was started (`ps -p "$(lsof -ti tcp:8787)" -o pid,etime,command`).
   starve structured output. Prefer a non-reasoning model for the verify and
   generation passes.
 
+## Concurrency
+
+- Reviews/generations run through a bounded worker pool. Set
+  `CODE_DOCTOR_REVIEW_WORKERS` (default 2) to control how many run at once.
+- On a single local GPU keep it low (1–2); with a cloud provider or strong
+  hardware, raise it. Watch `queue` in `/api/health` — a persistently high
+  `queued` count means workers are the bottleneck.
+
+## LLM Providers
+
+- Local (Ollama) needs no key. For cloud, set the provider's key in the
+  service environment and pick it in the Cockpit:
+  `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, or `GEMINI_API_KEY`. Keys are read
+  from the server environment only — never sent from the browser.
+- A whole-repo review that times out on a local model usually finishes in
+  a minute or two on a cloud provider (higher parallelism + a faster model).
+
 ## Backup and Restore
 
 Both safe **while the server runs** (WAL journaling keeps the copy consistent):
