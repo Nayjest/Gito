@@ -210,6 +210,20 @@ function renderHealth() {
   const models = h.ollama?.models || [];
   $("#modelList").innerHTML = models.map((m) => `<option value="${esc(m)}"></option>`).join("");
 
+  // LLM providers (Direction 2)
+  const providers = h.providers || [];
+  const sel = $("#provider");
+  if (sel && providers.length && !sel.dataset.ready) {
+    sel.innerHTML = providers.map((p) => {
+      const status = p.local ? "local" : (p.configured ? "ready" : "no key");
+      return `<option value="${esc(p.id)}"${p.configured ? "" : " data-unconfigured=\"1\""}>${esc(p.label)} · ${status}</option>`;
+    }).join("");
+    sel.dataset.ready = "1";
+    sel.value = providers.find((p) => p.configured)?.id || "ollama";
+    applyProvider(providers);
+    sel.addEventListener("change", () => applyProvider(providers));
+  }
+
   // Defaults
   if (!$("#repoPath").value && h.defaults?.repoPath)   $("#repoPath").value = h.defaults.repoPath;
   if (!$("#newRepoPath").value && h.defaults?.repoPath) $("#newRepoPath").value = h.defaults.repoPath;
@@ -220,6 +234,27 @@ function renderHealth() {
     setText("#activeModel", defaultModel);
   }
   if (!$("#filters").value) $("#filters").value = h.defaults?.filters || "*.py,*.js,*.jsx,*.ts,*.tsx";
+}
+
+// Show the Ollama URL only for the local provider, and default the model to
+// the selected provider's default.
+function applyProvider(providers) {
+  const id = $("#provider")?.value || "ollama";
+  const spec = providers.find((p) => p.id === id);
+  const ollamaField = $("#ollamaBaseField");
+  if (ollamaField) ollamaField.style.display = spec && spec.local ? "" : "none";
+  const hint = $("#providerHint");
+  if (hint && spec) {
+    hint.textContent = spec.local
+      ? "Runs locally via Ollama."
+      : (spec.configured
+          ? `Using ${spec.label}. Faster and deeper than local models.`
+          : `Set this provider's API key on the server to enable it.`);
+  }
+  if (spec && spec.defaultModel) {
+    $("#model").value = spec.defaultModel;
+    setText("#activeModel", spec.defaultModel);
+  }
 }
 
 // ── Render: overview / cockpit ────────────────────────────────────────────────
@@ -910,6 +945,7 @@ function formPayload() {
   const mode = new FormData($("#reviewForm")).get("mode");
   return {
     repoPath:           $("#repoPath").value.trim(),
+    provider:           $("#provider")?.value || "ollama",
     ollamaBase:         $("#ollamaBase").value.trim(),
     model:              $("#model").value.trim(),
     mode,

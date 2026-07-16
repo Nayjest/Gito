@@ -55,6 +55,50 @@ REVIEW_PROFILE = Path(__file__).resolve().parent / "review_profile.toml"
 DEFAULT_FILTERS = "*.py,*.js,*.jsx,*.ts,*.tsx,*.mjs,*.cjs"
 DEFAULT_OLLAMA_BASE = "http://localhost:11434"
 DEFAULT_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
+
+# LLM provider registry. Cloud API keys are read from the SERVER environment
+# only (key_env), never from a request payload. `local` providers talk to an
+# OpenAI-compatible endpoint (Ollama) and need no key. `concurrency` is the
+# default parallel-request budget: cloud APIs handle many in flight, so a
+# whole-repo review finishes fast, whereas a single local GPU serializes.
+LLM_PROVIDERS: dict[str, dict[str, Any]] = {
+    "ollama": {
+        "label": "Ollama (local)",
+        "api_type": "openai",
+        "base": None,  # derived from ollamaBase
+        "key_env": (),
+        "default_model": DEFAULT_MODEL,
+        "local": True,
+        "concurrency": 4,
+    },
+    "anthropic": {
+        "label": "Anthropic Claude",
+        "api_type": "anthropic",
+        "base": None,  # SDK default
+        "key_env": ("ANTHROPIC_API_KEY", "CODE_DOCTOR_ANTHROPIC_KEY"),
+        "default_model": "claude-haiku-4-5-20251001",
+        "local": False,
+        "concurrency": 8,
+    },
+    "openai": {
+        "label": "OpenAI",
+        "api_type": "openai",
+        "base": "https://api.openai.com/v1/",
+        "key_env": ("OPENAI_API_KEY", "CODE_DOCTOR_OPENAI_KEY"),
+        "default_model": "gpt-4o-mini",
+        "local": False,
+        "concurrency": 8,
+    },
+    "google": {
+        "label": "Google Gemini",
+        "api_type": "google",
+        "base": None,
+        "key_env": ("GEMINI_API_KEY", "GOOGLE_API_KEY"),
+        "default_model": "gemini-2.0-flash",
+        "local": False,
+        "concurrency": 8,
+    },
+}
 RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 SENSITIVE_PATTERNS = [
     ".env",
@@ -1513,6 +1557,32 @@ def pass_model(payload: dict[str, Any], payload_key: str, policy_key: str) -> st
     return str(models_policy.get(policy_key) or "").strip()
 
 
+def resolve_provider(payload: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+    """Provider id + spec for a run. Falls back to policy, then Ollama."""
+    name = str(
+        payload.get("provider") or (load_policies().get("provider") or "ollama")
+    ).strip().lower()
+    spec = LLM_PROVIDERS.get(name)
+    if spec is None:
+        raise ValueError(
+            f"Unknown LLM provider {name!r}. Choose one of: {', '.join(LLM_PROVIDERS)}."
+        )
+    return name, spec
+
+
+def provider_api_key(spec: dict[str, Any]) -> str:
+    """Cloud key from the server environment only — never the request payload."""
+    for env_name in spec.get("key_env") or ():
+        value = os.getenv(env_name)
+        if value:
+            return value.strip()
+    return ""
+
+
+def provider_configured(spec: dict[str, Any]) -> bool:
+    return bool(spec.get("local")) or bool(provider_api_key(spec))
+
+
 def subprocess_env(payload: dict[str, Any], model_override: str = "") -> dict[str, str]:
     """Environment for review/generation subprocesses: Gito's LLM_* contract."""
     env = os.environ.copy()
@@ -1521,17 +1591,31 @@ def subprocess_env(payload: dict[str, Any], model_override: str = "") -> dict[st
     python_path = str(PROJECT_ROOT)
     if env.get("PYTHONPATH"):
         python_path += os.pathsep + env["PYTHONPATH"]
-    env.update(
-        {
-            "PYTHONPATH": python_path,
-            "LLM_API_TYPE": "openai",
-            "LLM_API_KEY": payload.get("apiKey") or "ollama",
-            "LLM_API_BASE": openai_compatible_base(payload.get("ollamaBase")),
-            "MODEL": (model_override or payload.get("model") or DEFAULT_MODEL).strip(),
-            "MAX_CONCURRENT_TASKS": str(payload.get("maxConcurrentTasks") or 4),
-            "GITO_EXTRA_PROJECT_CONFIG": str(REVIEW_PROFILE),
-        }
-    )
+
+    _, spec = resolve_provider(payload)
+    model = (model_override or payload.get("model") or spec["default_model"]).strip()
+    concurrency = int(payload.get("maxConcurrentTasks") or spec.get("concurrency") or 4)
+    llm_env = {
+        "PYTHONPATH": python_path,
+        "LLM_API_TYPE": spec["api_type"],
+        "MODEL": model,
+        "MAX_CONCURRENT_TASKS": str(concurrency),
+        "GITO_EXTRA_PROJECT_CONFIG": str(REVIEW_PROFILE),
+    }
+    if spec.get("local"):
+        llm_env["LLM_API_KEY"] = "ollama"
+        llm_env["LLM_API_BASE"] = openai_compatible_base(payload.get("ollamaBase"))
+    else:
+        key = provider_api_key(spec)
+        llm_env["LLM_API_KEY"] = key
+        # Also expose the provider's native key var so whichever microcore reads
+        # is populated (the server env may already carry it; this is explicit).
+        for env_name in spec.get("key_env") or ():
+            if key:
+                llm_env[env_name] = key
+        if spec.get("base"):
+            llm_env["LLM_API_BASE"] = spec["base"]
+    env.update(llm_env)
     return env
 
 
@@ -1798,6 +1882,13 @@ def create_review_run(payload: dict[str, Any]) -> tuple[str, Path, dict[str, Any
         payload = dict(payload) | {"repoPath": repo.get("path")}
     review_path, source_path, is_snapshot, payload = resolve_review_payload(payload)
     repo_path = review_path
+    provider_name, provider_spec = resolve_provider(payload)
+    if not provider_configured(provider_spec):
+        envs = " or ".join(provider_spec.get("key_env") or ())
+        raise ValueError(
+            f"The {provider_spec['label']} provider needs an API key on the server. "
+            f"Set {envs} and restart, or choose the Ollama provider."
+        )
     options = review_options(payload)
     run_id = datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:8]
     out_dir = run_dir(run_id)
@@ -1818,7 +1909,8 @@ def create_review_run(payload: dict[str, Any]) -> tuple[str, Path, dict[str, Any
         "repo_path": str(repo_path),
         "source_path": str(source_path),
         "is_snapshot": is_snapshot,
-        "model": (payload.get("model") or DEFAULT_MODEL).strip(),
+        "provider": provider_name,
+        "model": (payload.get("model") or provider_spec["default_model"]).strip(),
         "ollama_base": normalize_ollama_base(payload.get("ollamaBase")),
         "mode": options["mode"],
         "refs": options["refs"],
@@ -2760,6 +2852,16 @@ def system_health(
         "ollama": ollama,
         "ollamaWatch": OLLAMA_WATCHDOG.snapshot(),
         "engines": {"semanticJs": semantic_js.SEMANTIC_JS_MODE, "taint": "ast-dataflow"},
+        "providers": [
+            {
+                "id": name,
+                "label": spec["label"],
+                "local": bool(spec.get("local")),
+                "configured": provider_configured(spec),
+                "defaultModel": spec["default_model"],
+            }
+            for name, spec in LLM_PROVIDERS.items()
+        ],
         "defaults": {
             "repoPath": str(Path.cwd()),
             "model": DEFAULT_MODEL,

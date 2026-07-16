@@ -44,6 +44,28 @@ adding stricter guidance for:
 Project-level `.gito/config.toml` files still load first; the Code Doctor
 profile merges after them.
 
+## LLM Providers (Local and Cloud)
+
+The review/verify/generate passes can run on a local model or a frontier cloud
+model. Pick the provider in the Cockpit; keys are read from the **server
+environment only**, never the browser or request:
+
+| Provider | `LLM_API_TYPE` | Key env | Default model | Parallelism |
+|---|---|---|---|---|
+| Ollama (local) | openai | — | `llama3.1:8b` | 4 |
+| Anthropic Claude | anthropic | `ANTHROPIC_API_KEY` | `claude-haiku-4-5` | 8 |
+| OpenAI | openai | `OPENAI_API_KEY` | `gpt-4o-mini` | 8 |
+| Google Gemini | google | `GEMINI_API_KEY` | `gemini-2.0-flash` | 8 |
+
+Cloud providers raise the concurrent-request budget (`MAX_CONCURRENT_TASKS`),
+so a whole-repo review that would time out on a single local GPU finishes in
+a minute or two — and a frontier model actually catches the deep issues a
+small local model misses. A run is rejected up front if its provider has no
+key configured. `/api/health` lists providers and whether each is configured;
+the chosen provider is recorded in run meta. Per-pass routing still applies —
+`verifyModel`/`generateModel` and `models.verify`/`models.generate` — so a
+cheap model can verify while a stronger one reviews.
+
 ## Taint / Dataflow Analysis
 
 Beyond line-oriented rules, Code Doctor runs an **AST dataflow pass**

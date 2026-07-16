@@ -10,6 +10,16 @@ Store schema: `kv.schema_version` unchanged (tables introduced in 4.3 remain
 the full set; no new tables this release).
 
 ### Added
+- **Cloud LLM providers (Anthropic / OpenAI / Google) alongside Ollama.** A
+  provider registry (`LLM_PROVIDERS`) selects the LLM backend per run; cloud
+  API keys are read from the **server environment only**
+  (`ANTHROPIC_API_KEY`/`OPENAI_API_KEY`/`GEMINI_API_KEY`), never the request
+  payload (the old `apiKey` payload field is ignored). Cloud providers default
+  to a higher `MAX_CONCURRENT_TASKS` so whole-repo reviews finish fast instead
+  of timing out on a single local GPU, and a frontier model catches the deep
+  issues a small local model misses. Runs are rejected up front when the chosen
+  provider has no key; `/api/health` lists providers with a `configured` flag;
+  the Cockpit gains a provider selector; run meta records `provider`.
 - **AST taint / dataflow analysis (`taint_analysis.py`).** A new deterministic
   engine tracks untrusted input (request data, route-handler params, `input()`)
   to dangerous sinks — path traversal (`open`/`send_file`/`Path.read_text`),

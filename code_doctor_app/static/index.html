@@ -207,6 +207,11 @@
                     <input id="repoPath" name="repoPath" type="text" class="field-input" autocomplete="off" placeholder="/path/to/repo" />
                   </div>
                   <div class="field">
+                    <label class="field-label">LLM Provider</label>
+                    <select id="provider" name="provider" class="field-input"></select>
+                    <span class="field-hint" id="providerHint">Cloud providers need their API key set on the server.</span>
+                  </div>
+                  <div class="field" id="ollamaBaseField">
                     <label class="field-label">Ollama URL</label>
                     <input id="ollamaBase" name="ollamaBase" type="text" class="field-input" autocomplete="off" />
                   </div>
