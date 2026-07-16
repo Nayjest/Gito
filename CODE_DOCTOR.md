@@ -108,7 +108,62 @@ Each review also runs a repo-wide cross-file pass (`code_doctor_app/context_engi
   stored as `context-pack.json` per run, shown in the Review view's
   "Cross-File Impact" panel, and fed to the LLM verification pass so verdicts
   can see beyond the diff.
+- Symbol extraction is AST-level for Python (`semantic_py.py`) and
+  brace-depth tokenizer-level for JS/TS (`semantic_js.py`); the original
+  regex pass remains as an automatic fallback for unparseable files. For
+  Python signature changes, every call site in dependents is checked with
+  real argument-binding simulation: calls that provably break carry a
+  `break_reason` (confidence raised to 1), and when **every** call site
+  already satisfies the new signature the finding is suppressed entirely.
+  If `tree_sitter_languages` is installed, JS/TS parsing upgrades itself —
+  the active mode is reported in `/api/health` as `engines.semanticJs`.
 - Disable per run with `"crossFileAnalysis": false`.
+
+## Incremental Re-Review (Verdict Reuse)
+
+Re-running a review on the same repository reuses the previous run's verifier
+verdicts, so only genuinely new findings hit the verification LLM:
+
+- Findings whose fingerprint was **confirmed** in the most recent earlier
+  completed run are stamped `verified` immediately with a `carried_from`
+  key naming the source run; previously **rejected** fingerprints move
+  straight to `rejected_issues`. Uncertain verdicts are always re-verified.
+- Because LLMs reword findings between runs, a position-based fallback covers
+  fingerprint misses: a verdict also carries when **exactly one** prior
+  verdict-bearing finding sits on overlapping lines (±3) of the same file and
+  shares at least one tag. Any ambiguity — zero or multiple candidates — means
+  the finding is re-verified instead.
+- Carried findings are excluded from the verifier subprocess via
+  `--skip-ids`; when every finding carries a verdict the subprocess is not
+  started at all (audited as `verification_skipped`).
+- Run stats gain `verification.carried`, meta gains
+  `reused_verdicts: {confirmed, rejected, from_run}`, and the UI shows a
+  muted `carried` chip on those findings.
+- Opt out per run with `"reuseVerdicts": false`. Reviewer dismissals are
+  independent of this: suppressions already persist across runs.
+
+## Apply Fixes and Write Generated Tests
+
+A finding's proposed fix can be applied to the working tree, and a run's
+generated test files written into the repo, through per-run endpoints (UI
+buttons land in v5.1; the API is stable now):
+
+- `POST /api/reviews/<id>/fixes/plan` `{issueId}` — dry preview. A fix is
+  `applicable` only when the finding's recorded snippet still matches the
+  file **exactly**; a drifted file is refused with a reason, never guessed
+  at.
+- `POST /api/reviews/<id>/fixes/apply` `{issueId}` — re-validates, backs the
+  original up under the run directory, then writes atomically. Audited as
+  `fix_applied`; the per-run ledger (`fixes.json`) records the backup.
+- `POST /api/reviews/<id>/fixes/revert` `{issueId}` — restores the backup
+  (audited `fix_reverted`).
+- `POST /api/reviews/<id>/tests/write` `{overwrite?}` — writes the run's
+  generated tests into the repo; existing files are skipped unless
+  `overwrite: true`, and overwrites are backed up first.
+
+Safety: paths resolve strictly inside the repo root, symlinked targets are
+refused, every apply is one explicit finding at a time — there is no bulk
+apply.
 
 ## Publish to GitHub / GitLab
 
@@ -126,6 +181,67 @@ merge request (GitLab):
   remote. Results are stored as `publish.json` per run and audited.
 - API: `GET /api/publish/config`, `POST /api/reviews/<run-id>/publish` with
   `{platform, repo, pr, dryRun, lineComments}`.
+
+## CI Mode and Webhooks
+
+Code Doctor plugs into pipelines through two entry paths that share the exact
+server review engine:
+
+**CLI batch mode** — run a review synchronously and gate the pipeline on it:
+
+```bash
+python -m code_doctor_app.ci --repo . --what "$GITHUB_SHA" --against origin/main \
+    --fail-on block --publish-pr "$PR_NUMBER"
+```
+
+Prints the summary markdown to stdout and exits `0` (gate ok), `1` (gate met
+`--fail-on`: `block`, `review`, or `none`), or `2` (the review itself failed).
+`--json result.json` writes a machine-readable result. A GitHub Actions step:
+
+```yaml
+- run: |
+    pip install -e .
+    python -m code_doctor_app.ci --repo . --what ${{ github.event.pull_request.head.sha }} \
+        --against origin/${{ github.base_ref }} --fail-on block
+```
+
+**Webhook receiver** — for a standing Code Doctor service. Set
+`CODE_DOCTOR_WEBHOOK_SECRET` on the server (without it the endpoints answer
+503), then point GitHub at `POST /api/hooks/github` (secret = the same value;
+events: pull requests) or GitLab at `POST /api/hooks/gitlab` (secret token
+field). Signatures are verified on the raw body (GitHub HMAC-SHA256 /
+GitLab shared token); the webhook routes are exempt from the bearer token
+since the platforms cannot send it.
+
+Incoming PR/MR events are mapped to a **registered** repository by matching
+the event's slug against each registry entry's `origin` remote — repository
+paths never come from the webhook payload. Unknown repos and non-PR events
+answer 202 and are audited as `webhook_ignored`. Matched events fetch
+`origin`, review `head_sha` against `origin/<base>`, and show up in the
+dashboard like any other run (meta gains a `trigger` block).
+
+Posting back is opt-in via the Governance policy `ci.autoPublish` (default
+off): when enabled and tokens are configured, the finished review is
+published to the PR/MR and the gate lands as a `code-doctor/gate` commit
+status (`block` → failure, otherwise success).
+
+## Live Streaming, Ollama Watchdog, and Per-Pass Models
+
+- **Live run streaming** — `GET /api/reviews/<id>/events` is a Server-Sent
+  Events stream of log increments and meta changes for a running review,
+  closed with `event: done` when the run reaches a final status. The
+  dashboard uses it to tail runs without polling; auth is the normal bearer
+  header (fetch-streaming, no token in the URL).
+- **Ollama watchdog** — a background thread samples the local Ollama
+  endpoint every 30 seconds. `/api/health` exposes the rolling state under
+  `ollamaWatch`, the dashboard shows a banner while Ollama is down, and runs
+  started during an outage are stamped `ollama_warning` in meta so a failed
+  run explains itself.
+- **Per-pass model routing** — the verifier and generator passes can run on
+  a different model than the main review: per-run payload keys
+  `verifyModel` / `generateModel` (in the Cockpit under *Advanced*), or
+  workspace-wide Governance defaults `models.verify` / `models.generate`.
+  Empty inherits the run's main model, which remains the default behavior.
 
 ## Verification Pass and Feedback Loop
 
