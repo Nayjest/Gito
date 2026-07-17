@@ -58,11 +58,12 @@ maintainers = [
 ]
 packages = [
     { include = "gito" },
-    { include = "code_doctor_app" },
+    { include = "codepulse_app" },
+    { include = "code_doctor_app" },  # deprecated alias shim
 ]
 include = [
-    "code_doctor_app/static/*",
-    "code_doctor_app/review_profile.toml",
+    "codepulse_app/static/*",
+    "codepulse_app/review_profile.toml",
     "press-kit/logo/gito-ai-code-reviewer_logo-180.png",
 ]
 [tool.poetry.urls]
@@ -105,7 +106,8 @@ build-backend = "poetry.core.masonry.api"
 [tool.poetry.scripts]
 gito = "gito.entrypoint:main"
 "gito.bot" = "gito.entrypoint:main"  # alias for `uvx gito.bot`
-code-doctor = "code_doctor_app.server:main"
+codepulse = "codepulse_app.server:main"
+code-doctor = "codepulse_app.server:main"  # deprecated alias
 
 [tool.pytest.ini_options]
 minversion = "6.0"

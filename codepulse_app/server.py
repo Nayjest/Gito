@@ -68,6 +68,12 @@ DEFAULT_FILTERS = "*.py,*.js,*.jsx,*.ts,*.tsx,*.mjs,*.cjs"
 DEFAULT_OLLAMA_BASE = "http://localhost:11434"
 DEFAULT_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
 
+
+def brand_env(suffix: str, default: str = "") -> str:
+    """Branded env var: CODEPULSE_<suffix> wins, CODE_DOCTOR_<suffix> is the
+    legacy fallback so pre-rename deployments keep working unchanged."""
+    return os.getenv(f"CODEPULSE_{suffix}") or os.getenv(f"CODE_DOCTOR_{suffix}") or default
+
 # LLM provider registry. Cloud API keys are read from the SERVER environment
 # only (key_env), never from a request payload. `local` providers talk to an
 # OpenAI-compatible endpoint (Ollama) and need no key. `concurrency` is the
@@ -87,7 +93,7 @@ LLM_PROVIDERS: dict[str, dict[str, Any]] = {
         "label": "Anthropic Claude",
         "api_type": "anthropic",
         "base": None,  # SDK default
-        "key_env": ("ANTHROPIC_API_KEY", "CODE_DOCTOR_ANTHROPIC_KEY"),
+        "key_env": ("ANTHROPIC_API_KEY", "CODEPULSE_ANTHROPIC_KEY", "CODE_DOCTOR_ANTHROPIC_KEY"),
         "default_model": "claude-haiku-4-5-20251001",
         "local": False,
         "concurrency": 8,
@@ -96,7 +102,7 @@ LLM_PROVIDERS: dict[str, dict[str, Any]] = {
         "label": "OpenAI",
         "api_type": "openai",
         "base": "https://api.openai.com/v1/",
-        "key_env": ("OPENAI_API_KEY", "CODE_DOCTOR_OPENAI_KEY"),
+        "key_env": ("OPENAI_API_KEY", "CODEPULSE_OPENAI_KEY", "CODE_DOCTOR_OPENAI_KEY"),
         "default_model": "gpt-4o-mini",
         "local": False,
         "concurrency": 8,
@@ -173,8 +179,8 @@ DEFAULT_POLICIES = {
         {
             "id": "token-auth",
             "name": "Workspace access token",
-            "enabled": bool(os.getenv("CODE_DOCTOR_TOKEN")),
-            "evidence": "CODE_DOCTOR_TOKEN",
+            "enabled": bool(brand_env("TOKEN")),
+            "evidence": "CODEPULSE_TOKEN",
         },
     ],
 }
@@ -193,11 +199,15 @@ SSE_TICK_SECONDS = 0.5
 # generator only consume the LLM_* contract; handing them workspace or
 # publishing tokens widens the blast radius of any subprocess compromise.
 SUBPROCESS_ENV_STRIP = (
+    "CODEPULSE_TOKEN",
     "CODE_DOCTOR_TOKEN",
+    "CODEPULSE_GITHUB_TOKEN",
     "CODE_DOCTOR_GITHUB_TOKEN",
     "GITHUB_TOKEN",
+    "CODEPULSE_GITLAB_TOKEN",
     "CODE_DOCTOR_GITLAB_TOKEN",
     "GITLAB_TOKEN",
+    "CODEPULSE_WEBHOOK_SECRET",
     "CODE_DOCTOR_WEBHOOK_SECRET",
 )
 
@@ -252,12 +262,12 @@ def clear_auth_failures(client_ip: str) -> None:
 
 def bind_warning(host: str) -> str:
     """QW-2: a non-loopback bind without a token exposes every endpoint."""
-    if host in {"127.0.0.1", "localhost", "::1"} or os.getenv("CODE_DOCTOR_TOKEN"):
+    if host in {"127.0.0.1", "localhost", "::1"} or brand_env("TOKEN"):
         return ""
     return (
-        f"WARNING: CodePulse is binding to {host} without CODE_DOCTOR_TOKEN set. "
+        f"WARNING: CodePulse is binding to {host} without CODEPULSE_TOKEN set. "
         "Anyone who can reach this address can read reviews and start runs. "
-        "Set CODE_DOCTOR_TOKEN or bind to 127.0.0.1."
+        "Set CODEPULSE_TOKEN or bind to 127.0.0.1."
     )
 
 # ── ETag cache (path → etag string) ────────────────────────────────────────
@@ -399,7 +409,7 @@ def load_policies() -> dict[str, Any]:
     policies = merge_dicts(copy.deepcopy(DEFAULT_POLICIES), stored or {})
     for guardrail in policies.get("guardrails", []):
         if guardrail.get("id") == "token-auth":
-            guardrail["enabled"] = bool(os.getenv("CODE_DOCTOR_TOKEN"))
+            guardrail["enabled"] = bool(brand_env("TOKEN"))
     return policies
 
 
@@ -2014,7 +2024,7 @@ def build_generation_command(
     cmd = [
         sys.executable,
         "-m",
-        "code_doctor_app.generator",
+        "codepulse_app.generator",
         "--kind",
         kind,
         "--repo",
@@ -2392,7 +2402,7 @@ def overview() -> dict[str, Any]:
         {"label": "Policy gates", "ready": bool(policies.get("risk")), "detail": "Severity and risk score thresholds"},
         {"label": "Audit evidence", "ready": store.audit_count() > 0, "detail": "SQLite store + JSONL mirror"},
         {"label": "Repository onboarding", "ready": bool(repos), "detail": f"{len(repos)} registered"},
-        {"label": "Access control", "ready": bool(os.getenv("CODE_DOCTOR_TOKEN")), "detail": "CODE_DOCTOR_TOKEN"},
+        {"label": "Access control", "ready": bool(brand_env("TOKEN")), "detail": "CODEPULSE_TOKEN"},
         {"label": "Evidence exports", "ready": True, "detail": "JSON, Markdown, CSV"},
         {"label": "Test & PR generation", "ready": True, "detail": "LLM unit tests and PR drafts"},
         {"label": "Cross-file impact analysis", "ready": True, "detail": "Import graph + API-contract checks"},
@@ -2671,7 +2681,7 @@ def publish_run(run_id: str, payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def webhook_secret() -> str:
-    return os.getenv("CODE_DOCTOR_WEBHOOK_SECRET") or ""
+    return brand_env("WEBHOOK_SECRET") or ""
 
 
 def verify_webhook_signature(
@@ -2939,7 +2949,7 @@ OLLAMA_WATCHDOG = OllamaWatchdog()
 # Bounded worker pool for reviews/generations. Sized from the environment so a
 # server on beefier hardware (or pointed at a cloud provider) can run more in
 # parallel; defaults to 2 to stay gentle on a single local GPU.
-REVIEW_WORKERS = max(1, int(os.getenv("CODE_DOCTOR_REVIEW_WORKERS", "2")))
+REVIEW_WORKERS = max(1, int(brand_env("REVIEW_WORKERS", "2")))
 JOB_QUEUE = jobqueue.JobQueue(workers=REVIEW_WORKERS, name="review")
 
 
@@ -2992,7 +3002,7 @@ def system_health(
             "ollamaBase": DEFAULT_OLLAMA_BASE,
             "filters": DEFAULT_FILTERS,
         },
-        "authRequired": bool(os.getenv("CODE_DOCTOR_TOKEN")),
+        "authRequired": bool(brand_env("TOKEN")),
     }
 
 
@@ -3134,7 +3144,7 @@ class CodeDoctorHandler(BaseHTTPRequestHandler):
         if not secret:
             self.send_error_json(
                 HTTPStatus.SERVICE_UNAVAILABLE,
-                "Webhook not configured. Set CODE_DOCTOR_WEBHOOK_SECRET on the server.",
+                "Webhook not configured. Set CODEPULSE_WEBHOOK_SECRET on the server.",
             )
             return
         length = int(self.headers.get("Content-Length", "0"))
@@ -3164,7 +3174,7 @@ class CodeDoctorHandler(BaseHTTPRequestHandler):
         self.send_json(handle_webhook_event(platform, event_name, payload), HTTPStatus.ACCEPTED)
 
     def authorized(self) -> bool:
-        expected = os.getenv("CODE_DOCTOR_TOKEN")
+        expected = brand_env("TOKEN")
         if not expected:
             return True
         presented = self.headers.get("Authorization") or ""
@@ -3385,7 +3395,7 @@ def serve(host: str, port: int) -> None:
     print(
         f"\n  CodePulse v{APP_VERSION}  →  {url}\n"
         f"  Data directory : {DATA_DIR}\n"
-        f"  Auth           : {'TOKEN (CODE_DOCTOR_TOKEN set)' if os.getenv('CODE_DOCTOR_TOKEN') else 'open (no token)'}\n",
+        f"  Auth           : {'TOKEN (CODEPULSE_TOKEN set)' if brand_env("TOKEN") else 'open (no token)'}\n",
         flush=True,
     )
 

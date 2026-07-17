@@ -1,6 +1,6 @@
 """LLM generation subprocess for CodePulse: unit tests and PR drafts.
 
-Invoked as ``python -m code_doctor_app.generator --kind tests|pr …`` with the
+Invoked as ``python -m codepulse_app.generator --kind tests|pr …`` with the
 same ``LLM_*`` environment contract Gito uses, so any OpenAI-compatible or
 provider-specific backend works. Writes structured artifacts into the run
 directory so the dashboard can render, export, and audit them:

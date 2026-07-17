@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from code_doctor_app import server, store
+from codepulse_app import server, store
 
 
 def _isolated_store(monkeypatch, tmp_path: Path) -> None:
@@ -16,6 +16,7 @@ def _isolated_store(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(server, "SUPPRESSIONS_FILE", data_dir / "suppressions.json")
     monkeypatch.setattr(store, "DB_PATH", data_dir / "code-doctor.db")
     monkeypatch.delenv("CODE_DOCTOR_TOKEN", raising=False)
+    monkeypatch.delenv("CODEPULSE_TOKEN", raising=False)
 
 
 CONFIRMED_ISSUE = {
@@ -280,7 +281,7 @@ def test_run_verification_skips_subprocess_when_all_verdicts_reused(monkeypatch,
 
 
 def test_issues_for_verification_respects_skip_ids():
-    from code_doctor_app import generator
+    from codepulse_app import generator
 
     report = {
         "issues": {

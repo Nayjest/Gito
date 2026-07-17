@@ -1,17 +1,23 @@
-# Code Doctor Dashboard
+# CodePulse Dashboard
 
-Code Doctor is an enterprise-oriented private review cockpit built on top of
-Gito. Gito remains the review engine for diff parsing, report generation, and
-provider-agnostic LLM calls. Code Doctor adds an Ollama-first control plane,
-repository onboarding, run history, risk gates, audit events, evidence exports,
-and a mentoring review profile tuned for junior Python and Node.js work.
+CodePulse (formerly Code Doctor) is an enterprise-oriented private review
+cockpit built on top of Gito. Gito remains the review engine for diff parsing,
+report generation, and provider-agnostic LLM calls. CodePulse adds an
+Ollama-first control plane, repository onboarding, run history, risk gates,
+audit events, evidence exports, and a mentoring review profile tuned for
+junior Python and Node.js work.
+
+> **Naming compatibility.** The package is `codepulse_app` and configuration
+> reads `CODEPULSE_*` environment variables, but every legacy `CODE_DOCTOR_*`
+> variable still works as a fallback, `python -m code_doctor_app` boots
+> through a shim, and the data directory remains `.code-doctor/`.
 
 ## Run Locally
 
 ```bash
 uv venv --python 3.13
 uv pip install --python .venv/bin/python -e . pytest
-.venv/bin/python -m code_doctor_app --host 127.0.0.1 --port 8787
+.venv/bin/python -m codepulse_app --host 127.0.0.1 --port 8787
 ```
 
 Open `http://127.0.0.1:8787`.
@@ -22,18 +28,18 @@ Ollama must expose its OpenAI-compatible endpoint at
 
 ## Optional Access Token
 
-Set `CODE_DOCTOR_TOKEN` before starting the server to require bearer-token
+Set `CODEPULSE_TOKEN` before starting the server to require bearer-token
 access for review, run-history, and audit APIs:
 
 ```bash
-CODE_DOCTOR_TOKEN="change-me" .venv/bin/python -m code_doctor_app
+CODEPULSE_TOKEN="change-me" .venv/bin/python -m codepulse_app
 ```
 
 The UI stores the token in browser local storage for the current browser.
 
 ## Review Profile
 
-The dashboard injects `code_doctor_app/review_profile.toml` through
+The dashboard injects `codepulse_app/review_profile.toml` through
 `GITO_EXTRA_PROJECT_CONFIG`. This keeps reviewed repositories clean while
 adding stricter guidance for:
 
@@ -73,7 +79,7 @@ per browser in local storage.
 
 Reviews and generations run through a fixed-size **worker pool**
 (`jobqueue.py`) instead of each spawning its own thread. At most
-`CODE_DOCTOR_REVIEW_WORKERS` (default 2) run at once; further requests wait in
+`CODEPULSE_REVIEW_WORKERS` (default 2) run at once; further requests wait in
 FIFO order with meta status `queued`, so a burst of reviews can't thrash a
 single local GPU or blow a cloud rate limit. Raise the worker count on beefier
 hardware or when using a cloud provider. `/api/health` reports live
@@ -179,7 +185,7 @@ the snapshot copy, not your original folder.
 ## Hybrid Analysis Engine
 
 Every run pairs the LLM review with a deterministic static-analysis pass
-(`code_doctor_app/static_analysis.py`) over the added lines of the same diff:
+(`codepulse_app/static_analysis.py`) over the added lines of the same diff:
 
 - Secrets: AWS/GitHub/Slack/Stripe key formats, PEM private keys, and
   high-entropy credential assignments (placeholders are ignored, matched
@@ -228,7 +234,7 @@ private-model env contract as reviews, respect `timeoutSeconds` (default
 
 ## Cross-File Impact Analysis
 
-Each review also runs a repo-wide cross-file pass (`code_doctor_app/context_engine.py`):
+Each review also runs a repo-wide cross-file pass (`codepulse_app/context_engine.py`):
 
 - An import graph over all tracked Python and JS/TS files maps every changed
   file to its dependents (files that import it).
@@ -303,8 +309,8 @@ The Reports view can post a completed review to a pull request (GitHub) or
 merge request (GitLab):
 
 - Configure tokens on the **server** (they never pass through the browser):
-  `GITHUB_TOKEN` (or `CODE_DOCTOR_GITHUB_TOKEN`), `GITLAB_TOKEN` (or
-  `CODE_DOCTOR_GITLAB_TOKEN`), and `GITLAB_BASE` for self-hosted GitLab.
+  `GITHUB_TOKEN` (or `CODEPULSE_GITHUB_TOKEN`), `GITLAB_TOKEN` (or
+  `CODEPULSE_GITLAB_TOKEN`), and `GITLAB_BASE` for self-hosted GitLab.
 - Publishing is two-step: **Preview** (`dryRun`) renders the exact summary and
   inline comments; **Publish** posts them only after that explicit confirm.
 - GitHub gets a PR review with inline line comments (falling back to a summary
@@ -322,7 +328,7 @@ server review engine:
 **CLI batch mode** — run a review synchronously and gate the pipeline on it:
 
 ```bash
-python -m code_doctor_app.ci --repo . --what "$GITHUB_SHA" --against origin/main \
+python -m codepulse_app.ci --repo . --what "$GITHUB_SHA" --against origin/main \
     --fail-on block --publish-pr "$PR_NUMBER"
 ```
 
@@ -333,12 +339,12 @@ Prints the summary markdown to stdout and exits `0` (gate ok), `1` (gate met
 ```yaml
 - run: |
     pip install -e .
-    python -m code_doctor_app.ci --repo . --what ${{ github.event.pull_request.head.sha }} \
+    python -m codepulse_app.ci --repo . --what ${{ github.event.pull_request.head.sha }} \
         --against origin/${{ github.base_ref }} --fail-on block
 ```
 
 **Webhook receiver** — for a standing Code Doctor service. Set
-`CODE_DOCTOR_WEBHOOK_SECRET` on the server (without it the endpoints answer
+`CODEPULSE_WEBHOOK_SECRET` on the server (without it the endpoints answer
 503), then point GitHub at `POST /api/hooks/github` (secret = the same value;
 events: pull requests) or GitLab at `POST /api/hooks/gitlab` (secret token
 field). Signatures are verified on the raw body (GitHub HMAC-SHA256 /

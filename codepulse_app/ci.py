@@ -2,7 +2,7 @@
 
 Usage (a GitHub Actions / GitLab CI step, or any shell):
 
-    python -m code_doctor_app.ci --repo . --what "$HEAD_SHA" --against origin/main \
+    python -m codepulse_app.ci --repo . --what "$HEAD_SHA" --against origin/main \
         --fail-on block [--publish-pr 42]
 
 Runs the exact server review pipeline (static + cross-file + LLM + verifier)
@@ -69,7 +69,7 @@ def build_payload(args: argparse.Namespace) -> dict[str, object]:
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        prog="python -m code_doctor_app.ci",
+        prog="python -m codepulse_app.ci",
         description="Run a CodePulse review synchronously (CI batch mode).",
     )
     parser.add_argument("--repo", required=True, help="Path to the git repository")

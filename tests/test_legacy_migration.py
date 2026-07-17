@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from code_doctor_app import server, store
+from codepulse_app import server, store
 
 FIXTURE = Path(__file__).parent / "fixtures" / "data-v4.3.tar.gz"
 LEGACY_RUN_ID = "20260101-090000-4f3a2b1c"
@@ -28,6 +28,7 @@ def legacy_data_dir(monkeypatch, tmp_path: Path) -> Path:
     monkeypatch.setattr(server, "SUPPRESSIONS_FILE", data_dir / "suppressions.json")
     monkeypatch.setattr(store, "DB_PATH", data_dir / "code-doctor.db")
     monkeypatch.delenv("CODE_DOCTOR_TOKEN", raising=False)
+    monkeypatch.delenv("CODEPULSE_TOKEN", raising=False)
     return data_dir
 
 

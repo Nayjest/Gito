@@ -1,7 +1,7 @@
 """Heuristic JS/TS symbol extraction (release plan Item 1)."""
 from __future__ import annotations
 
-from code_doctor_app import semantic_js
+from codepulse_app import semantic_js
 
 
 def test_top_level_functions_arrows_and_exports():

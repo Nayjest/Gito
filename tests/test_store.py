@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from code_doctor_app import store
+from codepulse_app import store
 
 
 @pytest.fixture(autouse=True)

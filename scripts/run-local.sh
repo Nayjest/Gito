@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Start Code Doctor for LOCAL testing — no access token, bound to localhost.
+# Start CodePulse for LOCAL testing — no access token, bound to localhost.
 #
-# The API is open (no CODE_DOCTOR_TOKEN), which is fine because it binds to
+# The API is open (no CODEPULSE_TOKEN), which is fine because it binds to
 # 127.0.0.1 and is unreachable from other machines. Do NOT use this to expose
-# the app on a network; for that, set CODE_DOCTOR_TOKEN and bind beyond
+# the app on a network; for that, set CODEPULSE_TOKEN and bind beyond
 # loopback deliberately.
 #
 #   scripts/run-local.sh [port]
@@ -25,7 +25,7 @@ if LEFTOVER="$(lsof -tnP -iTCP:"$PORT" -sTCP:LISTEN 2>/dev/null)"; then
 fi
 
 # Ensure no stray token from the shell forces an auth prompt.
-unset CODE_DOCTOR_TOKEN
+unset CODEPULSE_TOKEN CODE_DOCTOR_TOKEN
 
-echo "Starting Code Doctor (open, no token) on http://127.0.0.1:$PORT"
-exec "$PY" -m code_doctor_app --host 127.0.0.1 --port "$PORT"
+echo "Starting CodePulse (open, no token) on http://127.0.0.1:$PORT"
+exec "$PY" -m codepulse_app --host 127.0.0.1 --port "$PORT"

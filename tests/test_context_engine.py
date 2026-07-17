@@ -3,7 +3,7 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
-from code_doctor_app import context_engine
+from codepulse_app import context_engine
 
 
 def _git(repo: Path, *args: str) -> None:

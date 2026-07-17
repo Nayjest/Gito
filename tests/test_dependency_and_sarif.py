@@ -5,7 +5,7 @@ import json
 import subprocess
 from pathlib import Path
 
-from code_doctor_app import dependency_scan as dep, sarif, snapshot
+from codepulse_app import dependency_scan as dep, sarif, snapshot
 
 
 def rules(findings):

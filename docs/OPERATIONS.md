@@ -1,14 +1,21 @@
-# Code Doctor Operations Runbook
+# CodePulse Operations Runbook
 
-For the person **running** Code Doctor, not developing it. Development docs
+For the person **running** CodePulse, not developing it. Development docs
 live in [CODE_DOCTOR.md](../CODE_DOCTOR.md); the release plan in
 [NEXT_RELEASE_PLAN.md](../NEXT_RELEASE_PLAN.md).
+
+> **Naming compatibility.** The tool was renamed from Code Doctor to
+> CodePulse. Every `CODEPULSE_*` environment variable in this runbook also
+> accepts its legacy `CODE_DOCTOR_*` spelling (the new name wins when both
+> are set), `python -m code_doctor_app` still boots through a shim, and the
+> data directory remains `.code-doctor/`. Existing deployments need no
+> changes.
 
 ## Start / Stop
 
 ```bash
-CODE_DOCTOR_TOKEN="$(cat .code-doctor/token)" \
-  .venv/bin/python -m code_doctor_app --host 127.0.0.1 --port 8787
+CODEPULSE_TOKEN="$(cat .code-doctor/token)" \
+  .venv/bin/python -m codepulse_app --host 127.0.0.1 --port 8787
 ```
 
 - Server log: stderr of that process (redirect it somewhere under `launchd`/`systemd`).
@@ -19,7 +26,7 @@ CODE_DOCTOR_TOKEN="$(cat .code-doctor/token)" \
 macOS `launchd` sketch (`~/Library/LaunchAgents/com.local.codedoctor.plist`):
 `ProgramArguments` = the command above, `KeepAlive` = true,
 `StandardErrorPath` = a log file. Linux `systemd` unit: `ExecStart=` the same
-command, `Restart=on-failure`, `Environment=CODE_DOCTOR_TOKEN=…`.
+command, `Restart=on-failure`, `Environment=CODEPULSE_TOKEN=…`.
 
 ## Port conflicts — and the stale-server trap
 
@@ -52,7 +59,7 @@ was started (`ps -p "$(lsof -ti tcp:8787)" -o pid,etime,command`).
 ## Concurrency
 
 - Reviews/generations run through a bounded worker pool. Set
-  `CODE_DOCTOR_REVIEW_WORKERS` (default 2) to control how many run at once.
+  `CODEPULSE_REVIEW_WORKERS` (default 2) to control how many run at once.
 - On a single local GPU keep it low (1–2); with a cloud provider or strong
   hardware, raise it. Watch `queue` in `/api/health` — a persistently high
   `queued` count means workers are the bottleneck.
@@ -87,11 +94,11 @@ Restore: stop the server, replace `.code-doctor/code-doctor.db` (delete any
 
 ## Token rotation
 
-1. Change `CODE_DOCTOR_TOKEN` in the service environment; restart.
+1. Change `CODEPULSE_TOKEN` in the service environment; restart.
 2. Update the token in each user's browser (the UI stores it in local storage).
 
 Webhook secret rotation is the same pattern with
-`CODE_DOCTOR_WEBHOOK_SECRET`, plus updating the secret in the GitHub/GitLab
+`CODEPULSE_WEBHOOK_SECRET`, plus updating the secret in the GitHub/GitLab
 webhook settings. Publishing tokens (`GITHUB_TOKEN`/`GITLAB_TOKEN`) are read
 per request — a restart picks up new values, nothing else to do.
 
@@ -107,7 +114,7 @@ reverse_proxy 127.0.0.1:8787
 ```
 
 nginx: a standard `proxy_pass http://127.0.0.1:8787;` server block with your
-certificates. Always set `CODE_DOCTOR_TOKEN` when binding beyond loopback —
+certificates. Always set `CODEPULSE_TOKEN` when binding beyond loopback —
 the server prints a loud warning if you don't.
 
 ## Upgrade / Downgrade
@@ -127,6 +134,6 @@ version may show fewer details in an older UI — never errors.
 | Review stuck in `running` | `gito.log` for the run; Ollama up? model pulled? |
 | Every run fails instantly | server stderr; `git` on PATH; repo path still valid? |
 | 401 in the UI | token mismatch — re-enter it; after 10 bad tries an IP is throttled for 60s |
-| Webhook returns 503 | `CODE_DOCTOR_WEBHOOK_SECRET` not set on the server |
+| Webhook returns 503 | `CODEPULSE_WEBHOOK_SECRET` not set on the server |
 | Webhook returns 202 but no run | audit trail: `webhook_ignored` says why (event type or unregistered repo) |
 | Publish fails | `GITHUB_TOKEN`/`GITLAB_TOKEN` set on the **server** env, not the browser |

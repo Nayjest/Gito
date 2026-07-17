@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from code_doctor_app import server, store
+from codepulse_app import server, store
 
 
 def _git(repo: Path, *args: str) -> None:
@@ -36,6 +36,7 @@ def _isolated_store(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(server, "SUPPRESSIONS_FILE", data_dir / "suppressions.json")
     monkeypatch.setattr(store, "DB_PATH", data_dir / "code-doctor.db")
     monkeypatch.delenv("CODE_DOCTOR_TOKEN", raising=False)
+    monkeypatch.delenv("CODEPULSE_TOKEN", raising=False)
 
 
 def test_run_dir_rejects_path_escape(monkeypatch, tmp_path):
@@ -51,6 +52,7 @@ def test_run_dir_rejects_path_escape(monkeypatch, tmp_path):
 
 def test_system_health_skips_ollama_probe_when_unauthorized(monkeypatch):
     monkeypatch.delenv("CODE_DOCTOR_TOKEN", raising=False)
+    monkeypatch.delenv("CODEPULSE_TOKEN", raising=False)
 
     def fail_urlopen(*args, **kwargs):  # noqa: ARG001
         raise AssertionError("urlopen should not run for unauthenticated health")
@@ -373,7 +375,7 @@ def test_build_generation_command_mirrors_review_scope():
         "tests", Path("/repo"), Path("/out"), options
     )
 
-    assert command[1:3] == ["-m", "code_doctor_app.generator"]
+    assert command[1:3] == ["-m", "codepulse_app.generator"]
     assert "--kind" in command and "tests" in command
     assert command[command.index("--against") + 1] == "HEAD"
     assert command[command.index("--filters") + 1] == "*.py"

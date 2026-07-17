@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from code_doctor_app import server
+from codepulse_app import server
 from tests._server_harness import run_test_server
 
 
@@ -39,6 +39,7 @@ def _read_stream(url: str, timeout: float = 10.0) -> str:
 
 def test_stream_emits_log_meta_and_done(monkeypatch, tmp_path):
     monkeypatch.delenv("CODE_DOCTOR_TOKEN", raising=False)
+    monkeypatch.delenv("CODEPULSE_TOKEN", raising=False)
     monkeypatch.setattr(server, "SSE_TICK_SECONDS", 0.05)
     with run_test_server(tmp_path) as base:
         run_id = "stream-run"
@@ -65,6 +66,7 @@ def test_stream_emits_log_meta_and_done(monkeypatch, tmp_path):
 
 def test_stream_unknown_run_404(monkeypatch, tmp_path):
     monkeypatch.delenv("CODE_DOCTOR_TOKEN", raising=False)
+    monkeypatch.delenv("CODEPULSE_TOKEN", raising=False)
     with run_test_server(tmp_path) as base:
         with pytest.raises(urllib.error.HTTPError) as excinfo:
             urllib.request.urlopen(f"{base}/api/reviews/nope/events", timeout=5)
@@ -73,6 +75,7 @@ def test_stream_unknown_run_404(monkeypatch, tmp_path):
 
 def test_stream_cap_returns_429(monkeypatch, tmp_path):
     monkeypatch.delenv("CODE_DOCTOR_TOKEN", raising=False)
+    monkeypatch.delenv("CODEPULSE_TOKEN", raising=False)
     monkeypatch.setattr(server, "SSE_SEMAPHORE", threading.Semaphore(0))
     with run_test_server(tmp_path) as base:
         _seed_running_run("capped-run")

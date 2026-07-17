@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from code_doctor_app import server, snapshot, store
+from codepulse_app import server, snapshot, store
 
 
 def _folder(tmp_path: Path, name: str = "proj") -> Path:

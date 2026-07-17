@@ -3,8 +3,10 @@ merge requests.
 
 Tokens come from the server environment only (never from request payloads):
 
-- GitHub: ``GITHUB_TOKEN`` or ``CODE_DOCTOR_GITHUB_TOKEN``
-- GitLab: ``GITLAB_TOKEN`` or ``CODE_DOCTOR_GITLAB_TOKEN``
+- GitHub: ``GITHUB_TOKEN`` or ``CODEPULSE_GITHUB_TOKEN`` (legacy
+  ``CODE_DOCTOR_GITHUB_TOKEN`` still honored)
+- GitLab: ``GITLAB_TOKEN`` or ``CODEPULSE_GITLAB_TOKEN`` (legacy
+  ``CODE_DOCTOR_GITLAB_TOKEN`` still honored)
   (``GITLAB_BASE`` overrides the default ``https://gitlab.com`` for
   self-hosted instances)
 
@@ -42,11 +44,21 @@ def _utc_now() -> str:
 
 
 def _github_token() -> str:
-    return os.getenv("CODE_DOCTOR_GITHUB_TOKEN") or os.getenv("GITHUB_TOKEN") or ""
+    return (
+        os.getenv("CODEPULSE_GITHUB_TOKEN")
+        or os.getenv("CODE_DOCTOR_GITHUB_TOKEN")
+        or os.getenv("GITHUB_TOKEN")
+        or ""
+    )
 
 
 def _gitlab_token() -> str:
-    return os.getenv("CODE_DOCTOR_GITLAB_TOKEN") or os.getenv("GITLAB_TOKEN") or ""
+    return (
+        os.getenv("CODEPULSE_GITLAB_TOKEN")
+        or os.getenv("CODE_DOCTOR_GITLAB_TOKEN")
+        or os.getenv("GITLAB_TOKEN")
+        or ""
+    )
 
 
 def gitlab_base() -> str:
@@ -169,7 +181,7 @@ def _request_json(
         headers={
             "Content-Type": "application/json",
             "Accept": "application/json",
-            "User-Agent": "code-doctor",
+            "User-Agent": "codepulse",
             **token_header,
         },
         method="POST",

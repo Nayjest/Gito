@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from code_doctor_app import generator
+from codepulse_app import generator
 
 
 def test_parse_llm_json_strips_fences_and_prose():

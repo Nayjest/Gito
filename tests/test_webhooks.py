@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from code_doctor_app import publisher, server
+from codepulse_app import publisher, server
 from tests._server_harness import http_request, run_test_server
 
 SECRET = "wh-secret-for-tests"
@@ -52,16 +52,19 @@ def _gitlab_mr_event(slug: str = "acme/payments") -> dict:
 
 def test_webhook_503_without_secret(monkeypatch, tmp_path):
     monkeypatch.delenv("CODE_DOCTOR_WEBHOOK_SECRET", raising=False)
+    monkeypatch.delenv("CODEPULSE_WEBHOOK_SECRET", raising=False)
     monkeypatch.delenv("CODE_DOCTOR_TOKEN", raising=False)
+    monkeypatch.delenv("CODEPULSE_TOKEN", raising=False)
     with run_test_server(tmp_path) as base:
         status, body = http_request(f"{base}/api/hooks/github", "POST", b"{}", {})
     assert status == 503
-    assert "CODE_DOCTOR_WEBHOOK_SECRET" in body["error"]
+    assert "CODEPULSE_WEBHOOK_SECRET" in body["error"]
 
 
 def test_webhook_rejects_bad_signature(monkeypatch, tmp_path):
     monkeypatch.setenv("CODE_DOCTOR_WEBHOOK_SECRET", SECRET)
     monkeypatch.delenv("CODE_DOCTOR_TOKEN", raising=False)
+    monkeypatch.delenv("CODEPULSE_TOKEN", raising=False)
     body = json.dumps(_github_pr_event()).encode()
     with run_test_server(tmp_path) as base:
         status, payload = http_request(
@@ -82,6 +85,7 @@ def test_webhook_rejects_bad_signature(monkeypatch, tmp_path):
 def test_webhook_rejects_malformed_json(monkeypatch, tmp_path):
     monkeypatch.setenv("CODE_DOCTOR_WEBHOOK_SECRET", SECRET)
     monkeypatch.delenv("CODE_DOCTOR_TOKEN", raising=False)
+    monkeypatch.delenv("CODEPULSE_TOKEN", raising=False)
     body = b"not json {"
     with run_test_server(tmp_path) as base:
         status, payload = http_request(
@@ -94,6 +98,7 @@ def test_webhook_rejects_malformed_json(monkeypatch, tmp_path):
 def test_webhook_ignores_unsupported_event(monkeypatch, tmp_path):
     monkeypatch.setenv("CODE_DOCTOR_WEBHOOK_SECRET", SECRET)
     monkeypatch.delenv("CODE_DOCTOR_TOKEN", raising=False)
+    monkeypatch.delenv("CODEPULSE_TOKEN", raising=False)
     body = json.dumps({"zen": "Design for failure."}).encode()
     with run_test_server(tmp_path) as base:
         status, payload = http_request(
@@ -106,6 +111,7 @@ def test_webhook_ignores_unsupported_event(monkeypatch, tmp_path):
 def test_webhook_ignores_unknown_repo(monkeypatch, tmp_path):
     monkeypatch.setenv("CODE_DOCTOR_WEBHOOK_SECRET", SECRET)
     monkeypatch.delenv("CODE_DOCTOR_TOKEN", raising=False)
+    monkeypatch.delenv("CODEPULSE_TOKEN", raising=False)
     body = json.dumps(_github_pr_event(slug="nobody/registered-this")).encode()
     with run_test_server(tmp_path) as base:
         status, payload = http_request(
@@ -141,6 +147,7 @@ def _registered_clone(tmp_path: Path, remote: str) -> Path:
 def test_webhook_accepts_registered_repo_and_enqueues(monkeypatch, tmp_path):
     monkeypatch.setenv("CODE_DOCTOR_WEBHOOK_SECRET", SECRET)
     monkeypatch.delenv("CODE_DOCTOR_TOKEN", raising=False)
+    monkeypatch.delenv("CODEPULSE_TOKEN", raising=False)
     clone = _registered_clone(tmp_path, "git@github.com:acme/payments.git")
     enqueued: list[tuple[str, dict, dict]] = []
     monkeypatch.setattr(
@@ -165,6 +172,7 @@ def test_webhook_accepts_registered_repo_and_enqueues(monkeypatch, tmp_path):
 def test_gitlab_webhook_accepts_with_shared_token(monkeypatch, tmp_path):
     monkeypatch.setenv("CODE_DOCTOR_WEBHOOK_SECRET", SECRET)
     monkeypatch.delenv("CODE_DOCTOR_TOKEN", raising=False)
+    monkeypatch.delenv("CODEPULSE_TOKEN", raising=False)
     clone = _registered_clone(tmp_path, "https://gitlab.com/acme/payments.git")
     enqueued: list[tuple[str, dict, dict]] = []
     monkeypatch.setattr(

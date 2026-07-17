@@ -4,7 +4,7 @@ from __future__ import annotations
 import threading
 import time
 
-from code_doctor_app.jobqueue import JobQueue
+from codepulse_app.jobqueue import JobQueue
 
 
 def test_submitted_job_runs():

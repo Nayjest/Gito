@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import inspect
 
-from code_doctor_app import server
+from codepulse_app import server
 
 
 # ── QW-5: subprocess env token stripping ─────────────────────────────────────
@@ -82,9 +82,10 @@ def test_csp_policy_locks_forms_and_plugins():
 
 def test_bind_warning_only_for_exposed_bind_without_token(monkeypatch):
     monkeypatch.delenv("CODE_DOCTOR_TOKEN", raising=False)
+    monkeypatch.delenv("CODEPULSE_TOKEN", raising=False)
     assert server.bind_warning("127.0.0.1") == ""
     assert server.bind_warning("localhost") == ""
-    assert "CODE_DOCTOR_TOKEN" in server.bind_warning("0.0.0.0")
+    assert "CODEPULSE_TOKEN" in server.bind_warning("0.0.0.0")
 
     monkeypatch.setenv("CODE_DOCTOR_TOKEN", "token")
     assert server.bind_warning("0.0.0.0") == ""

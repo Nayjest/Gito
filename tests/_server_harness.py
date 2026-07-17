@@ -16,7 +16,7 @@ from http.server import ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Iterator
 
-from code_doctor_app import server, store
+from codepulse_app import server, store
 
 _ISOLATED_ATTRS = (
     "DATA_DIR",

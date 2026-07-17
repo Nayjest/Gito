@@ -26,7 +26,7 @@ New review-payload options follow the existing convention:
 (UI, curl scripts, tests) send neither and get today's behavior.
 
 **R3 — New modules, thin integration.**
-Each engine lands as a new module in `code_doctor_app/` (like
+Each engine lands as a new module in `codepulse_app/` (like
 `context_engine.py`, `publisher.py`, `store.py` did) with its own test file.
 `server.py` gets only orchestration calls guarded by try/except that audit a
 `*_failed` event and continue — the pattern used by static analysis and
@@ -61,7 +61,7 @@ library optional (`try: import ... except ImportError: DEGRADED_MODE`).
 ## 1. Current Architecture Snapshot (anchors for all work below)
 
 ```
-code_doctor_app/
+codepulse_app/
   server.py           HTTP handler (BaseHTTPRequestHandler), run orchestration
                       key funcs: start_review, run_review, run_verification,
                       start_generation, summarize_report, publish_run,
@@ -121,7 +121,7 @@ re-exports, and argument-count mismatches are caught, and false positives from
 string/comment matches disappear.
 
 **Design.**
-- New module `code_doctor_app/semantic_py.py` (stdlib `ast`, zero deps):
+- New module `codepulse_app/semantic_py.py` (stdlib `ast`, zero deps):
   - `module_symbols(source) -> {name: SymbolInfo}` where `SymbolInfo` has
     `kind` (function/class/method), `params` (list of `(name, has_default,
     kind)` from `ast.arguments`, including kw-only/varargs), `decorators`,
@@ -134,7 +134,7 @@ string/comment matches disappear.
     'currency' not passed", "keyword 'amount' removed") or None if the call
     still binds. Implement by simulating Python's argument binding against
     the new signature.
-- New module `code_doctor_app/semantic_js.py`:
+- New module `codepulse_app/semantic_js.py`:
   - **Default path (stdlib):** a tolerant tokenizer that improves on the
     current regex (tracks brace depth for exported class methods, follows
     `export { a as b }` aliases). Explicitly *not* a full parser.
@@ -252,7 +252,7 @@ suppressions — regression-check it).
 writes generated test files into the repo — with preview and revert.
 
 **Design.**
-- New module `code_doctor_app/patcher.py`:
+- New module `codepulse_app/patcher.py`:
   - `plan_fix(repo_path, issue) -> {"file", "start_line", "end_line",
     "before": [lines], "after": [lines], "applicable": bool, "reason": str}`
     — reads the target file, verifies the `affected_lines` block's
@@ -316,9 +316,9 @@ commit status / PR review. Code Doctor becomes a pipeline reviewer.
 
 **Design.**
 - Two entry paths, one engine:
-  - **CLI batch mode** — `python -m code_doctor_app.ci --repo <path> --what
+  - **CLI batch mode** — `python -m codepulse_app.ci --repo <path> --what
     <sha-or-branch> --against origin/main [--publish pr=N] [--fail-on
-    block|review]`. New module `code_doctor_app/ci.py`; it calls the same
+    block|review]`. New module `codepulse_app/ci.py`; it calls the same
     functions the server uses (`start_review` internals refactored — see
     step 1) synchronously, prints the summary markdown to stdout, and exits
     1 when the gate meets `--fail-on`. This alone enables *any* CI system
@@ -484,7 +484,7 @@ queue that survives restarts. No more thread-per-request stampede on Ollama.
   state='queued' ORDER BY id LIMIT 1 RETURNING — SQLite ≥3.35 has RETURNING;
   fallback: SELECT+UPDATE inside the store lock), `finish_job`,
   `requeue_stale_jobs()`.
-- New module `code_doctor_app/workers.py`: `start_workers(n)` spawns N
+- New module `codepulse_app/workers.py`: `start_workers(n)` spawns N
   daemon threads; each loops `claim_next_job` → dispatch to
   `execute_review` / `run_generation` (the Item-4 refactor already exposes
   these) → `finish_job`. Poll interval 1s (event-driven wakeup via
@@ -548,8 +548,8 @@ did it.
   users table rows + no env token = open mode (unchanged). The new mode only
   activates when an admin creates users.
 - CLI-first admin (avoids building auth-for-auth UI):
-  `python -m code_doctor_app.usertool add --name soumya --role admin` prints
-  the token once. Module `code_doctor_app/usertool.py`.
+  `python -m codepulse_app.usertool add --name soumya --role admin` prints
+  the token once. Module `codepulse_app/usertool.py`.
 - `authorized()` becomes `authenticate() -> User | None`; handler stores
   `self.user`. Every `audit_event(...)` call site gains `actor=self.user.id`
   — mechanical but touches many lines; do it by making `audit_event` read a
@@ -620,7 +620,7 @@ so failure kills nothing.
 **Design.**
 - Policy keys (additive to `DEFAULT_POLICIES`):
   `retention: {maxRunAgeDays: 90, maxRuns: 500, auditMaxAgeDays: 365}`.
-- New module `code_doctor_app/retention.py`: `prune() -> report` deletes run
+- New module `codepulse_app/retention.py`: `prune() -> report` deletes run
   directories beyond limits (oldest first, **never** deletes runs referenced
   by an unresolved job or with `publish.json` unless age-expired), and
   `DELETE FROM audit WHERE ts < cutoff` (JSONL mirror rotated to
@@ -658,7 +658,7 @@ supported). Rollup writes are fire-and-forget (`try/except` + audit).
 `requirements.txt` are checked against the OSV vulnerability database.
 
 **Design.**
-- New module `code_doctor_app/deps_analysis.py`, same contract as
+- New module `codepulse_app/deps_analysis.py`, same contract as
   `static_analysis`: `analyze_repo_changes(repo_path, **scope) ->
   {file: [findings]}` with ID base **30000** and `source: "deps"`.
 - Parsing (stdlib only): `requirements.txt` (regex per line),
@@ -773,7 +773,7 @@ industry" evidence handling and costs little.
   already raises `ValueError` on unknown formats, so adding a branch is
   additive; the UI export grid gains a fourth card).
 - Mapping (one pure function `sarif_from_detail(detail) -> dict` in a new
-  `code_doctor_app/sarif.py`, fully unit-testable without a server):
+  `codepulse_app/sarif.py`, fully unit-testable without a server):
   - `runs[0].tool.driver` = "Code Doctor" + `APP_VERSION`; one
     `rules[]` entry per distinct finding source/tag combination
     (`llm-review`, `static:<rule>`, `crossfile`, `deps`).
@@ -849,7 +849,7 @@ to today's behavior.
 container/CI use.
 
 **Design.**
-- New module `code_doctor_app/config.py`: `load_config(path=None) -> Config`
+- New module `codepulse_app/config.py`: `load_config(path=None) -> Config`
   (a frozen dataclass). Search order: `--config` CLI flag →
   `<data-dir>/config.toml` → defaults. Read once at boot with `tomllib`.
 - **Precedence: CLI flag > environment variable > config file > default.**
@@ -868,7 +868,7 @@ container/CI use.
   `os.environ` at boot for keys that came from the file, so every existing
   `os.getenv` reader works unchanged. That bridge is the whole compatibility
   story.
-- `python -m code_doctor_app --print-config` dumps the resolved effective
+- `python -m codepulse_app --print-config` dumps the resolved effective
   config (secrets masked) for support/debugging.
 
 **Execution steps.** `config.py` + `tests/test_config.py` (precedence matrix,

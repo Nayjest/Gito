@@ -3,8 +3,8 @@ from __future__ import annotations
 
 import pytest
 
-from code_doctor_app import semantic_py
-from code_doctor_app.semantic_py import CallSite
+from codepulse_app import semantic_py
+from codepulse_app.semantic_py import CallSite
 
 
 def _sym(source: str, name: str) -> semantic_py.SymbolInfo:

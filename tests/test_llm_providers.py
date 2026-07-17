@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from code_doctor_app import server, store
+from codepulse_app import server, store
 
 
 def _isolate(monkeypatch, tmp_path: Path) -> None:

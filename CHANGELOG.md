@@ -26,7 +26,7 @@ the full set; no new tables this release).
   topbar also wraps gracefully on narrow windows.
 - **Bounded job queue with a worker pool (`jobqueue.py`).** Reviews and
   generations run through a fixed-size pool instead of each spawning its own
-  unbounded thread: at most `CODE_DOCTOR_REVIEW_WORKERS` (default 2) run at
+  unbounded thread: at most `CODEPULSE_REVIEW_WORKERS` (default 2) run at
   once, the rest wait FIFO with meta status `queued`, so a burst can't thrash a
   single local GPU or a cloud rate limit. `/api/health` reports live
   `queue: {workers, active, queued}`; a failing job never kills its worker.
@@ -79,11 +79,11 @@ the full set; no new tables this release).
   the verifier LLM (`--skip-ids`; subprocess skipped entirely when nothing
   remains). Meta gains `reused_verdicts`, stats gain `verification.carried`,
   the UI shows a muted `carried` chip. Opt out with `"reuseVerdicts": false`.
-- **Item 4 — CI mode and webhooks.** `python -m code_doctor_app.ci` runs the
+- **Item 4 — CI mode and webhooks.** `python -m codepulse_app.ci` runs the
   full server pipeline synchronously, prints the summary markdown, and exits
   by gate (`--fail-on block|review|none`; optional `--publish-pr N`,
   `--json`). `POST /api/hooks/github|gitlab` reviews PRs/MRs on push:
-  HMAC-SHA256 / shared-token verification via `CODE_DOCTOR_WEBHOOK_SECRET`
+  HMAC-SHA256 / shared-token verification via `CODEPULSE_WEBHOOK_SECRET`
   (503 when unset), events map to **registered** repositories by origin
   remote only, unknown events/repos answer 202 and audit `webhook_ignored`.
   Opt-in `ci.autoPublish` policy posts the review to the PR/MR and the gate
@@ -132,13 +132,25 @@ the full set; no new tables this release).
 - `docs/OPERATIONS.md` runbook and `docs/SMOKE.md` browser checklist.
 
 ### Changed
+- **Deep rename: package and environment variables.** The Python package is
+  now `codepulse_app` (`python -m codepulse_app`, console script `codepulse`),
+  and configuration reads `CODEPULSE_*` environment variables first:
+  `CODEPULSE_TOKEN`, `CODEPULSE_WEBHOOK_SECRET`, `CODEPULSE_REVIEW_WORKERS`,
+  `CODEPULSE_GITHUB_TOKEN`/`CODEPULSE_GITLAB_TOKEN`, and
+  `CODEPULSE_ANTHROPIC_KEY`/`CODEPULSE_OPENAI_KEY`. **Nothing breaks:** every
+  legacy `CODE_DOCTOR_*` variable still works as a fallback (the new name wins
+  when both are set), `python -m code_doctor_app` and `import code_doctor_app`
+  keep working through a deprecation shim, the `code-doctor` console script
+  remains as an alias, and the `.code-doctor/` data directory is unchanged, so
+  existing runs, suppressions, and tokens carry over untouched. Secret
+  stripping for review subprocesses (QW-5) covers both prefixes.
 - **Rebranded to CodePulse.** New name and a new logo — an ECG pulse mark on a
   blue→violet gradient (inline SVG, plus a matching favicon; the old gito
   press-kit PNG is no longer referenced). The rename covers every user-facing
   surface: UI branding, page title, export filenames (`codepulse-<run>.<ext>`),
   SARIF tool driver name, PR/MR review headings, LLM prompt personas, and CLI
   output (`codepulse:` prefix in CI mode). **Machine identifiers are
-  unchanged** so existing setups keep working: the `code_doctor_app` package,
+  unchanged** so existing setups keep working: the `codepulse_app` package,
   `CODE_DOCTOR_*` environment variables, the `.code-doctor/` data directory,
   and the `code-doctor/gate` commit-status context.
 
@@ -148,7 +160,7 @@ the full set; no new tables this release).
 - QW-3: per-IP throttling after repeated 401s (10 failures/60s → 429 for 60s,
   audited as `auth_throttled`).
 - QW-4: CSP tightened with `form-action 'self'; object-src 'none'`.
-- QW-5: `CODE_DOCTOR_TOKEN`, publish tokens, and the webhook secret are
+- QW-5: `CODEPULSE_TOKEN`, publish tokens, and the webhook secret are
   stripped from review/generation subprocess environments.
 
 ### Compatibility
@@ -156,7 +168,7 @@ the full set; no new tables this release).
   frozen, so stored suppressions keep matching.
 - New behaviors are flag-gated to current defaults: `reuseVerdicts` (on, opt
   out), `ci.autoPublish` (off, opt in), webhooks inert without
-  `CODE_DOCTOR_WEBHOOK_SECRET`, model routing empty-inherits the main model,
+  `CODEPULSE_WEBHOOK_SECRET`, model routing empty-inherits the main model,
   fix apply is per-finding opt-in only, SSE is a new endpoint existing
   clients never call.
 - Items 3, 6, 9, and 14 from the v5.1 slice shipped early in this release;

@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from code_doctor_app import context_engine, generator, server, store
+from codepulse_app import context_engine, generator, server, store
 
 SCHEMA_DIR = Path(__file__).parent / "schemas"
 
@@ -79,6 +79,7 @@ def _isolated_store(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(server, "SUPPRESSIONS_FILE", data_dir / "suppressions.json")
     monkeypatch.setattr(store, "DB_PATH", data_dir / "code-doctor.db")
     monkeypatch.delenv("CODE_DOCTOR_TOKEN", raising=False)
+    monkeypatch.delenv("CODEPULSE_TOKEN", raising=False)
 
 
 def test_validator_flags_retyped_and_ignores_added_keys():

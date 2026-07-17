@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from code_doctor_app import publisher
+from codepulse_app import publisher
 
 
 @pytest.fixture(autouse=True)

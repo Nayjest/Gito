@@ -21,7 +21,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from code_doctor_app import context_engine, server, store  # noqa: E402
+from codepulse_app import context_engine, server, store  # noqa: E402
 
 BUDGETS = [
     ("preflight, {files}-file repo", 1.5),

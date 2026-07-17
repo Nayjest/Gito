@@ -4,7 +4,7 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
-from code_doctor_app import snapshot, taint_analysis as ta
+from codepulse_app import snapshot, taint_analysis as ta
 
 
 def rules(src: str) -> list[str]:

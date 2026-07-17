@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Live API smoke test (release plan §4, step 5). Run against a running server:
 #
-#   CODE_DOCTOR_TOKEN=... scripts/smoke.sh [base-url]
+#   CODEPULSE_TOKEN=... scripts/smoke.sh [base-url]   (legacy CODE_DOCTOR_TOKEN also works)
 #
 # Env knobs: SMOKE_MODEL (default gemma4:e4b), SMOKE_TIMEOUT (review wait,
 # default 900s), SMOKE_SKIP_LLM=1 (skip the live review + test generation —
@@ -18,7 +18,7 @@ import urllib.error
 import urllib.request
 
 BASE = os.environ.get("BASE", "http://127.0.0.1:8787").rstrip("/")
-TOKEN = os.environ.get("CODE_DOCTOR_TOKEN", "")
+TOKEN = os.environ.get("CODEPULSE_TOKEN") or os.environ.get("CODE_DOCTOR_TOKEN", "")
 MODEL = os.environ.get("SMOKE_MODEL", "gemma4:e4b")
 TIMEOUT = int(os.environ.get("SMOKE_TIMEOUT", "900"))
 SKIP_LLM = os.environ.get("SMOKE_SKIP_LLM") == "1"

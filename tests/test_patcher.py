@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from code_doctor_app import patcher, server, store
+from codepulse_app import patcher, server, store
 
 ORIGINAL = "def add(a, b):\n    return a - b\n\ndef sub(a, b):\n    return a - b\n"
 
