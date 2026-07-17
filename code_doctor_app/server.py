@@ -1462,6 +1462,37 @@ def compute_risk_score(plain_issues: list[dict[str, Any]]) -> int:
     return min(100, int(score + 0.5))
 
 
+def compute_health(stats: dict[str, Any]) -> dict[str, Any]:
+    """Repository health for a completed run: 0-100 plus a letter grade.
+
+    Derived only from frozen stats keys (risk_score, gate, severity_counts),
+    so it can be recomputed identically for runs that predate the key.
+    """
+    risk = stats.get("risk_score")
+    risk = int(risk) if isinstance(risk, (int, float)) else 0
+    counts = stats.get("severity_counts") or {}
+
+    def count(sev: str) -> int:
+        value = counts.get(sev)
+        return int(value) if isinstance(value, (int, float)) else 0
+
+    score = 100 - risk - 5 * count("1") - 2 * count("2")
+    gate = stats.get("gate")
+    if gate == "block":
+        score = min(score, 45)
+    elif gate == "review":
+        score = min(score, 75)
+    score = max(0, min(100, score))
+    grade = (
+        "A" if score >= 90
+        else "B" if score >= 75
+        else "C" if score >= 60
+        else "D" if score >= 40
+        else "F"
+    )
+    return {"score": score, "grade": grade}
+
+
 def summarize_report(run_id: str) -> dict[str, Any]:
     report = read_json(report_path(run_id), {})
     policies = load_policies()
@@ -1532,7 +1563,7 @@ def summarize_report(run_id: str) -> dict[str, Any]:
         "resolved": len(baseline - current) if baseline is not None else 0,
         "baselined": baseline is not None,
     }
-    return {
+    stats = {
         "summary": report.get("summary") or "",
         "total_issues": report.get("total_issues", len(plain_issues)),
         "processed_files": report.get("number_of_processed_files", 0),
@@ -1554,6 +1585,8 @@ def summarize_report(run_id: str) -> dict[str, Any]:
         "fingerprints": fingerprints,
         "lifecycle": lifecycle,
     }
+    stats["health"] = compute_health(stats)
+    return stats
 
 
 def pass_model(payload: dict[str, Any], payload_key: str, policy_key: str) -> str:
@@ -2392,6 +2425,65 @@ def overview() -> dict[str, Any]:
     }
 
 
+def trends(query: dict[str, list[str]] | None = None) -> dict[str, Any]:
+    """Time series over completed review runs, globally and per repository.
+
+    Health is recomputed from frozen stats keys when a run predates the
+    `health` key, so historical runs chart alongside new ones.
+    """
+    query = query or {}
+    try:
+        limit = int((query.get("limit") or ["30"])[0])
+    except (TypeError, ValueError):
+        limit = 30
+    limit = max(1, min(limit, 200))
+    repo_filter = str((query.get("repo") or [""])[0]).strip()
+
+    completed = [
+        run
+        for run in list_reviews()
+        if (run.get("kind") or "review") == "review" and run.get("status") == "completed"
+    ]
+    completed.sort(key=lambda run: run.get("created_at", ""))
+
+    def to_point(run: dict[str, Any]) -> dict[str, Any]:
+        stats = run.get("stats") or {}
+        return {
+            "id": run.get("id"),
+            "created_at": run.get("created_at"),
+            "repo_path": run.get("repo_path"),
+            "risk_score": stats.get("risk_score", 0),
+            "total_issues": stats.get("total_issues", 0),
+            "severity_counts": stats.get("severity_counts") or {},
+            "gate": stats.get("gate"),
+            "health": stats.get("health") or compute_health(stats),
+            "duration_seconds": run.get("duration_seconds"),
+        }
+
+    points = [to_point(run) for run in completed]
+    if repo_filter:
+        points = [point for point in points if point["repo_path"] == repo_filter]
+    points = points[-limit:]
+
+    by_repo: dict[str, list[dict[str, Any]]] = {}
+    for point in points:
+        by_repo.setdefault(str(point["repo_path"] or ""), []).append(point)
+    repos = sorted(
+        (
+            {
+                "repo_path": path,
+                "name": Path(path).name if path else "—",
+                "points": repo_points,
+                "latest": repo_points[-1],
+            }
+            for path, repo_points in by_repo.items()
+        ),
+        key=lambda item: item["latest"].get("created_at") or "",
+        reverse=True,
+    )
+    return {"runs": points, "repos": repos, "count": len(points)}
+
+
 def export_review(run_id: str, export_format: str) -> tuple[str, str]:
     detail = get_review(run_id)
     report = detail.get("report")
@@ -2931,6 +3023,8 @@ class CodeDoctorHandler(BaseHTTPRequestHandler):
                 self.send_json(system_health(query, include_ollama_check=self.authorized()))
             elif path == "/api/overview":
                 self.send_json(overview())
+            elif path == "/api/trends":
+                self.send_json(trends(query))
             elif path == "/api/repos":
                 self.send_json({"repos": list_repos()})
             elif path == "/api/policies":

@@ -1647,3 +1647,266 @@ img { display: block; max-width: 100%; }
   padding: 1px 5px;
   border-radius: 4px;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Light theme — activated with <html data-theme="light">, persisted by app.js
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --bg:          #f6f8fa;
+  --surface:     #ffffff;
+  --surface-2:   #f6f8fa;
+  --surface-3:   #eaeef2;
+  --border:      #d0d7de;
+  --border-subtle: rgba(27,31,36,0.08);
+
+  --text:        #1f2328;
+  --text-muted:  #57606a;
+  --text-subtle: #6e7781;
+
+  --blue:        #0969da;
+  --blue-dim:    #ddf4ff;
+  --blue-dark:   #0550ae;
+
+  --green:       #1a7f37;
+  --green-dim:   #dafbe1;
+  --red:         #cf222e;
+  --red-dim:     #ffebe9;
+  --amber:       #9a6700;
+  --amber-dim:   #fff8c5;
+  --cyan:        #1b7c83;
+  --cyan-dim:    #d7f4f7;
+  --violet:      #8250df;
+  --violet-dim:  #fbefff;
+  --orange:      #bc4c00;
+  --orange-dim:  #fff1e5;
+
+  --shadow-sm: 0 1px 2px rgba(31,35,40,0.08);
+  --shadow-md: 0 3px 12px rgba(31,35,40,0.10);
+  --shadow-lg: 0 8px 28px rgba(31,35,40,0.14);
+}
+
+:root[data-theme="light"] .info-banner.banner-error code { background: rgba(27,31,36,0.06); }
+
+body {
+  transition: background var(--norm) var(--ease), color var(--norm) var(--ease);
+}
+
+/* ── Theme toggle ─────────────────────────────────────────────────────────── */
+.theme-toggle {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  color: var(--text-muted);
+  background: var(--surface-2);
+  transition: color var(--fast) var(--ease), border-color var(--fast) var(--ease);
+}
+.theme-toggle:hover { color: var(--text); border-color: var(--text-subtle); }
+.theme-icon--moon { display: none; }
+:root[data-theme="light"] .theme-icon--sun  { display: none; }
+:root[data-theme="light"] .theme-icon--moon { display: block; }
+
+/* ── Quality Trends (cockpit) ────────────────────────────────────────────── */
+.trend-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 240px;
+  gap: 0;
+}
+@media (max-width: 980px) { .trend-layout { grid-template-columns: 1fr; } }
+
+.trend-chart-wrap { padding: 14px 16px 10px; min-height: 170px; }
+.trend-chart-wrap svg { display: block; width: 100%; height: auto; }
+
+.trend-axis      { stroke: var(--border); stroke-width: 1; }
+.trend-gridline  { stroke: var(--border-subtle); stroke-width: 1; }
+.trend-health-line { fill: none; stroke: var(--green); stroke-width: 2; stroke-linejoin: round; }
+.trend-health-area { fill: var(--green); opacity: 0.10; }
+.trend-risk-line { fill: none; stroke: var(--red); stroke-width: 1.6; stroke-dasharray: 4 3; stroke-linejoin: round; }
+.trend-dot       { stroke: var(--surface); stroke-width: 1.5; }
+.trend-dot--pass   { fill: var(--green); }
+.trend-dot--review { fill: var(--amber); }
+.trend-dot--block  { fill: var(--red); }
+.trend-label { font-size: 9.5px; fill: var(--text-subtle); font-family: inherit; }
+
+.trend-legend {
+  display: flex;
+  gap: 14px;
+  padding: 0 16px 12px;
+  font-size: 11px;
+  color: var(--text-muted);
+  align-items: center;
+  flex-wrap: wrap;
+}
+.trend-legend .swatch {
+  display: inline-block;
+  width: 14px;
+  height: 3px;
+  border-radius: 2px;
+  margin-right: 5px;
+  vertical-align: middle;
+}
+.trend-legend .swatch--health { background: var(--green); }
+.trend-legend .swatch--risk   { background: var(--red); }
+
+.trend-repos {
+  border-left: 1px solid var(--border);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  max-height: 240px;
+}
+@media (max-width: 980px) { .trend-repos { border-left: none; border-top: 1px solid var(--border); } }
+
+.trend-repo-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 9px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+}
+.trend-repo-row strong {
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+.trend-repo-row .spark { flex-shrink: 0; }
+.trend-repo-row .spark polyline { fill: none; stroke: var(--blue); stroke-width: 1.5; }
+
+.grade-badge {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-md);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 800;
+}
+.grade-a { background: var(--green-dim);  color: var(--green); }
+.grade-b { background: var(--cyan-dim);   color: var(--cyan); }
+.grade-c { background: var(--amber-dim);  color: var(--amber); }
+.grade-d { background: var(--orange-dim); color: var(--orange); }
+.grade-f { background: var(--red-dim);    color: var(--red); }
+
+/* ── Health gauge (latest review) ────────────────────────────────────────── */
+.latest-review-body {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+.latest-review-text { flex: 1; min-width: 0; }
+.latest-findings { padding: 0 16px 14px; }
+
+.health-gauge { flex-shrink: 0; position: relative; width: 86px; height: 86px; }
+.health-gauge svg { display: block; }
+.health-gauge .ring-track { stroke: var(--surface-3); fill: none; }
+.health-gauge .ring-value { fill: none; stroke-linecap: round; transition: stroke-dashoffset var(--slow) var(--ease); }
+.health-gauge .gauge-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.1;
+}
+.health-gauge .gauge-grade { font-size: 20px; font-weight: 800; }
+.health-gauge .gauge-score { font-size: 10px; color: var(--text-muted); }
+.health-gauge.grade-a .gauge-grade, .health-gauge.grade-a .ring-value { color: var(--green);  stroke: var(--green); }
+.health-gauge.grade-b .gauge-grade, .health-gauge.grade-b .ring-value { color: var(--cyan);   stroke: var(--cyan); }
+.health-gauge.grade-c .gauge-grade, .health-gauge.grade-c .ring-value { color: var(--amber);  stroke: var(--amber); }
+.health-gauge.grade-d .gauge-grade, .health-gauge.grade-d .ring-value { color: var(--orange); stroke: var(--orange); }
+.health-gauge.grade-f .gauge-grade, .health-gauge.grade-f .ring-value { color: var(--red);    stroke: var(--red); }
+
+/* ── Severity strip (risk distribution) ──────────────────────────────────── */
+.severity-strip { padding: 0 16px 16px; }
+.severity-strip .strip-title {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--text-subtle);
+  margin-bottom: 8px;
+}
+.severity-bar {
+  display: flex;
+  height: 10px;
+  border-radius: var(--r-full);
+  overflow: hidden;
+  background: var(--surface-3);
+}
+.severity-bar span { display: block; height: 100%; min-width: 2px; }
+.sev-fill-1 { background: var(--red); }
+.sev-fill-2 { background: var(--orange); }
+.sev-fill-3 { background: var(--amber); }
+.sev-fill-4 { background: var(--blue); }
+.sev-fill-5 { background: var(--text-subtle); }
+.severity-key {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.severity-key i {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  margin-right: 4px;
+  font-style: normal;
+}
+
+/* ── Lifecycle chips (review banner) ─────────────────────────────────────── */
+.lifecycle-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.lifecycle-row:empty { display: none; }
+.lifecycle-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: var(--r-full);
+  border: 1px solid transparent;
+}
+.lifecycle-chip strong { font-weight: 800; }
+.lifecycle-new       { background: var(--red-dim);   color: var(--red); }
+.lifecycle-recurring { background: var(--amber-dim); color: var(--amber); }
+.lifecycle-resolved  { background: var(--green-dim); color: var(--green); }
+
+/* ── Micro-polish ────────────────────────────────────────────────────────── */
+.metric-card, .panel {
+  transition: border-color var(--fast) var(--ease), box-shadow var(--fast) var(--ease),
+              background var(--norm) var(--ease);
+}
+.metric-card:hover { border-color: var(--text-subtle); box-shadow: var(--shadow-sm); }
+
+/* ── Theme-aware topbar glass + narrow-viewport wrap ─────────────────────── */
+:root[data-theme="light"] .topbar { background: rgba(255,255,255,0.85); }
+
+@media (max-width: 760px) {
+  .topbar {
+    height: auto;
+    min-height: var(--topbar-h);
+    flex-wrap: wrap;
+    padding: 10px 16px;
+    row-gap: 10px;
+  }
+  .topbar-left { min-width: 0; }
+  .topbar-sub { display: none; }
+}

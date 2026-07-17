@@ -100,6 +100,10 @@
             <span class="topbar-sub" id="workspaceLabel">No repository selected</span>
           </div>
           <div class="topbar-right">
+            <button id="themeToggle" class="icon-btn theme-toggle" type="button" title="Toggle light/dark theme" aria-label="Toggle light/dark theme">
+              <svg class="theme-icon theme-icon--moon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+              <svg class="theme-icon theme-icon--sun" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+            </button>
             <div id="tokenSection" class="token-section">
               <input id="tokenInput" class="token-input" type="password" placeholder="Access token…" autocomplete="off" />
               <button id="saveToken" class="btn btn-sm btn-secondary" type="button">Set Token</button>
@@ -160,17 +164,33 @@
               </div>
             </div>
 
-            <div class="content-grid col-2">
+            <div class="panel gap-top">
+              <div class="panel-header">
+                <h2 class="panel-title">Quality Trends</h2>
+                <span class="meta-label" id="trendMeta">No completed runs yet</span>
+              </div>
+              <div class="trend-layout">
+                <div class="trend-chart-wrap" id="trendChart">
+                  <div class="empty-state"><p>Run a few reviews to see quality trends over time.</p></div>
+                </div>
+                <div class="trend-repos" id="trendRepos"></div>
+              </div>
+            </div>
+
+            <div class="content-grid col-2 gap-top">
               <div class="panel">
                 <div class="panel-header">
                   <h2 class="panel-title">Latest Review</h2>
                   <span id="latestGate" class="gate-pill gate--muted">No Run</span>
                 </div>
-                <div class="panel-body">
-                  <p class="summary-text" id="latestReview">No completed review yet. Start a review or load sample data.</p>
-                  <div id="latestTags" class="tag-row"></div>
-                  <div id="latestFindings" class="mini-findings"></div>
+                <div class="panel-body latest-review-body">
+                  <div class="health-gauge" id="healthGauge" title="Repository health for the latest run"></div>
+                  <div class="latest-review-text">
+                    <p class="summary-text" id="latestReview">No completed review yet. Start a review or load sample data.</p>
+                    <div id="latestTags" class="tag-row"></div>
+                  </div>
                 </div>
+                <div id="latestFindings" class="mini-findings latest-findings"></div>
               </div>
               <div class="panel">
                 <div class="panel-header">
@@ -185,6 +205,7 @@
               <div class="panel">
                 <div class="panel-header"><h2 class="panel-title">Risk Distribution</h2></div>
                 <div class="gate-breakdown" id="gateBreakdown"></div>
+                <div class="severity-strip" id="severityStrip"></div>
               </div>
               <div class="panel">
                 <div class="panel-header"><h2 class="panel-title">Recurring Risk Tags</h2></div>
@@ -293,6 +314,7 @@
                 </div>
               </div>
               <p class="risk-summary" id="summaryBox">No completed review selected.</p>
+              <div class="lifecycle-row" id="lifecycleRow"></div>
               <div class="tag-row" id="tagStrip"></div>
             </div>
 

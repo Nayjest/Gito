@@ -6,8 +6,10 @@
 const state = {
   authRequired: false,
   token: localStorage.getItem("codeDoctorToken") || "",
+  theme: localStorage.getItem("codeDoctorTheme") || "dark",
   health: null,
   overview: null,
+  trends: null,
   repos: [],
   policies: null,
   reviews: [],
@@ -125,6 +127,21 @@ function selectedMeta() {
 
 function gateClass(gate) {
   return { pass: "gate--pass", review: "gate--review", block: "gate--block" }[gate] || "gate--muted";
+}
+
+function gradeClass(grade) {
+  return `grade-${String(grade || "c").toLowerCase().replace(/[^a-f]/g, "") || "c"}`;
+}
+
+// ── Theme ────────────────────────────────────────────────────────────────────
+function applyTheme() {
+  document.documentElement.dataset.theme = state.theme;
+}
+
+function toggleTheme() {
+  state.theme = state.theme === "light" ? "dark" : "light";
+  localStorage.setItem("codeDoctorTheme", state.theme);
+  applyTheme();
 }
 
 function sevClass(sev) {
@@ -320,6 +337,156 @@ function renderOverview() {
     : `<p class="empty-msg">No recurring tags yet. Run a review first.</p>`;
 }
 
+// ── Render: quality trends (cockpit) ─────────────────────────────────────────
+function trendChartSvg(points) {
+  const W = 640, H = 170, padL = 34, padR = 14, padT = 14, padB = 24;
+  const plotW = W - padL - padR;
+  const plotH = H - padT - padB;
+  const n = points.length;
+  const x = (i) => padL + (n === 1 ? plotW / 2 : (i * plotW) / (n - 1));
+  const y = (v) => padT + ((100 - Math.max(0, Math.min(100, v))) * plotH) / 100;
+
+  const healthPts = points.map((p, i) => `${x(i).toFixed(1)},${y(p.health?.score ?? 0).toFixed(1)}`);
+  const riskPts   = points.map((p, i) => `${x(i).toFixed(1)},${y(p.risk_score ?? 0).toFixed(1)}`);
+  const area = `M${healthPts.join(" L")} L${x(n - 1).toFixed(1)},${(padT + plotH).toFixed(1)} L${x(0).toFixed(1)},${(padT + plotH).toFixed(1)} Z`;
+
+  const gridlines = [0, 25, 50, 75, 100].map((v) => `
+    <line class="trend-gridline" x1="${padL}" y1="${y(v).toFixed(1)}" x2="${W - padR}" y2="${y(v).toFixed(1)}"/>
+  `).join("");
+  const yLabels = [0, 50, 100].map((v) => `
+    <text class="trend-label" x="${padL - 6}" y="${(y(v) + 3).toFixed(1)}" text-anchor="end">${v}</text>
+  `).join("");
+
+  const dots = points.map((p, i) => `
+    <circle class="trend-dot trend-dot--${esc(p.gate || "pass")}" cx="${x(i).toFixed(1)}" cy="${y(p.health?.score ?? 0).toFixed(1)}" r="3.5">
+      <title>${esc(basename(p.repo_path))} · ${esc(formatTime(p.created_at))}
+health ${esc(p.health?.score ?? "—")} (${esc(p.health?.grade ?? "—")}) · risk ${esc(p.risk_score ?? 0)} · ${esc(p.total_issues ?? 0)} issue(s) · gate ${esc((p.gate || "—").toUpperCase())}</title>
+    </circle>
+  `).join("");
+
+  const xLabels = n > 1 ? `
+    <text class="trend-label" x="${padL}" y="${H - 8}">${esc(formatTime(points[0].created_at))}</text>
+    <text class="trend-label" x="${W - padR}" y="${H - 8}" text-anchor="end">${esc(formatTime(points[n - 1].created_at))}</text>
+  ` : `<text class="trend-label" x="${x(0)}" y="${H - 8}" text-anchor="middle">${esc(formatTime(points[0].created_at))}</text>`;
+
+  return `
+    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Health and risk scores across completed runs">
+      ${gridlines}
+      <line class="trend-axis" x1="${padL}" y1="${padT}" x2="${padL}" y2="${padT + plotH}"/>
+      <line class="trend-axis" x1="${padL}" y1="${padT + plotH}" x2="${W - padR}" y2="${padT + plotH}"/>
+      ${yLabels}
+      ${n > 1 ? `<path class="trend-health-area" d="${area}"/>` : ""}
+      ${n > 1 ? `<polyline class="trend-health-line" points="${healthPts.join(" ")}"/>` : ""}
+      ${n > 1 ? `<polyline class="trend-risk-line" points="${riskPts.join(" ")}"/>` : ""}
+      ${dots}
+      ${xLabels}
+    </svg>
+  `;
+}
+
+function sparklineSvg(points, w = 64, h = 20) {
+  if (points.length < 2) return "";
+  const xs = (i) => (i * (w - 4)) / (points.length - 1) + 2;
+  const ys = (v) => h - 2 - ((Math.max(0, Math.min(100, v)) * (h - 4)) / 100);
+  const pts = points.map((p, i) => `${xs(i).toFixed(1)},${ys(p.health?.score ?? 0).toFixed(1)}`).join(" ");
+  return `<svg class="spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><polyline points="${pts}"/></svg>`;
+}
+
+function renderHealthGauge(latest) {
+  const box = $("#healthGauge");
+  if (!box) return;
+  const health = latest?.health;
+  if (!health) {
+    box.className = "health-gauge grade-c";
+    box.innerHTML = `
+      <svg width="86" height="86" viewBox="0 0 86 86">
+        <circle class="ring-track" cx="43" cy="43" r="36" stroke-width="8"/>
+      </svg>
+      <div class="gauge-center"><span class="gauge-grade" style="color:var(--text-subtle)">—</span><span class="gauge-score">no runs</span></div>
+    `;
+    return;
+  }
+  const r = 36;
+  const circ = 2 * Math.PI * r;
+  const filled = (Math.max(0, Math.min(100, health.score)) / 100) * circ;
+  box.className = `health-gauge ${gradeClass(health.grade)}`;
+  box.innerHTML = `
+    <svg width="86" height="86" viewBox="0 0 86 86">
+      <circle class="ring-track" cx="43" cy="43" r="${r}" stroke-width="8"/>
+      <circle class="ring-value" cx="43" cy="43" r="${r}" stroke-width="8"
+              stroke-dasharray="${circ.toFixed(1)}" stroke-dashoffset="${(circ - filled).toFixed(1)}"
+              transform="rotate(-90 43 43)"/>
+    </svg>
+    <div class="gauge-center">
+      <span class="gauge-grade">${esc(health.grade)}</span>
+      <span class="gauge-score">${esc(health.score)}/100</span>
+    </div>
+  `;
+}
+
+const SEVERITY_LABELS = { 1: "Critical", 2: "Major", 3: "Moderate", 4: "Minor", 5: "Info" };
+
+function renderSeverityStrip(latest) {
+  const box = $("#severityStrip");
+  if (!box) return;
+  const counts = latest?.severity_counts || {};
+  const total = [1, 2, 3, 4, 5].reduce((sum, s) => sum + (Number(counts[String(s)]) || 0), 0);
+  if (!total) {
+    box.innerHTML = "";
+    return;
+  }
+  const segs = [1, 2, 3, 4, 5]
+    .map((s) => ({ s, n: Number(counts[String(s)]) || 0 }))
+    .filter((seg) => seg.n > 0);
+  box.innerHTML = `
+    <div class="strip-title">Latest run · ${esc(total)} finding${total === 1 ? "" : "s"} by severity</div>
+    <div class="severity-bar">
+      ${segs.map(({ s, n }) => `<span class="sev-fill-${s}" style="flex:${n}" title="S${s} ${esc(SEVERITY_LABELS[s])}: ${n}"></span>`).join("")}
+    </div>
+    <div class="severity-key">
+      ${segs.map(({ s, n }) => `<span><i class="sev-fill-${s}"></i>S${s} ${esc(SEVERITY_LABELS[s])} · ${n}</span>`).join("")}
+    </div>
+  `;
+}
+
+function renderTrends() {
+  const wrap = $("#trendChart");
+  const reposBox = $("#trendRepos");
+  if (!wrap || !reposBox) return;
+  const points = state.trends?.runs || [];
+  setText("#trendMeta", points.length
+    ? `${points.length} completed run${points.length === 1 ? "" : "s"} · health vs risk`
+    : "No completed runs yet");
+
+  const latest = points[points.length - 1] || null;
+  renderHealthGauge(latest);
+  renderSeverityStrip(latest);
+
+  if (!points.length) {
+    wrap.innerHTML = `<div class="empty-state"><p>Run a few reviews to see quality trends over time.</p></div>`;
+    reposBox.innerHTML = "";
+    return;
+  }
+  wrap.innerHTML = trendChartSvg(points) + `
+    <div class="trend-legend">
+      <span><span class="swatch swatch--health"></span>Health score</span>
+      <span><span class="swatch swatch--risk"></span>Risk score</span>
+      <span>● dot color = merge gate</span>
+    </div>
+  `;
+  reposBox.innerHTML = (state.trends?.repos || []).map((repo) => {
+    const latestPoint = repo.latest || {};
+    const health = latestPoint.health || {};
+    return `
+      <div class="trend-repo-row" title="${esc(repo.repo_path)} — latest health ${esc(health.score ?? "—")}/100">
+        <span class="grade-badge ${gradeClass(health.grade)}">${esc(health.grade || "—")}</span>
+        <strong>${esc(repo.name)}</strong>
+        ${sparklineSvg(repo.points || [])}
+      </div>
+    `;
+  }).join("");
+}
+
 // ── Render: run list (sidebar) ────────────────────────────────────────────────
 function renderRuns() {
   const list = $("#runList");
@@ -390,6 +557,23 @@ function renderSelectedRun() {
   }
 
   $("#tagStrip").innerHTML = (stats.tags || []).map((t) => `<span class="tag">${esc(t)}</span>`).join("");
+
+  // Finding lifecycle vs the previous run of the same repository
+  const lifecycleRow = $("#lifecycleRow");
+  if (lifecycleRow) {
+    const lc = stats.lifecycle;
+    if (!lc || meta?.status !== "completed" || genNoun) {
+      lifecycleRow.innerHTML = "";
+    } else if (!lc.baselined) {
+      lifecycleRow.innerHTML = `<span class="lifecycle-chip lifecycle-new" title="First reviewed run for this repository — everything counts as new">baseline run · <strong>${esc(lc.new ?? 0)}</strong> finding(s)</span>`;
+    } else {
+      lifecycleRow.innerHTML = `
+        <span class="lifecycle-chip lifecycle-new" title="Findings not present in the previous run"><strong>${esc(lc.new ?? 0)}</strong> new</span>
+        <span class="lifecycle-chip lifecycle-recurring" title="Findings carried over from the previous run"><strong>${esc(lc.recurring ?? 0)}</strong> recurring</span>
+        <span class="lifecycle-chip lifecycle-resolved" title="Previous findings no longer present"><strong>${esc(lc.resolved ?? 0)}</strong> resolved</span>
+      `;
+    }
+  }
 }
 
 // ── Render: findings ──────────────────────────────────────────────────────────
@@ -834,6 +1018,7 @@ function renderAudit() {
 function renderAll() {
   renderHealth();
   renderOverview();
+  renderTrends();
   renderRuns();
   renderSelectedRun();
   renderFindings();
@@ -858,6 +1043,11 @@ async function refreshHealth() {
 async function refreshOverview() {
   state.overview = await api("/api/overview");
   renderOverview();
+}
+
+async function refreshTrends() {
+  state.trends = await api("/api/trends?limit=30");
+  renderTrends();
 }
 
 async function refreshRepos() {
@@ -932,6 +1122,7 @@ async function refreshEverything() {
   await Promise.allSettled([
     refreshHealth(),
     refreshOverview(),
+    refreshTrends(),
     refreshRepos(),
     refreshPolicies(),
     refreshRuns(),
@@ -1223,6 +1414,7 @@ function wireEvents() {
   $$(".nav-item").forEach((btn) => btn.addEventListener("click", () => showView(btn.dataset.view)));
 
   // Topbar actions
+  $("#themeToggle").addEventListener("click", toggleTheme);
   $("#runReview").addEventListener("click",  () => startReview());
   $("#seedSample").addEventListener("click", seedSampleData);
   $("#exportJson").addEventListener("click", () => downloadSelected("json"));
@@ -1393,7 +1585,7 @@ async function poll() {
   _pollRunning = true;
   try {
     const prevMeta = selectedMeta();
-    await Promise.allSettled([refreshRuns(), refreshOverview()]);
+    await Promise.allSettled([refreshRuns(), refreshOverview(), refreshTrends()]);
     const newMeta = selectedMeta();
     // If selected run just finished, reload its detail
     if (prevMeta && ["running", "queued", "unknown"].includes(prevMeta.status)) {
@@ -1416,6 +1608,7 @@ async function poll() {
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 async function boot() {
+  applyTheme();
   wireEvents();
   try {
     await refreshEverything();

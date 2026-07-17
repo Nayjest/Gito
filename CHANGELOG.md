@@ -10,6 +10,20 @@ Store schema: `kv.schema_version` unchanged (tables introduced in 4.3 remain
 the full set; no new tables this release).
 
 ### Added
+- **Quality trends + repository health score.** Every completed review now
+  carries `stats.health` — a 0–100 score with a letter grade (A–F), derived
+  only from frozen stats keys (risk score, gate, severity counts) so it is
+  recomputed identically for historical runs. New `GET /api/trends` aggregates
+  completed review runs into time series, globally and per repository
+  (risk, issues, severity mix, gate, health, duration; `?repo=` and `?limit=`
+  filters). The Cockpit gains a **Quality Trends** chart (inline SVG, no
+  external libraries): health line vs risk line with gate-colored run dots,
+  per-repo sparklines and grade badges, a health ring gauge on the latest
+  review, and a severity-distribution strip. The Review view shows finding
+  **lifecycle chips** (new / recurring / resolved vs the previous run).
+- **Light theme.** A topbar toggle switches between the dark and a light
+  (GitHub-light palette) theme; the choice persists in the browser. The
+  topbar also wraps gracefully on narrow windows.
 - **Bounded job queue with a worker pool (`jobqueue.py`).** Reviews and
   generations run through a fixed-size pool instead of each spawning its own
   unbounded thread: at most `CODE_DOCTOR_REVIEW_WORKERS` (default 2) run at

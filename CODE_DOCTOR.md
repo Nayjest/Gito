@@ -44,6 +44,31 @@ adding stricter guidance for:
 Project-level `.gito/config.toml` files still load first; the Code Doctor
 profile merges after them.
 
+## Quality Trends & Health Score
+
+Every completed review carries `stats.health` — a **0–100 score with a letter
+grade (A–F)** derived only from frozen stats keys (risk score, merge gate,
+severity counts), so it recomputes identically for runs that predate the key.
+Scoring: `100 − risk_score − 5·S1 − 2·S2`, capped at 45 when the gate is
+`block` and 75 when it is `review`, clamped to 0–100. Grades: A ≥ 90,
+B ≥ 75, C ≥ 60, D ≥ 40, F below.
+
+`GET /api/trends?limit=30[&repo=<path>]` aggregates completed review runs
+(generation, failed, and running runs excluded) into chronological time
+series — globally (`runs`) and grouped per repository (`repos`, newest-active
+first, each with `points` and `latest`). Each point: `id`, `created_at`,
+`repo_path`, `risk_score`, `total_issues`, `severity_counts`, `gate`,
+`health`, `duration_seconds`.
+
+The Cockpit renders this as a **Quality Trends** chart (inline SVG, zero
+frontend dependencies): health line vs dashed risk line, dots colored by
+merge gate with hover tooltips, per-repo sparklines with grade badges, a
+health ring gauge on the Latest Review panel, and a severity-distribution
+strip. The Review view shows **lifecycle chips** — new / recurring / resolved
+findings vs the previous run of the same repository (from the existing
+`stats.lifecycle`). The topbar has a **light/dark theme toggle**, persisted
+per browser in local storage.
+
 ## Concurrency: Bounded Job Queue
 
 Reviews and generations run through a fixed-size **worker pool**
