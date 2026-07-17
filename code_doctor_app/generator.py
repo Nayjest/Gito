@@ -1,4 +1,4 @@
-"""LLM generation subprocess for Code Doctor: unit tests and PR drafts.
+"""LLM generation subprocess for CodePulse: unit tests and PR drafts.
 
 Invoked as ``python -m code_doctor_app.generator --kind tests|pr …`` with the
 same ``LLM_*`` environment contract Gito uses, so any OpenAI-compatible or
@@ -30,7 +30,7 @@ MAX_GENERATED_FILES = 12
 MAX_ATTEMPTS = 3  # small local models regularly emit slightly broken JSON
 
 TESTS_INSTRUCTIONS = """\
-You are Code Doctor, a senior engineer writing unit tests for a junior developer's change.
+You are CodePulse, a senior engineer writing unit tests for a junior developer's change.
 Answer with the JSON immediately; do not include reasoning or commentary.
 
 Write focused, runnable unit tests for the CHANGED code below.
@@ -49,7 +49,7 @@ Respond with ONLY valid JSON (no prose, no markdown fences) matching:
 """
 
 VERIFY_INSTRUCTIONS = """\
-You are Code Doctor's verification pass: a skeptical senior engineer re-checking a reviewer's draft findings.
+You are CodePulse's verification pass: a skeptical senior engineer re-checking a reviewer's draft findings.
 Answer with the JSON immediately; do not include reasoning or commentary.
 
 For every finding, judge it strictly against the DIFF and file content provided:
@@ -68,7 +68,7 @@ Respond with ONLY valid JSON (no prose, no markdown fences) matching:
 MAX_VERIFY_FINDINGS = 40
 
 PR_INSTRUCTIONS = """\
-You are Code Doctor, a senior engineer drafting a pull request for the change below.
+You are CodePulse, a senior engineer drafting a pull request for the change below.
 Answer with the JSON immediately; do not include reasoning or commentary.
 
 Respond with ONLY valid JSON (no prose, no markdown fences) matching:
@@ -269,7 +269,7 @@ def normalize_verify(result: dict, findings: list[dict]) -> dict:
 
 
 def tests_markdown(result: dict) -> str:
-    lines = ["# Code Doctor — Generated Unit Tests", ""]
+    lines = ["# CodePulse — Generated Unit Tests", ""]
     for item in result.get("files", []):
         lines += [
             f"## `{item.get('path', '')}` ({item.get('framework', '')})",
@@ -356,7 +356,7 @@ def write_pr_artifacts(out_dir: Path, payload: dict) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Code Doctor LLM generator")
+    parser = argparse.ArgumentParser(description="CodePulse LLM generator")
     parser.add_argument("--kind", choices=("tests", "pr", "verify"), required=True)
     parser.add_argument("--repo", required=True)
     parser.add_argument("--out", required=True)
@@ -401,7 +401,7 @@ def main() -> int:
         prompt = build_verify_prompt(diff, contents, findings, cross_context)
     else:
         prompt = build_pr_prompt(diff)
-    print(f"Code Doctor generator: kind={args.kind}, files={len(contents)}, diff_chars={len(diff)}")
+    print(f"CodePulse generator: kind={args.kind}, files={len(contents)}, diff_chars={len(diff)}")
 
     payload = None
     last_error: Exception | None = None

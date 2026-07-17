@@ -255,7 +255,7 @@ def bind_warning(host: str) -> str:
     if host in {"127.0.0.1", "localhost", "::1"} or os.getenv("CODE_DOCTOR_TOKEN"):
         return ""
     return (
-        f"WARNING: Code Doctor is binding to {host} without CODE_DOCTOR_TOKEN set. "
+        f"WARNING: CodePulse is binding to {host} without CODE_DOCTOR_TOKEN set. "
         "Anyone who can reach this address can read reviews and start runs. "
         "Set CODE_DOCTOR_TOKEN or bind to 127.0.0.1."
     )
@@ -509,7 +509,7 @@ def ensure_sample_repo() -> Path:
     if not (repo_path / ".git").exists():
         subprocess.run(["git", "init", str(repo_path)], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         run_git(repo_path, "config", "user.email", "code-doctor@example.local")
-        run_git(repo_path, "config", "user.name", "Code Doctor")
+        run_git(repo_path, "config", "user.name", "CodePulse")
         write_sample_files(repo_path, vulnerable=False)
         run_git(repo_path, "add", ".")
         run_git(repo_path, "commit", "-m", "Initial safe payment flow")
@@ -1673,7 +1673,7 @@ def note_ollama_warning(run_id: str) -> None:
         update_meta(run_id, ollama_warning=True)
         with log_path(run_id).open("ab") as log_file:
             log_file.write(
-                b"Code Doctor: warning - the Ollama watchdog reports the model "
+                b"CodePulse: warning - the Ollama watchdog reports the model "
                 b"runtime down; attempting the run anyway.\n"
             )
     except Exception:  # noqa: BLE001 - advisory only
@@ -1797,10 +1797,10 @@ def run_review(run_id: str, repo_path: Path, payload: dict[str, Any], command: l
                 proc.wait()
                 exit_code = -1
                 log_file.write(
-                    f"\nCode Doctor: review timed out after {timeout_seconds}s and was killed.\n".encode("utf-8")
+                    f"\nCodePulse: review timed out after {timeout_seconds}s and was killed.\n".encode("utf-8")
                 )
         except Exception as exc:
-            log_file.write(f"\nCode Doctor failed to start Gito: {exc}\n".encode("utf-8"))
+            log_file.write(f"\nCodePulse failed to start Gito: {exc}\n".encode("utf-8"))
             static_count = merge_static()
             update_meta(
                 run_id,
@@ -1914,10 +1914,10 @@ def run_verification(
                 proc.kill()
                 proc.wait()
                 log_file.write(
-                    f"\nCode Doctor: verification timed out after {timeout_seconds}s; keeping unverified findings.\n".encode("utf-8")
+                    f"\nCodePulse: verification timed out after {timeout_seconds}s; keeping unverified findings.\n".encode("utf-8")
                 )
         except Exception as exc:
-            log_file.write(f"\nCode Doctor: verification failed to start: {exc}\n".encode("utf-8"))
+            log_file.write(f"\nCodePulse: verification failed to start: {exc}\n".encode("utf-8"))
         finally:
             with PROCESS_LOCK:
                 PROCESSES.pop(run_id, None)
@@ -2076,11 +2076,11 @@ def run_generation(
                 proc.wait()
                 exit_code = -1
                 log_file.write(
-                    f"\nCode Doctor: generation timed out after {timeout_seconds}s and was killed.\n".encode("utf-8")
+                    f"\nCodePulse: generation timed out after {timeout_seconds}s and was killed.\n".encode("utf-8")
                 )
         except Exception as exc:
             error = str(exc)
-            log_file.write(f"\nCode Doctor failed to start the generator: {exc}\n".encode("utf-8"))
+            log_file.write(f"\nCodePulse failed to start the generator: {exc}\n".encode("utf-8"))
         finally:
             with PROCESS_LOCK:
                 PROCESSES.pop(run_id, None)
@@ -2224,7 +2224,7 @@ def snapshot_preflight(source: Path) -> dict[str, Any]:
         "testFiles": classified["tests"],
         "ready": bool(classified["changed"]) and not over_limit,
         "warnings": [
-            "Not a git repository — Code Doctor will analyze a local snapshot "
+            "Not a git repository — CodePulse will analyze a local snapshot "
             "(your folder is copied, never modified) and review every file.",
             *(["No reviewable files detected in this folder."] if not classified["changed"] else []),
             *([
@@ -2491,7 +2491,7 @@ def export_review(run_id: str, export_format: str) -> tuple[str, str]:
     if export_format == "json":
         return json.dumps(detail, indent=2), "application/json; charset=utf-8"
     if export_format == "md":
-        return detail.get("markdown") or "# Code Doctor Review\n\nNo markdown report found.\n", "text/markdown; charset=utf-8"
+        return detail.get("markdown") or "# CodePulse Review\n\nNo markdown report found.\n", "text/markdown; charset=utf-8"
     if export_format == "csv":
         rows = ["id,file,severity,confidence,title,tags"]
         for issue in flatten_report_issues(report):
@@ -2592,7 +2592,7 @@ def seed_sample_data() -> dict[str, Any]:
     }
     atomic_write_json(report_path(run_id), report)
     markdown_path(run_id).write_text(
-        "# Code Doctor Sample Review\n\n"
+        "# CodePulse Sample Review\n\n"
         "The PR should not merge until account ownership checks, awaited invite delivery, and secret hygiene are fixed.\n",
         encoding="utf-8",
     )
@@ -3372,7 +3372,7 @@ class CodeDoctorHandler(BaseHTTPRequestHandler):
 def serve(host: str, port: int) -> None:
     RUNS_DIR.mkdir(parents=True, exist_ok=True)
     if store.migrate_legacy(AUDIT_LOG, SUPPRESSIONS_FILE, REPOS_FILE):
-        sys.stderr.write("Code Doctor: migrated legacy JSON store into SQLite.\n")
+        sys.stderr.write("CodePulse: migrated legacy JSON store into SQLite.\n")
     warning = bind_warning(host)
     if warning:
         sys.stderr.write(warning + "\n")
@@ -3383,7 +3383,7 @@ def serve(host: str, port: int) -> None:
 
     url = f"http://{host}:{port}"
     print(
-        f"\n  Code Doctor v{APP_VERSION}  →  {url}\n"
+        f"\n  CodePulse v{APP_VERSION}  →  {url}\n"
         f"  Data directory : {DATA_DIR}\n"
         f"  Auth           : {'TOKEN (CODE_DOCTOR_TOKEN set)' if os.getenv('CODE_DOCTOR_TOKEN') else 'open (no token)'}\n",
         flush=True,
@@ -3392,7 +3392,7 @@ def serve(host: str, port: int) -> None:
     _stop = threading.Event()
 
     def _signal_handler(signum: int, frame: Any) -> None:  # noqa: ARG001
-        sys.stderr.write("\nCode Doctor: shutting down gracefully…\n")
+        sys.stderr.write("\nCodePulse: shutting down gracefully…\n")
         _stop.set()
         # Shutdown in a background thread so the signal handler returns fast
         threading.Thread(target=httpd.shutdown, daemon=True).start()
@@ -3409,11 +3409,11 @@ def serve(host: str, port: int) -> None:
         pass
     finally:
         httpd.server_close()
-        sys.stderr.write("Code Doctor: stopped.\n")
+        sys.stderr.write("CodePulse: stopped.\n")
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run the local Code Doctor web app.")
+    parser = argparse.ArgumentParser(description="Run the local CodePulse web app.")
     parser.add_argument("--host", default="127.0.0.1", help="Bind address (default 127.0.0.1)")
     parser.add_argument("--port", type=int, default=8787, help="TCP port (default 8787)")
     args = parser.parse_args()

@@ -98,7 +98,7 @@ def test_sarif_document_shape_and_levels():
     doc = sarif.to_sarif(issues, "5.0.0")
     assert doc["version"] == "2.1.0"
     run = doc["runs"][0]
-    assert run["tool"]["driver"]["name"] == "Code Doctor"
+    assert run["tool"]["driver"]["name"] == "CodePulse"
     assert run["tool"]["driver"]["version"] == "5.0.0"
     assert len(run["results"]) == 2
     r0 = run["results"][0]

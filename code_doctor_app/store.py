@@ -1,4 +1,4 @@
-"""Concurrent-safe persistence for Code Doctor.
+"""Concurrent-safe persistence for CodePulse.
 
 Audit events, finding suppressions, and the repository registry live in a
 SQLite database (WAL mode) so multiple server threads — and multiple server

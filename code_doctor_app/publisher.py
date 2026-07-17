@@ -1,4 +1,4 @@
-"""Publish Code Doctor review results to GitHub pull requests and GitLab
+"""Publish CodePulse review results to GitHub pull requests and GitLab
 merge requests.
 
 Tokens come from the server environment only (never from request payloads):
@@ -100,7 +100,7 @@ def build_summary_markdown(
     issues = _flatten_issues(report)
     verification = stats.get("verification") or {}
     lines = [
-        "## 🩺 Code Doctor review",
+        "## 🩺 CodePulse review",
         "",
         f"**Gate:** `{stats.get('gate', 'n/a')}` · **Risk score:** {stats.get('risk_score', 0)} "
         f"· **Findings:** {len(issues)} "
@@ -130,7 +130,7 @@ def build_summary_markdown(
     lines.extend(
         [
             "",
-            f"_Reviewed by Code Doctor (model: {meta.get('model', 'local')}, "
+            f"_Reviewed by CodePulse (model: {meta.get('model', 'local')}, "
             f"run `{meta.get('id', '')}`). Code never left the reviewer's machine._",
         ]
     )
@@ -144,7 +144,7 @@ def build_line_comments(report: dict[str, Any] | None) -> list[dict[str, Any]]:
         if not line or issue.get("suppressed"):
             continue
         severity = SEVERITY_LABELS.get(issue.get("severity"), "info")
-        body = f"**Code Doctor ({severity}):** {issue.get('title', '')}"
+        body = f"**CodePulse ({severity}):** {issue.get('title', '')}"
         details = str(issue.get("details") or "").strip()
         if details:
             body += f"\n\n{details[:1200]}"
@@ -252,7 +252,7 @@ def post_commit_status(
     if not slug or not sha:
         raise ValueError("Commit status needs a repository slug and a commit sha.")
     state = GATE_STATUS_STATES[platform].get(gate, "success")
-    description = f"Code Doctor: {GATE_STATUS_DESCRIPTIONS.get(gate, gate)}"
+    description = f"CodePulse: {GATE_STATUS_DESCRIPTIONS.get(gate, gate)}"
 
     if platform == "github":
         token = _github_token()

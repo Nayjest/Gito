@@ -131,6 +131,17 @@ the full set; no new tables this release).
   tests; frozen v4.3 data fixture proving legacy migration + idempotency.
 - `docs/OPERATIONS.md` runbook and `docs/SMOKE.md` browser checklist.
 
+### Changed
+- **Rebranded to CodePulse.** New name and a new logo — an ECG pulse mark on a
+  blue→violet gradient (inline SVG, plus a matching favicon; the old gito
+  press-kit PNG is no longer referenced). The rename covers every user-facing
+  surface: UI branding, page title, export filenames (`codepulse-<run>.<ext>`),
+  SARIF tool driver name, PR/MR review headings, LLM prompt personas, and CLI
+  output (`codepulse:` prefix in CI mode). **Machine identifiers are
+  unchanged** so existing setups keep working: the `code_doctor_app` package,
+  `CODE_DOCTOR_*` environment variables, the `.code-doctor/` data directory,
+  and the `code-doctor/gate` commit-status context.
+
 ### Security
 - QW-1: constant-time bearer-token comparison (`hmac.compare_digest`).
 - QW-2: loud warning when binding beyond loopback without a token.

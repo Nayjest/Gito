@@ -1,4 +1,4 @@
-"""Deterministic static analysis for Code Doctor.
+"""Deterministic static analysis for CodePulse.
 
 Scans the added lines of a git diff with a high-precision rule pack so every
 review run gets instant, reproducible findings alongside the LLM review —

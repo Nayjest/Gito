@@ -1,9 +1,9 @@
 """Local (non-git) project analysis via managed git snapshots.
 
-Code Doctor's whole analysis stack (gito, static analysis, cross-file) is
+CodePulse's whole analysis stack (gito, static analysis, cross-file) is
 diff-based and assumes a git work tree. To review a plain local folder that
 isn't under git, we materialize a throwaway git repository: the folder's
-files are copied into a Code Doctor-managed snapshot under the data dir,
+files are copied into a CodePulse-managed snapshot under the data dir,
 `git init` + one baseline commit, and the review runs against the git
 empty-tree diff (every file reads as "added", i.e. a whole-codebase review).
 
@@ -163,7 +163,7 @@ def build_snapshot(source: Path, snapshots_dir: Path) -> Path:
     if files > MAX_SNAPSHOT_FILES or total > MAX_SNAPSHOT_BYTES:
         raise SnapshotTooLargeError(
             f"Folder is too large to snapshot (over {MAX_SNAPSHOT_FILES} files or "
-            f"{MAX_SNAPSHOT_BYTES // (1024 * 1024)} MB). Point Code Doctor at a git "
+            f"{MAX_SNAPSHOT_BYTES // (1024 * 1024)} MB). Point CodePulse at a git "
             "repository or a smaller folder."
         )
 
@@ -180,9 +180,9 @@ def build_snapshot(source: Path, snapshots_dir: Path) -> Path:
     # (or writes to) the machine's global git config.
     _git(
         tree,
-        "-c", "user.email=snapshot@code-doctor.local",
-        "-c", "user.name=Code Doctor",
-        "commit", "-q", "--allow-empty", "-m", "Code Doctor snapshot baseline",
+        "-c", "user.email=snapshot@codepulse.local",
+        "-c", "user.name=CodePulse",
+        "commit", "-q", "--allow-empty", "-m", "CodePulse snapshot baseline",
     )
     (root / "source.txt").write_text(str(source) + "\n", encoding="utf-8")
     return tree

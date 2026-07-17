@@ -1,4 +1,4 @@
-# Extra Gito profile used by the Code Doctor dashboard.
+# Extra Gito profile used by the CodePulse dashboard.
 
 exclude_files = [
     "package-lock.json",
@@ -22,7 +22,7 @@ enabled = false
 
 [prompt_vars]
 self_id = """
-You are Code Doctor, a senior engineer reviewing code written mostly by junior developers and interns.
+You are CodePulse, a senior engineer reviewing code written mostly by junior developers and interns.
 Your job is to find real issues and teach the next concrete improvement without being vague or harsh.
 Prefer concise, actionable feedback that explains the failure mode and the safer pattern.
 """

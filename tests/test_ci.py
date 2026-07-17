@@ -110,7 +110,7 @@ def test_ci_run_prints_summary_and_gates(monkeypatch, tmp_path, capsys):
 
     assert code == 1  # severity-1 security finding blocks the gate
     out = capsys.readouterr()
-    assert "Code Doctor review" in out.out
+    assert "CodePulse review" in out.out
     assert "SQL injection in query builder." in out.out
     assert "meets --fail-on block" in out.err
     result = json.loads(result_json.read_text(encoding="utf-8"))
@@ -125,7 +125,7 @@ def test_ci_fail_on_none_always_exits_zero(monkeypatch, tmp_path, capsys):
     _fake_review_command(monkeypatch, tmp_path, BLOCKING_REPORT)
 
     assert ci.main(["--repo", str(repo), *BASE_ARGS, "--fail-on", "none"]) == 0
-    assert "Code Doctor review" in capsys.readouterr().out
+    assert "CodePulse review" in capsys.readouterr().out
 
 
 def test_ci_failed_review_exits_two(monkeypatch, tmp_path, capsys):
@@ -140,7 +140,7 @@ def test_ci_failed_review_exits_two(monkeypatch, tmp_path, capsys):
 def test_ci_invalid_repo_exits_two(monkeypatch, tmp_path, capsys):
     _isolated_store(monkeypatch, tmp_path)
     assert ci.main(["--repo", str(tmp_path / "nope"), *BASE_ARGS]) == 2
-    assert "code-doctor:" in capsys.readouterr().err
+    assert "codepulse:" in capsys.readouterr().err
 
 
 def test_ci_publish_uses_server_publisher(monkeypatch, tmp_path, capsys):

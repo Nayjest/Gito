@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-//  Code Doctor  ·  Frontend  ·  Production build
+//  CodePulse  ·  Frontend  ·  Production build
 // ═══════════════════════════════════════════════════════════════════════════
 
 // ── App state ────────────────────────────────────────────────────────────────
@@ -1399,7 +1399,7 @@ async function downloadSelected(format) {
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement("a");
     a.href     = url;
-    a.download = `code-doctor-${meta.id}.${ext}`;
+    a.download = `codepulse-${meta.id}.${ext}`;
     a.click();
     URL.revokeObjectURL(url);
     toastSuccess(`Downloaded ${ext.toUpperCase()} report.`);

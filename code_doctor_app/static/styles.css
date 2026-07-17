@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   Code Doctor  ·  Design System  ·  Dark Edition
+   CodePulse  ·  Design System  ·  Dark Edition
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ── Design tokens ────────────────────────────────────────────────────────── */
@@ -114,10 +114,8 @@ img { display: block; max-width: 100%; }
   width: 36px;
   height: 36px;
   border-radius: var(--r-md);
-  background: #fff;
-  object-fit: contain;
-  padding: 2px;
   flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(56,139,253,0.35);
 }
 
 .brand-text strong {

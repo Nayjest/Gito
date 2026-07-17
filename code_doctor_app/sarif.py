@@ -1,7 +1,7 @@
 """SARIF 2.1.0 export for GitHub Code Scanning and other SARIF consumers.
 
 Static Analysis Results Interchange Format is the standard GitHub's Security
-tab (and many CI tools) ingest. Converting a Code Doctor report to SARIF lets
+tab (and many CI tools) ingest. Converting a CodePulse report to SARIF lets
 findings show up as code-scanning alerts on a PR.
 """
 from __future__ import annotations
@@ -12,7 +12,7 @@ from typing import Any
 SARIF_SCHEMA = "https://json.schemastore.org/sarif-2.1.0.json"
 TOOL_URI = "https://github.com/Nayjest/gito"
 
-# Code Doctor severity (1 highest .. 5 lowest) -> SARIF level.
+# CodePulse severity (1 highest .. 5 lowest) -> SARIF level.
 _LEVEL = {1: "error", 2: "error", 3: "warning", 4: "note", 5: "note"}
 
 
@@ -78,7 +78,7 @@ def to_sarif(issues: list[dict[str, Any]], tool_version: str = "") -> dict[str, 
         "$schema": SARIF_SCHEMA,
         "runs": [{
             "tool": {"driver": {
-                "name": "Code Doctor",
+                "name": "CodePulse",
                 "version": tool_version or "0.0.0",
                 "informationUri": TOOL_URI,
                 "rules": list(rules.values()),

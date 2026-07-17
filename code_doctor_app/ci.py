@@ -1,4 +1,4 @@
-"""CI batch mode: run a Code Doctor review synchronously and gate on it.
+"""CI batch mode: run a CodePulse review synchronously and gate on it.
 
 Usage (a GitHub Actions / GitLab CI step, or any shell):
 
@@ -70,7 +70,7 @@ def build_payload(args: argparse.Namespace) -> dict[str, object]:
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="python -m code_doctor_app.ci",
-        description="Run a Code Doctor review synchronously (CI batch mode).",
+        description="Run a CodePulse review synchronously (CI batch mode).",
     )
     parser.add_argument("--repo", required=True, help="Path to the git repository")
     parser.add_argument("--mode", default="refs", choices=["working", "refs", "all"])
@@ -106,10 +106,10 @@ def main(argv: list[str] | None = None) -> int:
     try:
         run_id, repo_path, payload, command = server.create_review_run(payload)
     except (ValueError, FileNotFoundError) as exc:
-        print(f"code-doctor: {exc}", file=sys.stderr)
+        print(f"codepulse: {exc}", file=sys.stderr)
         return 2
 
-    print(f"code-doctor: run {run_id} on {repo_path}", file=sys.stderr)
+    print(f"codepulse: run {run_id} on {repo_path}", file=sys.stderr)
     server.run_review(run_id, repo_path, payload, command)
 
     meta = server.read_json(server.meta_path(run_id), {}) or {}
@@ -133,7 +133,7 @@ def main(argv: list[str] | None = None) -> int:
         if log_file.exists():
             tail = log_file.read_text(encoding="utf-8", errors="ignore").splitlines()[-20:]
             print("\n".join(tail), file=sys.stderr)
-        print(f"code-doctor: review {run_id} failed ({meta.get('error') or 'see log'})", file=sys.stderr)
+        print(f"codepulse: review {run_id} failed ({meta.get('error') or 'see log'})", file=sys.stderr)
         return 2
 
     print(publisher.build_summary_markdown(meta, report, stats))
@@ -146,13 +146,13 @@ def main(argv: list[str] | None = None) -> int:
             publish_payload["repo"] = args.slug
         try:
             published = server.publish_run(run_id, publish_payload)
-            print(f"code-doctor: published to {published.get('target')}", file=sys.stderr)
+            print(f"codepulse: published to {published.get('target')}", file=sys.stderr)
         except (ValueError, FileNotFoundError) as exc:
-            print(f"code-doctor: publish failed: {exc}", file=sys.stderr)
+            print(f"codepulse: publish failed: {exc}", file=sys.stderr)
             return 2
 
     if gate_breached(gate, args.fail_on):
-        print(f"code-doctor: gate '{gate}' meets --fail-on {args.fail_on}", file=sys.stderr)
+        print(f"codepulse: gate '{gate}' meets --fail-on {args.fail_on}", file=sys.stderr)
         return 1
     return 0
 
