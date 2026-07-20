@@ -214,3 +214,74 @@ def test_merge_into_report_appends_new_findings_with_stable_ids():
     assert finding["id"] >= sa.STATIC_ISSUE_ID_BASE
     assert finding["source"] == "static"
     assert report["total_issues"] == 1
+
+
+# ── Production reliability / security rules ──────────────────────────────────
+
+def test_http_call_without_timeout_flagged_with_timeout_quiet():
+    bad = make_diff("svc.py", ['resp = requests.get(url)'])
+    good = make_diff("svc.py", ['resp = requests.get(url, timeout=5)'])
+    assert "http-call-no-timeout" in rule_ids(issues_for(bad, "svc.py"))
+    assert "http-call-no-timeout" not in rule_ids(issues_for(good, "svc.py"))
+
+
+def test_tls_verification_disabled_both_stacks():
+    py = make_diff("svc.py", ['requests.get(url, verify=False, timeout=5)'])
+    js = make_diff("svc.js", ['const agent = new https.Agent({ rejectUnauthorized: false });'])
+    assert "tls-verify-disabled" in rule_ids(issues_for(py, "svc.py"))
+    assert "js-tls-reject-unauthorized" in rule_ids(issues_for(js, "svc.js"))
+
+
+def test_weak_hash_only_in_credential_context():
+    bad = make_diff("auth.py", ['digest = hashlib.md5(password.encode()).hexdigest()'])
+    checksum = make_diff("cache.py", ['etag = hashlib.md5(body).hexdigest()'])
+    assert "weak-hash-for-credentials" in rule_ids(issues_for(bad, "auth.py"))
+    assert "weak-hash-for-credentials" not in rule_ids(issues_for(checksum, "cache.py"))
+
+
+def test_insecure_random_only_for_secret_values():
+    bad = make_diff("auth.py", ['session_token = "".join(random.choices(chars, k=32))'])
+    game = make_diff("game.py", ['roll = random.randint(1, 6)'])
+    js_bad = make_diff("auth.js", ['const sessionToken = Math.random().toString(36);'])
+    assert "insecure-random-token" in rule_ids(issues_for(bad, "auth.py"))
+    assert "insecure-random-token" not in rule_ids(issues_for(game, "game.py"))
+    assert "js-insecure-random-token" in rule_ids(issues_for(js_bad, "auth.js"))
+
+
+def test_sql_built_strings_flagged_parameterized_quiet():
+    fstr = make_diff("db.py", ['cur.execute(f"SELECT * FROM users WHERE id = {uid}")'])
+    concat = make_diff("db.py", ['cur.execute("SELECT * FROM users WHERE id = " + uid)'])
+    param = make_diff("db.py", ['cur.execute("SELECT * FROM users WHERE id = %s", (uid,))'])
+    js = make_diff("db.js", ['await pool.query(`SELECT * FROM users WHERE id = ${id}`);'])
+    assert "sql-built-string" in rule_ids(issues_for(fstr, "db.py"))
+    assert "sql-built-string" in rule_ids(issues_for(concat, "db.py"))
+    assert "sql-built-string" not in rule_ids(issues_for(param, "db.py"))
+    assert "js-sql-template-literal" in rule_ids(issues_for(js, "db.js"))
+
+
+def test_js_child_process_command_built_from_input():
+    tpl = make_diff("run.js", ['exec(`convert ${file} out.png`);'])
+    arr = make_diff("run.js", ['execFile("convert", [file, "out.png"]);'])
+    assert "js-child-process-concat" in rule_ids(issues_for(tpl, "run.js"))
+    assert "js-child-process-concat" not in rule_ids(issues_for(arr, "run.js"))
+
+
+def test_swallowed_exceptions_both_stacks():
+    py = make_diff("job.py", ['    except Exception: pass'])
+    js = make_diff("job.js", ['try { save(); } catch (e) {}'])
+    assert "swallowed-exception" in rule_ids(issues_for(py, "job.py"))
+    assert "js-empty-catch" in rule_ids(issues_for(js, "job.js"))
+
+
+def test_jwt_verification_disabled():
+    bad = make_diff("auth.py", ['claims = jwt.decode(token, options={"verify_signature": False})'])
+    good = make_diff("auth.py", ['claims = jwt.decode(token, key, algorithms=["HS256"])'])
+    assert "jwt-verification-disabled" in rule_ids(issues_for(bad, "auth.py"))
+    assert "jwt-verification-disabled" not in rule_ids(issues_for(good, "auth.py"))
+
+
+def test_mktemp_and_world_writable_chmod():
+    tmp = make_diff("io.py", ['path = tempfile.mktemp()'])
+    mode = make_diff("io.py", ['os.chmod(path, 0o777)'])
+    assert "tempfile-mktemp" in rule_ids(issues_for(tmp, "io.py"))
+    assert "world-writable-chmod" in rule_ids(issues_for(mode, "io.py"))

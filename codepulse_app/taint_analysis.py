@@ -1,21 +1,30 @@
-"""Intraprocedural taint / dataflow analysis for Python.
+"""Taint / dataflow analysis for Python — intra- and interprocedural.
 
 Regex rules catch a *pattern on one line*; they cannot tell whether the
 argument to ``open()`` came from a request or a constant. This module tracks
 untrusted input from **sources** (HTTP request data, route-handler
 parameters, ``input()``) to dangerous **sinks** (file open, outbound HTTP,
 subprocess, eval/exec, SQL execute, template render) through assignments,
-f-strings, concatenation, ``.format()``, and common wrapper calls — within a
-single function (intraprocedural).
+f-strings, concatenation, ``.format()``, and common wrapper calls.
 
-That is exactly the class of bug an LLM on a small local model, and a
-line-oriented regex pass, both miss: SSRF, path traversal, arbitrary file
-read, command/SQL/template injection where the taint and the sink are on
-different lines.
+On top of the per-function pass, a module-level **summary fixpoint** makes
+the analysis interprocedural within a file: every function is summarized as
+(a) which of its parameters reach a sink in its body, (b) whether its return
+value is itself untrusted (it reads from a source), and (c) which parameters
+flow through to its return value. Call sites then apply those summaries, so
+production patterns like a route handler calling ``fetch(url)`` where the
+helper does ``requests.get(url)`` — or ``data = read_payload()`` feeding a
+sink — are detected even though source and sink live in different functions.
+
+Summaries are built across every file in the repository (keyed by bare
+function/method name, the same key call sites resolve through), so a flow
+whose sink lives in a different module than the untrusted source — the
+"thin route handler → manager/helper module" shape — is caught too.
 
 It is deliberately conservative: it reports a finding only when a tainted
-value provably reaches a sink argument. Cross-function / cross-module flows
-are out of scope (noted where relevant), so false positives are rare.
+value provably reaches a sink argument, route handlers are never treated as
+callable helper targets, and an ambiguous helper name is never assumed
+dangerous, so false positives stay rare.
 """
 from __future__ import annotations
 
@@ -278,12 +287,39 @@ def _attr_root(node: ast.expr) -> str | None:
     return cur.id if isinstance(cur, ast.Name) else None
 
 
+@dataclass
+class _FuncSummary:
+    """Interprocedural facts about one module-level function."""
+
+    param_names: list[str]
+    # param index -> finding template of the sink that param reaches.
+    dangerous_params: dict[int, dict[str, Any]]
+    # The return value is untrusted regardless of arguments (reads a source).
+    returns_taint: bool = False
+    # Param indexes whose taint flows through to the return value.
+    param_flows_to_return: frozenset[int] = frozenset()
+
+    def shape(self) -> tuple:
+        """Comparable fingerprint for the fixpoint loop."""
+        return (
+            frozenset(self.dangerous_params),
+            self.returns_taint,
+            self.param_flows_to_return,
+        )
+
+
 class _FunctionTaint(ast.NodeVisitor):
     """Forward taint pass over one function body."""
 
-    def __init__(self, tainted_params: set[str]) -> None:
+    def __init__(
+        self,
+        tainted_params: set[str],
+        summaries: dict[str, _FuncSummary] | None = None,
+    ) -> None:
         self.tainted: set[str] = set(tainted_params)
         self.findings: list[dict[str, Any]] = []
+        self.summaries = summaries or {}
+        self.return_tainted = False
 
     # --- taint queries -------------------------------------------------
     def is_source(self, node: ast.expr) -> bool:
@@ -315,7 +351,10 @@ class _FunctionTaint(ast.NodeVisitor):
             )
         if isinstance(node, ast.Subscript):
             return self.is_tainted(node.value)
-        if isinstance(node, ast.BinOp) and isinstance(node.op, (ast.Add, ast.Mod)):
+        # Add/Mod: string concat and %-format. Div: pathlib join
+        # (``base / user_path``) — the dominant way an untrusted segment
+        # reaches a file sink.
+        if isinstance(node, ast.BinOp) and isinstance(node.op, (ast.Add, ast.Mod, ast.Div)):
             return self.is_tainted(node.left) or self.is_tainted(node.right)
         if isinstance(node, ast.JoinedStr):  # f-string
             return any(
@@ -332,6 +371,15 @@ class _FunctionTaint(ast.NodeVisitor):
                 if isinstance(node.func, ast.Attribute) and self.is_tainted(node.func.value):
                     return True
                 return any(self.is_tainted(a) for a in node.args)
+            # Interprocedural: a local function that reads a source itself, or
+            # passes a tainted argument through to its return value.
+            summary = self.summaries.get(short)
+            if summary is not None:
+                if summary.returns_taint:
+                    return True
+                for index in summary.param_flows_to_return:
+                    if index < len(node.args) and self.is_tainted(node.args[index]):
+                        return True
         if isinstance(node, ast.IfExp):
             return self.is_tainted(node.body) or self.is_tainted(node.orelse)
         return False
@@ -373,11 +421,17 @@ class _FunctionTaint(ast.NodeVisitor):
         if isinstance(target, ast.Name):
             self.tainted.discard(target.id)
 
+    def visit_Return(self, node: ast.Return) -> None:
+        self.generic_visit(node)
+        if node.value is not None and self.is_tainted(node.value):
+            self.return_tainted = True
+
     def visit_Call(self, node: ast.Call) -> None:
         self.generic_visit(node)
         name = _call_name(node)
         spec = SINKS.get(name) or SINKS.get(name.split(".")[-1])
         if spec is None:
+            self._check_wrapper_sink(node, name.split(".")[-1])
             return
         if spec.check_receiver:
             if isinstance(node.func, ast.Attribute) and self.is_tainted(node.func.value):
@@ -397,6 +451,37 @@ class _FunctionTaint(ast.NodeVisitor):
                 self.findings.append(self._finding(spec, node))
                 break
 
+    def _check_wrapper_sink(self, node: ast.Call, short: str) -> None:
+        """A tainted argument to a local helper whose body reaches a sink."""
+        summary = self.summaries.get(short)
+        if summary is None or not summary.dangerous_params:
+            return
+        tainted_index = None
+        for index in summary.dangerous_params:
+            if index < len(node.args) and self.is_tainted(node.args[index]):
+                tainted_index = index
+                break
+        if tainted_index is None:
+            for kw in node.keywords:
+                if kw.arg in summary.param_names:
+                    index = summary.param_names.index(kw.arg)
+                    if index in summary.dangerous_params and self.is_tainted(kw.value):
+                        tainted_index = index
+                        break
+        if tainted_index is None:
+            return
+        template = summary.dangerous_params[tainted_index]
+        self.findings.append({
+            **template,
+            "details": (
+                f"{template['details']} (Interprocedural flow: the untrusted "
+                f"value is passed to {short}(), which forwards it to the "
+                f"dangerous call at line {template['line']}.)"
+            ),
+            "tags": [*template["tags"], "interprocedural"],
+            "line": node.lineno,
+        })
+
     def _finding(self, spec: SinkSpec, node: ast.Call) -> dict[str, Any]:
         return {
             "title": spec.title,
@@ -410,8 +495,10 @@ class _FunctionTaint(ast.NodeVisitor):
         }
 
 
-def _route_handler_params(func: ast.FunctionDef | ast.AsyncFunctionDef) -> set[str]:
-    """Path parameters of a Flask/FastAPI-style route handler are untrusted."""
+_ROUTE_DECORATORS = frozenset({"route", "get", "post", "put", "delete", "patch"})
+
+
+def _has_route_decorator(func: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
     for dec in func.decorator_list:
         target = dec.func if isinstance(dec, ast.Call) else dec
         name = ""
@@ -419,28 +506,172 @@ def _route_handler_params(func: ast.FunctionDef | ast.AsyncFunctionDef) -> set[s
             name = target.attr
         elif isinstance(target, ast.Name):
             name = target.id
-        if name in {"route", "get", "post", "put", "delete", "patch"}:
-            args = func.args
-            names = [a.arg for a in (args.posonlyargs + args.args + args.kwonlyargs)]
-            return {n for n in names if n not in {"self", "cls"}}
-    return set()
+        if name in _ROUTE_DECORATORS:
+            return True
+    return False
 
 
-def analyze_source(source: str, filename: str = "<unknown>") -> list[dict[str, Any]]:
-    """Return taint findings (with 1-based ``line``) for one Python module."""
+def _route_handler_params(func: ast.FunctionDef | ast.AsyncFunctionDef) -> set[str]:
+    """Path parameters of a Flask/FastAPI-style route handler are untrusted."""
+    if not _has_route_decorator(func):
+        return set()
+    args = func.args
+    names = [a.arg for a in (args.posonlyargs + args.args + args.kwonlyargs)]
+    return {n for n in names if n not in {"self", "cls"}}
+
+
+def _positional_params(func: ast.FunctionDef | ast.AsyncFunctionDef) -> list[str]:
+    args = func.args
+    return [a.arg for a in (args.posonlyargs + args.args)]
+
+
+def _summarize_function(
+    func: ast.FunctionDef | ast.AsyncFunctionDef,
+    summaries: dict[str, _FuncSummary],
+) -> _FuncSummary:
+    """One summary iteration for a function, using the current summaries.
+
+    Parameter indexes in the returned summary are **call-site relative**: the
+    implicit ``self``/``cls`` receiver of a method is dropped, so a caller
+    like ``obj.method(x)`` maps ``x`` to index 0 regardless of ``self``.
+    """
+    params = _positional_params(func)
+    offset = 1 if params and params[0] in {"self", "cls"} else 0
+
+    def run(tainted: set[str]) -> _FunctionTaint:
+        walker = _FunctionTaint(tainted, summaries)
+        for stmt in func.body:
+            walker.visit(stmt)
+        return walker
+
+    base = run(set())
+    dangerous: dict[int, dict[str, Any]] = {}
+    flows_to_return: set[int] = set()
+    for index, name in enumerate(params):
+        if name in {"self", "cls"}:
+            continue
+        call_index = index - offset
+        walker = run({name})
+        # Findings the *base* run also produces come from sources in the body,
+        # not from this parameter — only param-caused findings make it dangerous.
+        param_findings = [f for f in walker.findings if f not in base.findings]
+        if param_findings:
+            dangerous[call_index] = param_findings[0]
+        if walker.return_tainted and not base.return_tainted:
+            flows_to_return.add(call_index)
+    return _FuncSummary(
+        param_names=params[offset:],
+        dangerous_params=dangerous,
+        returns_taint=base.return_tainted,
+        param_flows_to_return=frozenset(flows_to_return),
+    )
+
+
+_MAX_FIXPOINT_ROUNDS = 4
+MAX_REPO_SUMMARY_FILES = 4000
+
+
+def _collect_functions(tree: ast.Module) -> list[ast.FunctionDef | ast.AsyncFunctionDef]:
+    return [
+        node for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    ]
+
+
+def _summary_targets(tree: ast.Module) -> list[ast.FunctionDef | ast.AsyncFunctionDef]:
+    """Functions usable as call targets — route handlers are entry points, not
+    helpers, and are excluded so they never collide with same-named helpers."""
+    return [f for f in _collect_functions(tree) if not _has_route_decorator(f)]
+
+
+def _summaries_fixpoint(
+    functions: list[ast.FunctionDef | ast.AsyncFunctionDef],
+    seed: dict[str, _FuncSummary] | None = None,
+) -> dict[str, _FuncSummary]:
+    """Fixpoint over function summaries so helper chains (a→b→sink) resolve.
+
+    When two functions share a name but summarize to different shapes, the
+    name is dropped from the lookup table — an ambiguous cross-file target is
+    never assumed dangerous, keeping false positives rare.
+    """
+    summaries: dict[str, _FuncSummary] = dict(seed or {})
+    computed: dict[str, _FuncSummary] = {}
+    ambiguous: set[str] = set()
+    for _ in range(_MAX_FIXPOINT_ROUNDS):
+        changed = False
+        for func in functions:
+            summary = _summarize_function(func, summaries)
+            name = func.name
+            previous = computed.get(name)
+            if name in ambiguous:
+                continue
+            if previous is not None and previous.shape() != summary.shape():
+                # Same name, conflicting behavior across definitions → drop it.
+                ambiguous.add(name)
+                computed.pop(name, None)
+                summaries.pop(name, None)
+                changed = True
+                continue
+            if previous is None or previous.shape() != summary.shape():
+                changed = True
+            computed[name] = summary
+            summaries[name] = summary
+        if not changed:
+            break
+    return summaries
+
+
+def build_repo_summaries(sources: dict[str, str]) -> dict[str, _FuncSummary]:
+    """Cross-module summary registry: every function/method in the repo.
+
+    Keyed by bare function/method name (the same key call sites resolve
+    through), so a route handler in ``server.py`` that calls
+    ``store.read_note(path)`` picks up the summary of ``read_note`` defined in
+    ``obsidian.py``. This is what turns a within-file analysis into a
+    cross-file one for the common "thin route → manager/helper module" shape.
+    """
+    functions: list[ast.FunctionDef | ast.AsyncFunctionDef] = []
+    for filename, source in list(sources.items())[:MAX_REPO_SUMMARY_FILES]:
+        try:
+            tree = ast.parse(source, filename=filename)
+        except (SyntaxError, ValueError):
+            continue
+        functions.extend(_summary_targets(tree))
+    return _summaries_fixpoint(functions)
+
+
+def analyze_source(
+    source: str,
+    filename: str = "<unknown>",
+    repo_summaries: dict[str, _FuncSummary] | None = None,
+) -> list[dict[str, Any]]:
+    """Return taint findings (with 1-based ``line``) for one Python module.
+
+    ``repo_summaries`` (from :func:`build_repo_summaries`) enables cross-module
+    detection; without it the analysis is file-local but still interprocedural.
+    """
     try:
         tree = ast.parse(source, filename=filename)
     except (SyntaxError, ValueError):
         return []
+    summaries = _summaries_fixpoint(_summary_targets(tree), seed=repo_summaries)
     findings: list[dict[str, Any]] = []
     for node in ast.walk(tree):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            walker = _FunctionTaint(_route_handler_params(node))
+            walker = _FunctionTaint(_route_handler_params(node), summaries)
             for stmt in node.body:
                 walker.visit(stmt)
             findings.extend(walker.findings)
-    findings.sort(key=lambda f: f["line"])
-    return findings
+    # One finding per (line, rule): helper chains can rediscover the same flow.
+    seen: set[tuple[int, str]] = set()
+    unique = []
+    for finding in sorted(findings, key=lambda f: f["line"]):
+        key = (finding["line"], finding["rule"])
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(finding)
+    return unique
 
 
 def _to_issue(finding: dict[str, Any], file: str, source_line: str) -> dict[str, Any]:
@@ -494,8 +725,13 @@ def analyze_repo_changes(
         repo_path, mode=mode, refs=refs, what=what,
         against=against, use_merge_base=use_merge_base,
     )
-    issues: dict[str, list[dict[str, Any]]] = {}
-    for file, added_lines in added.items():
+
+    # Cross-module summaries: read every tracked .py file so a flow whose sink
+    # lives in a different module than the changed source is still resolved.
+    repo_summaries = _repo_summaries(repo_path)
+
+    changed_sources: dict[str, str] = {}
+    for file in added:
         source = static_analysis.git_show_blob(repo_path, target_ref, file) if target_ref else ""
         if not source:
             fs_path = repo_path / file
@@ -503,13 +739,38 @@ def analyze_repo_changes(
                 source = fs_path.read_text(encoding="utf-8", errors="ignore")
             except OSError:
                 continue
+        changed_sources[file] = source
+
+    issues: dict[str, list[dict[str, Any]]] = {}
+    for file, added_lines in added.items():
+        source = changed_sources.get(file)
+        if not source:
+            continue
         lines = source.splitlines()
-        for finding in analyze_source(source, file):
+        for finding in analyze_source(source, file, repo_summaries=repo_summaries):
             if finding["line"] not in added_lines:
                 continue
             text = lines[finding["line"] - 1] if finding["line"] <= len(lines) else ""
             issues.setdefault(file, []).append(_to_issue(finding, file, text))
     return issues
+
+
+def _repo_summaries(repo_path: Path) -> dict[str, _FuncSummary]:
+    """Build cross-module function summaries from every tracked .py file."""
+    sources: dict[str, str] = {}
+    try:
+        listing = static_analysis._git_stdout(repo_path, "ls-files", "*.py")
+    except Exception:
+        listing = ""
+    files = [line for line in listing.splitlines() if line] if listing else []
+    if not files:
+        files = [str(p.relative_to(repo_path)) for p in repo_path.rglob("*.py")]
+    for rel in files[:MAX_REPO_SUMMARY_FILES]:
+        try:
+            sources[rel] = (repo_path / rel).read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+    return build_repo_summaries(sources)
 
 
 def merge_into_report(report: dict[str, Any], taint_issues: dict[str, list[dict]]) -> int:

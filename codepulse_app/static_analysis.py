@@ -112,6 +112,18 @@ def _not_placeholder(group: int = 0) -> Callable[[re.Match, str], bool]:
     return check
 
 
+# Lines that are about credentials/session material — used to keep the
+# weak-crypto and weak-randomness rules precise (a checksum or a game roll is
+# not a finding; a password hash or session token is).
+_SECRET_CONTEXT_RE = re.compile(
+    r"(?i)password|passwd|secret|token|session|otp|api[_-]?key|auth|sign|nonce|salt|csrf"
+)
+
+
+def _secret_context(_match: re.Match, line: str) -> bool:
+    return bool(_SECRET_CONTEXT_RE.search(line))
+
+
 RULES: tuple[Rule, ...] = (
     # ── Secrets ──────────────────────────────────────────────────────────
     Rule(
@@ -413,6 +425,213 @@ RULES: tuple[Rule, ...] = (
         confidence=2,
         tags=("maintainability",),
         pattern=re.compile(r"\b(?:FIXME|HACK)\b[:\s]"),
+    ),
+    # ── Production reliability / security ────────────────────────────────
+    Rule(
+        id="http-call-no-timeout",
+        title="Outbound HTTP call without a timeout.",
+        details=(
+            "requests and urlopen block forever by default. One slow upstream then "
+            "pins a worker until the pool is exhausted and the whole service stalls "
+            "— a classic production outage. Pass an explicit timeout (and handle "
+            "the timeout error)."
+        ),
+        severity=3,
+        confidence=2,
+        tags=("bug", "reliability"),
+        pattern=re.compile(
+            r"\b(?:requests\.(?:get|post|put|patch|delete|head|request)|urlopen)"
+            r"\s*\((?![^)]*timeout)[^)]*\)"
+        ),
+        file_patterns=PY_FILES,
+    ),
+    Rule(
+        id="tls-verify-disabled",
+        title="TLS certificate verification disabled.",
+        details=(
+            "verify=False accepts any certificate, so the connection is open to "
+            "man-in-the-middle interception of credentials and data. Fix the trust "
+            "chain (internal CA bundle) instead of disabling verification."
+        ),
+        severity=2,
+        confidence=1,
+        tags=("security",),
+        pattern=re.compile(r"\bverify\s*=\s*False\b"),
+        file_patterns=PY_FILES,
+    ),
+    Rule(
+        id="js-tls-reject-unauthorized",
+        title="TLS certificate verification disabled.",
+        details=(
+            "rejectUnauthorized: false (or NODE_TLS_REJECT_UNAUTHORIZED=0) accepts "
+            "any certificate, exposing every request to interception. Fix the trust "
+            "chain instead of disabling verification."
+        ),
+        severity=2,
+        confidence=1,
+        tags=("security",),
+        pattern=re.compile(
+            r"rejectUnauthorized\s*:\s*false|NODE_TLS_REJECT_UNAUTHORIZED\s*=?\s*['\"]?0"
+        ),
+        file_patterns=JS_FILES,
+    ),
+    Rule(
+        id="weak-hash-for-credentials",
+        title="MD5/SHA-1 used for credential or signature material.",
+        details=(
+            "MD5 and SHA-1 are broken for security purposes; for passwords even fast "
+            "SHA-2 is wrong. Use bcrypt/scrypt/argon2 for passwords and SHA-256+ "
+            "(or HMAC) for signatures."
+        ),
+        severity=2,
+        confidence=2,
+        tags=("security",),
+        pattern=re.compile(r"\bhashlib\.(?:md5|sha1)\s*\("),
+        file_patterns=PY_FILES,
+        validator=_secret_context,
+    ),
+    Rule(
+        id="insecure-random-token",
+        title="Non-cryptographic randomness used for a secret value.",
+        details=(
+            "The random module is predictable (Mersenne Twister); tokens, session "
+            "ids, or OTPs generated from it can be reconstructed by an attacker. "
+            "Use the secrets module."
+        ),
+        severity=2,
+        confidence=2,
+        tags=("security",),
+        pattern=re.compile(
+            r"\brandom\.(?:random|randint|randrange|choice|choices|getrandbits|sample)\s*\("
+        ),
+        file_patterns=PY_FILES,
+        validator=_secret_context,
+    ),
+    Rule(
+        id="js-insecure-random-token",
+        title="Math.random used for a secret value.",
+        details=(
+            "Math.random is predictable; tokens or session ids built from it can be "
+            "guessed. Use crypto.randomUUID() or crypto.getRandomValues()."
+        ),
+        severity=2,
+        confidence=2,
+        tags=("security",),
+        pattern=re.compile(r"\bMath\.random\s*\("),
+        file_patterns=JS_FILES,
+        validator=_secret_context,
+    ),
+    Rule(
+        id="sql-built-string",
+        title="SQL statement built with f-string/concat instead of parameters.",
+        details=(
+            "Building SQL from formatted strings is the injection pattern even when "
+            "today's inputs look safe. Use parameterized queries: "
+            "execute(sql, params)."
+        ),
+        severity=2,
+        confidence=2,
+        tags=("security", "sql-injection"),
+        pattern=re.compile(
+            r"\.execute(?:many)?\s*\(\s*(?:f['\"]|['\"][^'\"]*['\"]\s*[%+]|.*\.format\s*\()"
+        ),
+        file_patterns=PY_FILES,
+    ),
+    Rule(
+        id="js-sql-template-literal",
+        title="SQL statement built with a template literal.",
+        details=(
+            "Interpolating values into a SQL template literal is the injection "
+            "pattern. Use parameterized queries (placeholders + values array)."
+        ),
+        severity=2,
+        confidence=2,
+        tags=("security", "sql-injection"),
+        pattern=re.compile(r"\.query\s*\(\s*`[^`]*\$\{"),
+        file_patterns=JS_FILES,
+    ),
+    Rule(
+        id="js-child-process-concat",
+        title="Shell command built from dynamic input.",
+        details=(
+            "exec/execSync with an interpolated or concatenated command string is "
+            "command injection when any part is user-controlled. Use execFile/spawn "
+            "with an argument array."
+        ),
+        severity=2,
+        confidence=2,
+        tags=("security", "command-injection"),
+        pattern=re.compile(r"\b(?:exec|execSync)\s*\(\s*(?:`[^`]*\$\{|[^,)]*['\"]\s*\+)"),
+        file_patterns=JS_FILES,
+    ),
+    Rule(
+        id="swallowed-exception",
+        title="Exception caught and silently discarded.",
+        details=(
+            "except …: pass hides real failures — data loss and outages surface "
+            "later with no trace. Log the exception, or narrow the catch to the one "
+            "error that is genuinely expected."
+        ),
+        severity=3,
+        confidence=1,
+        tags=("bug", "reliability"),
+        pattern=re.compile(r"^\s*except\b[^:]*:\s*pass\b"),
+        file_patterns=PY_FILES,
+    ),
+    Rule(
+        id="js-empty-catch",
+        title="Exception caught and silently discarded.",
+        details=(
+            "An empty catch block hides real failures — errors surface later with "
+            "no trace. Log the error, or narrow the try to the one operation that "
+            "may legitimately fail."
+        ),
+        severity=3,
+        confidence=1,
+        tags=("bug", "reliability"),
+        pattern=re.compile(r"\bcatch\s*(?:\([^)]*\))?\s*\{\s*\}"),
+        file_patterns=JS_FILES,
+    ),
+    Rule(
+        id="jwt-verification-disabled",
+        title="JWT accepted without signature verification.",
+        details=(
+            "Decoding a JWT with verification disabled means any client can forge "
+            "any identity. Always verify the signature and pin the algorithm."
+        ),
+        severity=1,
+        confidence=1,
+        tags=("security", "auth"),
+        pattern=re.compile(
+            r"jwt\.decode\s*\([^)]*(?:verify\s*=\s*False|verify_signature['\"]?\s*:\s*False)"
+        ),
+        file_patterns=PY_FILES,
+    ),
+    Rule(
+        id="tempfile-mktemp",
+        title="tempfile.mktemp is a race condition (TOCTOU).",
+        details=(
+            "mktemp returns a name without creating the file, so another process "
+            "can create it first (symlink attacks, data corruption). Use "
+            "NamedTemporaryFile or mkstemp."
+        ),
+        severity=3,
+        confidence=1,
+        tags=("security", "bug"),
+        pattern=re.compile(r"\btempfile\.mktemp\s*\("),
+        file_patterns=PY_FILES,
+    ),
+    Rule(
+        id="world-writable-chmod",
+        title="File made world-writable (mode 777/666).",
+        details=(
+            "World-writable files let any local process replace the content — a "
+            "privilege-escalation path. Grant the minimum mode the consumer needs."
+        ),
+        severity=3,
+        confidence=1,
+        tags=("security",),
+        pattern=re.compile(r"chmod\s*\([^)]*0o?[67]{3}\b|chmod\s+[67]{3}\b"),
     ),
 )
 

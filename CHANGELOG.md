@@ -131,6 +131,40 @@ the full set; no new tables this release).
   tests; frozen v4.3 data fixture proving legacy migration + idempotency.
 - `docs/OPERATIONS.md` runbook and `docs/SMOKE.md` browser checklist.
 
+### Added
+- **Interprocedural, cross-module taint analysis.** The dataflow engine
+  (`taint_analysis.py`) is no longer limited to a single function. Every
+  function and method in the repository is summarized (which parameters reach
+  a sink, whether the return value is untrusted, which parameters flow to the
+  return), a fixpoint resolves helper chains, and call sites apply those
+  summaries — so the common "thin route handler → manager/helper module"
+  shape is now analyzed end to end. A handler that passes a path parameter to
+  `store.read_note(path)`, where `read_note` in another file does
+  `open(self.vault / path)`, is now flagged at the call site
+  (`interprocedural` tag). Taint also propagates through `/` pathlib joins
+  (`base / user_input`), the dominant path-traversal pattern. Route handlers
+  are excluded as call targets and ambiguous helper names are never assumed
+  dangerous, keeping false positives rare (zero on this codebase). Validated
+  against a real Flask app: deterministic findings rose from 5 to 8, the three
+  new ones being genuine cross-module arbitrary file read/write vulnerabilities
+  the previous engine and a local LLM both missed.
+- **Production-reliability and deeper security static rules
+  (`static_analysis.py`).** New high-precision checks: outbound HTTP calls
+  without a timeout (worker-exhaustion outages), TLS verification disabled
+  (`verify=False` / `rejectUnauthorized:false`), MD5/SHA-1 and non-crypto
+  `random`/`Math.random` used for credentials or tokens (context-gated to
+  avoid flagging checksums or dice rolls), SQL built by f-string/concat/
+  template-literal, JS `exec`/`execSync` on interpolated commands, silently
+  swallowed exceptions (`except…: pass`, empty `catch{}`), JWT decoded without
+  signature verification, `tempfile.mktemp` races, and world-writable chmod.
+- **Deep production-review profile.** The LLM review persona
+  (`review_profile.toml`) is now a principal engineer doing a
+  production-readiness pass with an explicit trace-the-flow checklist
+  (authorization/tenancy, injection across function boundaries, data-loss and
+  atomicity, timeouts/retries/resource lifecycle, concurrency, performance
+  under load), replacing the previous "small teachable fixes only" cap that
+  held the model back on production code.
+
 ### Changed
 - **Deep rename: package and environment variables.** The Python package is
   now `codepulse_app` (`python -m codepulse_app`, console script `codepulse`),

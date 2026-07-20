@@ -134,10 +134,11 @@ cheap model can verify while a stronger one reviews.
 
 ## Taint / Dataflow Analysis
 
-Beyond line-oriented rules, Code Doctor runs an **AST dataflow pass**
+Beyond line-oriented rules, CodePulse runs an **AST dataflow pass**
 (`taint_analysis.py`) that tracks untrusted input from **sources** to
-dangerous **sinks** within a function — catching bugs where the taint and the
-sink sit on different lines, which regex rules and small LLMs both miss:
+dangerous **sinks** — catching bugs where the taint and the sink sit on
+different lines, or in different functions or modules, which regex rules and
+small LLMs both miss:
 
 - **Sources:** `request.*` (Flask/Django-style), route-handler path
   parameters, `input()`.
@@ -147,13 +148,23 @@ sink sit on different lines, which regex rules and small LLMs both miss:
   `cursor.execute` on a built string (SQL injection),
   `render_template_string` (SSTI), `redirect` (open redirect).
 - **Propagation** follows assignments, f-strings, `+`/`%` concatenation,
-  `.format()`, and wrapper calls (`Path(x)`, `x.strip()`, `os.path.join`);
-  `int()`/`float()` and reassignment to a constant clear taint.
+  `/` pathlib joins (`base / user_input`), `.format()`, and wrapper calls
+  (`Path(x)`, `x.strip()`, `os.path.join`); `int()`/`float()` and
+  reassignment to a constant clear taint.
+- **Interprocedural, including cross-module.** Every function/method in the
+  repository is summarized as (a) which parameters reach a sink, (b) whether
+  it returns untrusted data, and (c) which parameters flow to its return
+  value; a fixpoint resolves helper chains (`a → b → sink`). Call sites then
+  apply those summaries, so a thin route handler that calls
+  `store.read_note(path)` — where `read_note` in another module does
+  `open(self.vault / path)` — is flagged at the call site with an
+  `interprocedural` tag. Route handlers are excluded as summary targets (they
+  are entry points, not helpers), and an ambiguous helper name that
+  summarizes differently in two places is never assumed dangerous.
 
 It is intentionally conservative — a finding fires only when a tainted value
-provably reaches a sink, so false positives are rare. Analysis is
-intraprocedural: flows that pass through a helper in another module aren't
-followed. Findings carry the `taint`/`dataflow` tags and `/api/health` reports
+provably reaches a sink, so false positives are rare (zero on CodePulse's own
+source). Findings carry the `taint`/`dataflow` tags and `/api/health` reports
 the engine under `engines.taint`. Disable per run with `"taintAnalysis": false`.
 
 ## Reviewing Local (Non-Git) Projects
