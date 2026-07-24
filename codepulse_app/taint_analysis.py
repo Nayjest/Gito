@@ -241,6 +241,76 @@ SINKS: dict[str, SinkSpec] = {
         "parameterized queries instead.",
         ("security", "sql-injection"), 1, arg_indexes=(0,), require_built_string=True,
     ),
+    "subprocess.getoutput": SinkSpec(
+        "Untrusted input reaches a shell command.",
+        "subprocess.getoutput() runs its argument through the shell; "
+        "request-derived input here is command injection. Use run() with an "
+        "argument list and no shell.",
+        ("security", "command-injection"), 1, arg_indexes=(0,),
+    ),
+    "subprocess.getstatusoutput": SinkSpec(
+        "Untrusted input reaches a shell command.",
+        "subprocess.getstatusoutput() runs a shell; request-derived input is "
+        "command injection. Use run() with an argument list.",
+        ("security", "command-injection"), 1, arg_indexes=(0,),
+    ),
+    "yaml.load": SinkSpec(
+        "Untrusted input deserialized with yaml.load (RCE).",
+        "yaml.load() on request-derived input can instantiate arbitrary Python "
+        "objects (remote code execution). Use yaml.safe_load().",
+        ("security", "deserialization"), 1, arg_indexes=(0,),
+    ),
+    "marshal.loads": SinkSpec(
+        "Untrusted input deserialized with marshal.",
+        "marshal.loads() on request-derived bytes can corrupt the interpreter "
+        "and is not safe across a trust boundary. Use JSON or a validated schema.",
+        ("security", "deserialization"), 1, arg_indexes=(0,),
+    ),
+    "from_string": SinkSpec(
+        "Untrusted input compiled as a template (SSTI).",
+        "Jinja2 Environment.from_string() on request-derived input is "
+        "server-side template injection, which leads to RCE. Compile a fixed "
+        "template and pass user data as context.",
+        ("security", "template-injection"), 1, arg_indexes=(0,),
+    ),
+    "os.remove": SinkSpec(
+        "Untrusted input used as a file path (arbitrary delete).",
+        "os.remove() with a request-derived path lets an attacker delete "
+        "arbitrary files via traversal. Resolve against a fixed root and reject "
+        "paths that escape it.",
+        ("security", "path-traversal"), 1, arg_indexes=(0,),
+    ),
+    "os.unlink": SinkSpec(
+        "Untrusted input used as a file path (arbitrary delete).",
+        "os.unlink() with a request-derived path lets an attacker delete "
+        "arbitrary files. Resolve against a fixed root first.",
+        ("security", "path-traversal"), 1, arg_indexes=(0,),
+    ),
+    "os.rename": SinkSpec(
+        "Untrusted input used as a file path (arbitrary move).",
+        "os.rename() with a request-derived path lets an attacker move files "
+        "outside the intended directory. Resolve both paths against a fixed root.",
+        ("security", "path-traversal"), 1, arg_indexes=(0, 1),
+    ),
+    "shutil.rmtree": SinkSpec(
+        "Untrusted input used as a directory path (arbitrary delete).",
+        "shutil.rmtree() with a request-derived path can recursively delete "
+        "arbitrary directories. Resolve against a fixed root and reject escapes.",
+        ("security", "path-traversal"), 1, arg_indexes=(0,),
+    ),
+    "shutil.move": SinkSpec(
+        "Untrusted input used as a file path (arbitrary move).",
+        "shutil.move() with a request-derived path can move files outside the "
+        "intended directory. Resolve against a fixed root first.",
+        ("security", "path-traversal"), 1, arg_indexes=(0, 1),
+    ),
+    "unlink": SinkSpec(
+        "Untrusted input used as a file path (arbitrary delete).",
+        "A request-derived path is deleted via pathlib (Path.unlink); an "
+        "attacker can delete arbitrary files via traversal. Resolve against a "
+        "fixed root first.",
+        ("security", "path-traversal"), 1, arg_indexes=(), check_receiver=True,
+    ),
 }
 
 # Calls that pass their tainted argument through (taint propagates to result).
