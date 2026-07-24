@@ -46,6 +46,17 @@ CREATE TABLE IF NOT EXISTS kv (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS users (
+    username TEXT PRIMARY KEY,
+    record   TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS sessions (
+    token_hash TEXT PRIMARY KEY,
+    username   TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    record     TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions (username);
 """
 
 
@@ -198,6 +209,101 @@ def delete_repo_by_path(path: str) -> None:
         conn = _conn()
         conn.execute("DELETE FROM repos WHERE path = ?", (path,))
         conn.commit()
+
+
+# ── Users (identity) ─────────────────────────────────────────────────────────
+
+
+def list_users() -> list[dict[str, Any]]:
+    with _LOCK:
+        rows = _conn().execute("SELECT record FROM users ORDER BY username").fetchall()
+    users = []
+    for (record,) in rows:
+        try:
+            users.append(json.loads(record))
+        except json.JSONDecodeError:
+            continue
+    return users
+
+
+def get_user(username: str) -> dict[str, Any] | None:
+    with _LOCK:
+        row = _conn().execute(
+            "SELECT record FROM users WHERE username = ?", (username,)
+        ).fetchone()
+    if not row:
+        return None
+    try:
+        return json.loads(row[0])
+    except json.JSONDecodeError:
+        return None
+
+
+def save_user(record: dict[str, Any]) -> None:
+    username = str(record.get("username") or "")
+    with _LOCK:
+        conn = _conn()
+        conn.execute(
+            "INSERT OR REPLACE INTO users (username, record) VALUES (?, ?)",
+            (username, json.dumps(record, sort_keys=True)),
+        )
+        conn.commit()
+
+
+def delete_user(username: str) -> bool:
+    with _LOCK:
+        conn = _conn()
+        cursor = conn.execute("DELETE FROM users WHERE username = ?", (username,))
+        conn.execute("DELETE FROM sessions WHERE username = ?", (username,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+
+def user_count() -> int:
+    with _LOCK:
+        return int(_conn().execute("SELECT COUNT(*) FROM users").fetchone()[0])
+
+
+# ── Sessions (login tokens) ──────────────────────────────────────────────────
+
+
+def put_session(token_hash: str, username: str, expires_at: str, record: dict[str, Any]) -> None:
+    with _LOCK:
+        conn = _conn()
+        conn.execute(
+            "INSERT OR REPLACE INTO sessions (token_hash, username, expires_at, record) "
+            "VALUES (?, ?, ?, ?)",
+            (token_hash, username, expires_at, json.dumps(record, sort_keys=True)),
+        )
+        conn.commit()
+
+
+def get_session(token_hash: str) -> dict[str, Any] | None:
+    with _LOCK:
+        row = _conn().execute(
+            "SELECT record FROM sessions WHERE token_hash = ?", (token_hash,)
+        ).fetchone()
+    if not row:
+        return None
+    try:
+        return json.loads(row[0])
+    except json.JSONDecodeError:
+        return None
+
+
+def delete_session(token_hash: str) -> None:
+    with _LOCK:
+        conn = _conn()
+        conn.execute("DELETE FROM sessions WHERE token_hash = ?", (token_hash,))
+        conn.commit()
+
+
+def purge_expired_sessions(now_iso: str) -> int:
+    with _LOCK:
+        conn = _conn()
+        cursor = conn.execute("DELETE FROM sessions WHERE expires_at < ?", (now_iso,))
+        conn.commit()
+        return cursor.rowcount
 
 
 # ── Legacy migration ─────────────────────────────────────────────────────────

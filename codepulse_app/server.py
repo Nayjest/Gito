@@ -13,6 +13,7 @@ import os
 import re
 import shutil
 import signal
+import ssl
 import subprocess
 import sys
 import threading
@@ -28,6 +29,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 from urllib.request import Request, urlopen
 
 from . import (
+    auth,
     context_engine,
     dependency_scan,
     jobqueue,
@@ -51,6 +53,14 @@ LARGE_REVIEW_FILE_HINT = 20           # warn a whole-repo review this big may ti
 GENERATION_TIMEOUT_DEFAULT = 1200     # hard cap on a test/PR generation subprocess
 VERIFY_TIMEOUT_DEFAULT = 900          # hard cap on the finding-verification subprocess
 GENERATION_KINDS = {"tests", "pr"}
+SESSION_COOKIE  = "cp_session"        # login session cookie name
+_ADMIN_POST_PATHS = {
+    "/api/policies",
+    "/api/repos",
+    "/api/sample/seed",
+    "/api/demo/seed",
+    "/api/users",
+}
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -261,14 +271,32 @@ def clear_auth_failures(client_ip: str) -> None:
 
 
 def bind_warning(host: str) -> str:
-    """QW-2: a non-loopback bind without a token exposes every endpoint."""
-    if host in {"127.0.0.1", "localhost", "::1"} or brand_env("TOKEN"):
+    """QW-2: a non-loopback bind with no authentication exposes every endpoint."""
+    if host in {"127.0.0.1", "localhost", "::1"} or auth_required():
         return ""
     return (
-        f"WARNING: CodePulse is binding to {host} without CODEPULSE_TOKEN set. "
+        f"WARNING: CodePulse is binding to {host} without authentication. "
         "Anyone who can reach this address can read reviews and start runs. "
-        "Set CODEPULSE_TOKEN or bind to 127.0.0.1."
+        "Set CODEPULSE_TOKEN, register a user, or bind to 127.0.0.1."
     )
+
+
+def tls_enabled() -> bool:
+    """True when both a TLS cert and key are configured (CODEPULSE_TLS_CERT/KEY)."""
+    return bool(brand_env("TLS_CERT") and brand_env("TLS_KEY"))
+
+
+def _ssl_context() -> ssl.SSLContext | None:
+    """Build a server TLS context from CODEPULSE_TLS_CERT / CODEPULSE_TLS_KEY,
+    or None when TLS is not configured. Raises on a bad cert/key so startup
+    fails loudly rather than silently serving plaintext."""
+    cert, key = brand_env("TLS_CERT"), brand_env("TLS_KEY")
+    if not (cert and key):
+        return None
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
+    context.load_cert_chain(certfile=cert, keyfile=key)
+    return context
 
 # ── ETag cache (path → etag string) ────────────────────────────────────────
 _ETAG_CACHE: dict[str, str] = {}
@@ -409,7 +437,8 @@ def load_policies() -> dict[str, Any]:
     policies = merge_dicts(copy.deepcopy(DEFAULT_POLICIES), stored or {})
     for guardrail in policies.get("guardrails", []):
         if guardrail.get("id") == "token-auth":
-            guardrail["enabled"] = bool(brand_env("TOKEN"))
+            guardrail["enabled"] = auth_required()
+            guardrail["evidence"] = _auth_mode_label()
     return policies
 
 
@@ -2402,7 +2431,7 @@ def overview() -> dict[str, Any]:
         {"label": "Policy gates", "ready": bool(policies.get("risk")), "detail": "Severity and risk score thresholds"},
         {"label": "Audit evidence", "ready": store.audit_count() > 0, "detail": "SQLite store + JSONL mirror"},
         {"label": "Repository onboarding", "ready": bool(repos), "detail": f"{len(repos)} registered"},
-        {"label": "Access control", "ready": bool(brand_env("TOKEN")), "detail": "CODEPULSE_TOKEN"},
+        {"label": "Access control", "ready": auth_required(), "detail": _auth_mode_label()},
         {"label": "Evidence exports", "ready": True, "detail": "JSON, Markdown, CSV"},
         {"label": "Test & PR generation", "ready": True, "detail": "LLM unit tests and PR drafts"},
         {"label": "Cross-file impact analysis", "ready": True, "detail": "Import graph + API-contract checks"},
@@ -3002,8 +3031,51 @@ def system_health(
             "ollamaBase": DEFAULT_OLLAMA_BASE,
             "filters": DEFAULT_FILTERS,
         },
-        "authRequired": bool(brand_env("TOKEN")),
+        "authRequired": auth_required(),
     }
+
+
+def auth_required() -> bool:
+    """True when anonymous access is closed — a static token is set or at least
+    one user is registered."""
+    return bool(brand_env("TOKEN")) or auth.users_configured()
+
+
+def list_users_api() -> dict[str, Any]:
+    return {"users": auth.list_users()}
+
+
+def create_user_api(payload: dict[str, Any]) -> dict[str, Any]:
+    user = auth.create_user(
+        str(payload.get("username") or ""),
+        str(payload.get("password") or ""),
+        str(payload.get("role") or auth.DEFAULT_ROLE),
+    )
+    audit_event("user_created", username=user["username"], role=user["role"])
+    return {"user": user}
+
+
+def update_user_api(username: str, payload: dict[str, Any]) -> dict[str, Any]:
+    result: dict[str, Any] | None = None
+    if "role" in payload:
+        result = auth.set_role(username, str(payload.get("role") or ""))
+        audit_event("user_role_changed", username=username, role=payload.get("role"))
+    if payload.get("password"):
+        result = auth.set_password(username, str(payload.get("password")))
+        audit_event("user_password_changed", username=username)
+    if "disabled" in payload:
+        result = auth.set_disabled(username, bool(payload.get("disabled")))
+        audit_event("user_disabled" if payload.get("disabled") else "user_enabled", username=username)
+    if result is None:
+        raise ValueError("no changes requested (role, password, or disabled)")
+    return {"user": result}
+
+
+def delete_user_api(username: str) -> dict[str, Any]:
+    if not auth.delete_user(username):
+        raise FileNotFoundError(f"no such user {username!r}")
+    audit_event("user_deleted", username=username)
+    return {"ok": True}
 
 
 class CodeDoctorHandler(BaseHTTPRequestHandler):
@@ -3027,10 +3099,19 @@ class CodeDoctorHandler(BaseHTTPRequestHandler):
         path = parsed.path
         query = parse_qs(parsed.query)
         try:
-            if path.startswith("/api/") and path != "/api/health" and not self.require_auth():
+            if path == "/api/me":
+                self.handle_me()
+                return
+            if (
+                path.startswith("/api/")
+                and path not in ("/api/health", "/api/me")
+                and not self.require_auth("admin" if path == "/api/users" else "viewer")
+            ):
                 return
             if path == "/api/health":
                 self.send_json(system_health(query, include_ollama_check=self.authorized()))
+            elif path == "/api/users":
+                self.send_json(list_users_api())
             elif path == "/api/overview":
                 self.send_json(overview())
             elif path == "/api/trends":
@@ -3068,9 +3149,22 @@ class CodeDoctorHandler(BaseHTTPRequestHandler):
                 # token (GitHub/GitLab cannot send our Authorization header).
                 self.handle_webhook(path)
                 return
-            if path.startswith("/api/") and not self.require_auth():
+            if path == "/api/login":
+                self.handle_login()
                 return
-            if path == "/api/reviews":
+            if path == "/api/logout":
+                if not self.require_auth("viewer"):
+                    return
+                self.handle_logout()
+                return
+            if path.startswith("/api/") and not self.require_auth(self._post_min_role(path)):
+                return
+            if path == "/api/users":
+                self.send_json(create_user_api(self.read_json_body()), HTTPStatus.CREATED)
+            elif path.startswith("/api/users/"):
+                username = unquote(path.split("/", 3)[3])
+                self.send_json(update_user_api(username, self.read_json_body()))
+            elif path == "/api/reviews":
                 payload = self.read_json_body()
                 self.send_json(start_review(payload), HTTPStatus.CREATED)
             elif path == "/api/generate":
@@ -3122,12 +3216,15 @@ class CodeDoctorHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
         try:
-            if path.startswith("/api/") and not self.require_auth():
+            if path.startswith("/api/") and not self.require_auth("admin"):
                 return
             if path.startswith("/api/repos/"):
                 repo_id = unquote(path.split("/")[3])
                 delete_repo(repo_id)
                 self.send_json({"ok": True})
+            elif path.startswith("/api/users/"):
+                username = unquote(path.split("/", 3)[3])
+                self.send_json(delete_user_api(username))
             else:
                 self.send_error_json(HTTPStatus.NOT_FOUND, "Not found.")
         except FileNotFoundError:
@@ -3173,15 +3270,64 @@ class CodeDoctorHandler(BaseHTTPRequestHandler):
         )
         self.send_json(handle_webhook_event(platform, event_name, payload), HTTPStatus.ACCEPTED)
 
-    def authorized(self) -> bool:
-        expected = brand_env("TOKEN")
-        if not expected:
-            return True
-        presented = self.headers.get("Authorization") or ""
-        return hmac.compare_digest(presented, f"Bearer {expected}")
+    def _bearer_token(self) -> str:
+        header = self.headers.get("Authorization") or ""
+        if header.startswith("Bearer "):
+            return header[len("Bearer "):]
+        return ""
 
-    def require_auth(self) -> bool:
-        """Auth gate with per-IP 401 throttling (QW-3). Sends the error itself."""
+    def _cookie_token(self) -> str:
+        raw = self.headers.get("Cookie") or ""
+        for part in raw.split(";"):
+            name, _, value = part.strip().partition("=")
+            if name == SESSION_COOKIE:
+                return unquote(value)
+        return ""
+
+    def current_principal(self) -> dict[str, Any] | None:
+        """Resolve who is calling, honouring three modes (see auth.py):
+
+        session token (bearer or cookie) → that user's role; static
+        ``CODEPULSE_TOKEN`` → admin service account; open mode (no token, no
+        users) → admin. Cached per request. Returns None when unauthenticated.
+        """
+        if getattr(self, "_principal_resolved", False):
+            return self._principal_cache
+        self._principal_resolved = True
+        self._principal_cache = None
+
+        presented = self._bearer_token() or self._cookie_token()
+        # A real login session wins first (works via bearer or cookie).
+        if presented:
+            session = auth.resolve_session(presented)
+            if session is not None:
+                self._principal_cache = {
+                    "username": session.get("username"),
+                    "role": session.get("role", "viewer"),
+                    "via": "session",
+                }
+                return self._principal_cache
+
+        # Static service token (CI, webhooks, scripts) → admin.
+        expected = brand_env("TOKEN")
+        if expected and hmac.compare_digest(self._bearer_token(), expected):
+            self._principal_cache = {"username": "token", "role": "admin", "via": "token"}
+            return self._principal_cache
+
+        # Open mode: no users registered and no static token → local admin.
+        if not expected and not auth.users_configured():
+            self._principal_cache = {"username": "local", "role": "admin", "via": "open"}
+            return self._principal_cache
+
+        return None
+
+    def authorized(self) -> bool:
+        return self.current_principal() is not None
+
+    def require_auth(self, minimum: str = "viewer") -> bool:
+        """Auth + RBAC gate with per-IP 401 throttling (QW-3). Sends its own
+        error. ``minimum`` is the least-privileged role allowed (viewer <
+        reviewer < admin)."""
         client_ip = self.client_address[0] if self.client_address else ""
         if auth_throttled(client_ip):
             self.send_error_json(
@@ -3189,13 +3335,91 @@ class CodeDoctorHandler(BaseHTTPRequestHandler):
                 "Too many failed authorization attempts. Try again in a minute.",
             )
             return False
-        if self.authorized():
-            clear_auth_failures(client_ip)
-            return True
-        if record_auth_failure(client_ip):
-            audit_event("auth_throttled", client=client_ip)
-        self.send_error_json(HTTPStatus.UNAUTHORIZED, "Authorization required.")
-        return False
+        principal = self.current_principal()
+        if principal is None:
+            if record_auth_failure(client_ip):
+                audit_event("auth_throttled", client=client_ip)
+            self.send_error_json(HTTPStatus.UNAUTHORIZED, "Authorization required.")
+            return False
+        clear_auth_failures(client_ip)
+        if not auth.role_at_least(str(principal.get("role", "viewer")), minimum):
+            self.send_error_json(
+                HTTPStatus.FORBIDDEN,
+                f"This action requires the {minimum!r} role or higher.",
+            )
+            return False
+        return True
+
+    @staticmethod
+    def _post_min_role(path: str) -> str:
+        """Least role allowed to POST to ``path``. Admin work (config, repos,
+        seed, user management) needs admin; other writes need reviewer;
+        read-shaped previews are open to viewers."""
+        if path in _ADMIN_POST_PATHS or path.startswith("/api/users/"):
+            return "admin"
+        if path == "/api/preflight":
+            return "viewer"
+        return "reviewer"
+
+    def _session_cookie(self, token: str) -> str:
+        max_age = int(auth._session_ttl().total_seconds())  # noqa: SLF001 — same package
+        parts = [
+            f"{SESSION_COOKIE}={token}",
+            "Path=/",
+            "HttpOnly",
+            "SameSite=Strict",
+            f"Max-Age={max_age}",
+        ]
+        if tls_enabled():
+            parts.append("Secure")
+        return "; ".join(parts)
+
+    def handle_login(self) -> None:
+        client_ip = self.client_address[0] if self.client_address else ""
+        if auth_throttled(client_ip):
+            self.send_error_json(
+                HTTPStatus.TOO_MANY_REQUESTS,
+                "Too many failed login attempts. Try again in a minute.",
+            )
+            return
+        payload = self.read_json_body()
+        username = str(payload.get("username") or "")
+        password = str(payload.get("password") or "")
+        user = auth.authenticate(username, password)
+        if user is None:
+            if record_auth_failure(client_ip):
+                audit_event("auth_throttled", client=client_ip)
+            audit_event("login_failed", username=username, client=client_ip)
+            self.send_error_json(HTTPStatus.UNAUTHORIZED, "Invalid username or password.")
+            return
+        clear_auth_failures(client_ip)
+        token, session = auth.issue_session(user["username"], str(user["role"]), client_ip)
+        audit_event("login", username=user["username"], role=user["role"], client=client_ip)
+        self.send_json(
+            {"user": user, "token": token, "expiresAt": session["expires_at"]},
+            extra_headers=[("Set-Cookie", self._session_cookie(token))],
+        )
+
+    def handle_logout(self) -> None:
+        token = self._bearer_token() or self._cookie_token()
+        auth.revoke_session(token)
+        expired = f"{SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0"
+        self.send_json({"ok": True}, extra_headers=[("Set-Cookie", expired)])
+
+    def handle_me(self) -> None:
+        principal = self.current_principal()
+        if principal is None:
+            self.send_json({"authenticated": False, "authRequired": auth_required()})
+            return
+        self.send_json(
+            {
+                "authenticated": True,
+                "username": principal.get("username"),
+                "role": principal.get("role"),
+                "via": principal.get("via"),
+                "authRequired": auth_required(),
+            }
+        )
 
     def handle_review_get(self, path: str) -> None:
         parts = [unquote(part) for part in path.split("/") if part]
@@ -3340,7 +3564,12 @@ class CodeDoctorHandler(BaseHTTPRequestHandler):
         if not self._head_only:
             self.wfile.write(body)
 
-    def send_json(self, data: Any, status: HTTPStatus = HTTPStatus.OK) -> None:
+    def send_json(
+        self,
+        data: Any,
+        status: HTTPStatus = HTTPStatus.OK,
+        extra_headers: list[tuple[str, str]] | None = None,
+    ) -> None:
         raw  = json.dumps(data, separators=(",", ":")).encode("utf-8")
         accept_enc = self.headers.get("Accept-Encoding", "")
         body, enc  = maybe_gzip(raw, accept_enc)
@@ -3350,6 +3579,8 @@ class CodeDoctorHandler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         if enc != "identity":
             self.send_header("Content-Encoding", enc)
+        for name, value in (extra_headers or []):
+            self.send_header(name, value)
         self.end_headers()
         if not self._head_only:
             self.wfile.write(body)
@@ -3379,10 +3610,23 @@ class CodeDoctorHandler(BaseHTTPRequestHandler):
         super().end_headers()
 
 
+def _auth_mode_label() -> str:
+    if auth.users_configured():
+        extra = " + service token" if brand_env("TOKEN") else ""
+        return f"users ({store.user_count()} registered){extra}"
+    if brand_env("TOKEN"):
+        return "service token (CODEPULSE_TOKEN set)"
+    return "open (no token, no users — local admin)"
+
+
 def serve(host: str, port: int) -> None:
     RUNS_DIR.mkdir(parents=True, exist_ok=True)
     if store.migrate_legacy(AUDIT_LOG, SUPPRESSIONS_FILE, REPOS_FILE):
         sys.stderr.write("CodePulse: migrated legacy JSON store into SQLite.\n")
+    bootstrapped = auth.ensure_bootstrap_admin()
+    if bootstrapped:
+        sys.stderr.write(f"CodePulse: created bootstrap admin {bootstrapped!r} from environment.\n")
+    auth.purge_expired()
     warning = bind_warning(host)
     if warning:
         sys.stderr.write(warning + "\n")
@@ -3391,11 +3635,17 @@ def serve(host: str, port: int) -> None:
     httpd = ThreadingHTTPServer((host, port), CodeDoctorHandler)
     httpd.daemon_threads = True   # threads exit when main thread exits
 
-    url = f"http://{host}:{port}"
+    tls = _ssl_context()
+    if tls is not None:
+        httpd.socket = tls.wrap_socket(httpd.socket, server_side=True)
+    scheme = "https" if tls is not None else "http"
+
+    url = f"{scheme}://{host}:{port}"
     print(
         f"\n  CodePulse v{APP_VERSION}  →  {url}\n"
         f"  Data directory : {DATA_DIR}\n"
-        f"  Auth           : {'TOKEN (CODEPULSE_TOKEN set)' if brand_env("TOKEN") else 'open (no token)'}\n",
+        f"  Transport      : {'TLS (CODEPULSE_TLS_CERT/KEY)' if tls is not None else 'plain HTTP'}\n"
+        f"  Auth           : {_auth_mode_label()}\n",
         flush=True,
     )
 
@@ -3422,9 +3672,77 @@ def serve(host: str, port: int) -> None:
         sys.stderr.write("CodePulse: stopped.\n")
 
 
+def _run_user_command(args: argparse.Namespace) -> int:
+    import getpass
+
+    def _prompt_password() -> str:
+        pw = getattr(args, "password", None)
+        if pw:
+            return pw
+        pw = getpass.getpass("Password: ")
+        if pw != getpass.getpass("Confirm password: "):
+            sys.stderr.write("Passwords do not match.\n")
+            raise SystemExit(2)
+        return pw
+
+    try:
+        if args.user_command == "add":
+            user = auth.create_user(args.username, _prompt_password(), args.role)
+            print(f"Created {user['role']} {user['username']!r}.")
+        elif args.user_command == "list":
+            users = auth.list_users()
+            if not users:
+                print("No users registered (open mode).")
+            for user in users:
+                flag = " [disabled]" if user["disabled"] else ""
+                print(f"  {user['username']:<20} {user['role']:<10}{flag}")
+        elif args.user_command == "passwd":
+            auth.set_password(args.username, _prompt_password())
+            print(f"Updated password for {args.username!r}.")
+        elif args.user_command == "role":
+            auth.set_role(args.username, args.role)
+            print(f"{args.username!r} is now {args.role}.")
+        elif args.user_command == "disable":
+            auth.set_disabled(args.username, True)
+            print(f"Disabled {args.username!r}.")
+        elif args.user_command == "enable":
+            auth.set_disabled(args.username, False)
+            print(f"Enabled {args.username!r}.")
+        elif args.user_command == "delete":
+            print(f"Deleted {args.username!r}." if auth.delete_user(args.username)
+                  else f"No such user {args.username!r}.")
+        else:
+            sys.stderr.write("Unknown user command. Try: add, list, passwd, role, disable, enable, delete.\n")
+            return 2
+    except auth.AuthError as exc:
+        sys.stderr.write(f"error: {exc}\n")
+        return 1
+    return 0
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run the local CodePulse web app.")
     parser.add_argument("--host", default="127.0.0.1", help="Bind address (default 127.0.0.1)")
     parser.add_argument("--port", type=int, default=8787, help="TCP port (default 8787)")
+    sub = parser.add_subparsers(dest="command")
+
+    user_p = sub.add_parser("user", help="Manage login accounts (RBAC).")
+    user_sub = user_p.add_subparsers(dest="user_command")
+    for name in ("add", "passwd"):
+        p = user_sub.add_parser(name)
+        p.add_argument("username")
+        p.add_argument("--password", help="Password (omit to be prompted securely).")
+        if name == "add":
+            p.add_argument("--role", choices=auth.ROLES, default=auth.DEFAULT_ROLE)
+    role_p = user_sub.add_parser("role")
+    role_p.add_argument("username")
+    role_p.add_argument("role", choices=auth.ROLES)
+    for name in ("disable", "enable", "delete"):
+        p = user_sub.add_parser(name)
+        p.add_argument("username")
+    user_sub.add_parser("list")
+
     args = parser.parse_args()
+    if args.command == "user":
+        raise SystemExit(_run_user_command(args))
     serve(args.host, args.port)

@@ -4,6 +4,36 @@ Code Doctor releases. Format follows [Keep a Changelog](https://keepachangelog.c
 item numbers reference [NEXT_RELEASE_PLAN.md](NEXT_RELEASE_PLAN.md).
 The Gito review engine underneath keeps its own upstream versioning.
 
+## [Unreleased] — 5.1 security hardening
+
+Store schema: two additive tables (`users`, `sessions`); existing tables and
+`issue_fingerprint()` are unchanged. Fully backward-compatible — an install
+with no registered users and no `CODEPULSE_TOKEN` behaves exactly as before
+(local admin, "open mode").
+
+### Added
+- **Multi-user identity + RBAC (`auth.py`).** Real login accounts with roles
+  `viewer` < `reviewer` < `admin`. Passwords are hashed with `hashlib.scrypt`
+  (stdlib — no new dependency); login issues a session whose token is stored
+  only as a SHA-256 digest. Three modes, chosen automatically: **open** (no
+  users, no token → local admin, unchanged), **service token**
+  (`CODEPULSE_TOKEN` → admin, unchanged for CI/webhooks/scripts), and
+  **multi-user** (once any user exists, anonymous access closes and callers log
+  in). Role floors: reads need `viewer`, starting reviews/fixes needs
+  `reviewer`, and config/repos/seed/user-management need `admin`.
+- **Auth endpoints.** `POST /api/login`, `POST /api/logout`, `GET /api/me`,
+  and admin-only `GET/POST /api/users`, `POST/DELETE /api/users/<name>`. The
+  login session is also set as a hardened cookie (`HttpOnly`, `SameSite=Strict`,
+  `Secure` under TLS). The SPA gains a login gate, a user badge with role, and
+  logout; the manual token field is now reserved for service accounts.
+- **User CLI.** `codepulse user add|list|passwd|role|disable|enable|delete`
+  (passwords prompted securely). Bootstrap an admin non-interactively with
+  `CODEPULSE_ADMIN_USER` / `CODEPULSE_ADMIN_PASSWORD`.
+- **Optional TLS.** Set `CODEPULSE_TLS_CERT` / `CODEPULSE_TLS_KEY` to serve
+  HTTPS directly (stdlib `ssl`, TLS 1.2+); startup fails loudly on a bad
+  cert/key rather than silently serving plaintext. The non-loopback bind
+  warning now clears when any authentication is configured, not just a token.
+
 ## [5.0.0] — 2026-07-16
 
 Store schema: `kv.schema_version` unchanged (tables introduced in 4.3 remain

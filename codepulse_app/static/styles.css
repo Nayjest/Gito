@@ -422,6 +422,104 @@ img { display: block; max-width: 100%; }
   box-shadow: 0 0 0 3px rgba(56,139,253,0.15);
 }
 
+/* ── User badge (topbar) ──────────────────────────────────────────────────── */
+.user-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 6px 3px 3px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+}
+.user-badge.hidden { display: none; }
+.user-badge-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, var(--blue), var(--violet));
+}
+.user-badge-meta { display: flex; flex-direction: column; line-height: 1.15; }
+.user-badge-name { font-size: 12px; font-weight: 600; color: var(--text); }
+.user-badge-role {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+.user-badge[data-role="admin"] .user-badge-role { color: var(--violet); }
+.user-badge[data-role="reviewer"] .user-badge-role { color: var(--blue); }
+
+/* ── Login modal ──────────────────────────────────────────────────────────── */
+.login-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  background: rgba(1, 4, 9, 0.72);
+  backdrop-filter: blur(4px);
+}
+.login-modal.hidden { display: none; }
+.login-card {
+  width: min(360px, calc(100vw - 40px));
+  padding: 30px 28px 24px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+}
+.login-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--text);
+}
+.login-subtitle { margin: 6px 0 20px; color: var(--text-muted); font-size: 13px; }
+.login-form { display: flex; flex-direction: column; }
+.login-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: 5px;
+}
+.login-input {
+  height: 38px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  color: var(--text);
+  padding: 0 12px;
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+.login-input:focus {
+  outline: none;
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(56, 139, 253, 0.15);
+}
+.login-error {
+  color: var(--red);
+  font-size: 12.5px;
+  margin: -6px 0 14px;
+}
+.login-error.hidden { display: none; }
+.login-submit { width: 100%; height: 40px; justify-content: center; }
+.login-hint {
+  margin: 16px 0 0;
+  font-size: 11.5px;
+  color: var(--text-subtle);
+  text-align: center;
+}
+
 /* ── Info / auth banner ───────────────────────────────────────────────────── */
 .info-banner {
   display: flex;

@@ -5,6 +5,7 @@
 // ── App state ────────────────────────────────────────────────────────────────
 const state = {
   authRequired: false,
+  user: null,
   token: localStorage.getItem("codeDoctorToken") || "",
   theme: localStorage.getItem("codeDoctorTheme") || "dark",
   health: null,
@@ -87,10 +88,103 @@ async function api(path, options = {}) {
 }
 
 function showAuthRequired() {
+  // Multi-user workspaces get a real login modal; token-only workspaces get the
+  // legacy token banner (service accounts still paste a bearer token).
+  if (state.authRequired && !state.user) {
+    showLoginModal();
+    return;
+  }
   const banner = $("#authBanner");
   banner.classList.remove("hidden");
   $("#authBannerText").textContent = "API access is protected. Enter the workspace token.";
   $("#tokenSection").classList.add("visible");
+}
+
+// ── Identity / sessions ───────────────────────────────────────────────────────
+function showLoginModal() {
+  $("#loginModal").classList.remove("hidden");
+  $("#loginError").classList.add("hidden");
+  const user = $("#loginUser");
+  if (user) user.focus();
+}
+
+function hideLoginModal() {
+  $("#loginModal").classList.add("hidden");
+}
+
+function renderUserBadge() {
+  const badge = $("#userBadge");
+  if (!badge) return;
+  if (state.user) {
+    badge.classList.remove("hidden");
+    $("#userBadgeName").textContent = state.user.username;
+    $("#userBadgeRole").textContent = state.user.role;
+    $("#userBadgeAvatar").textContent = (state.user.username[0] || "·").toUpperCase();
+    $("#userBadge").dataset.role = state.user.role;
+    // A logged-in user does not need the manual token field.
+    $("#tokenSection").classList.remove("visible");
+  } else {
+    badge.classList.add("hidden");
+  }
+}
+
+async function checkSession() {
+  try {
+    const me = await fetch("/api/me", { headers: authHeaders() }).then((r) => r.json());
+    state.authRequired = !!me.authRequired;
+    state.user = me.authenticated
+      ? { username: me.username, role: me.role, via: me.via }
+      : null;
+  } catch (_) {
+    state.user = null;
+  }
+  renderUserBadge();
+  return state.user;
+}
+
+function authHeaders() {
+  return state.token ? { Authorization: `Bearer ${state.token}` } : {};
+}
+
+async function doLogin(evt) {
+  if (evt) evt.preventDefault();
+  const username = $("#loginUser").value.trim();
+  const password = $("#loginPass").value;
+  const errEl = $("#loginError");
+  errEl.classList.add("hidden");
+  try {
+    const res = await fetch("/api/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    });
+    const payload = await res.json();
+    if (!res.ok) throw new Error(payload?.error || "Sign in failed");
+    // Cookie is set by the server; we also keep the bearer token for parity.
+    state.token = payload.token || "";
+    localStorage.setItem("codeDoctorToken", state.token);
+    state.user = payload.user;
+    state.authRequired = true;
+    $("#loginPass").value = "";
+    hideLoginModal();
+    renderUserBadge();
+    await refreshEverything();
+    startPolling();
+  } catch (err) {
+    errEl.textContent = err.message;
+    errEl.classList.remove("hidden");
+  }
+}
+
+async function doLogout() {
+  try {
+    await fetch("/api/logout", { method: "POST", headers: authHeaders() });
+  } catch (_) { /* best effort */ }
+  state.token = "";
+  localStorage.removeItem("codeDoctorToken");
+  state.user = null;
+  renderUserBadge();
+  if (state.authRequired) showLoginModal();
 }
 
 // ── Utility ──────────────────────────────────────────────────────────────────
@@ -201,9 +295,9 @@ function renderHealth() {
 
   document.body.classList.toggle("auth-required", h.authRequired);
   state.authRequired = h.authRequired;
-  if (h.authRequired) {
-    $("#tokenSection").classList.add("visible");
-  }
+  // The manual token field is only for service accounts; a logged-in user
+  // authenticates via their session, so hide it once someone is signed in.
+  $("#tokenSection").classList.toggle("visible", h.authRequired && !state.user);
 
   // Ollama
   const ollamaOk = h.ollama?.ok;
@@ -220,7 +314,10 @@ function renderHealth() {
   setText("#gitStatus", gitOk ? (h.git.version?.replace("git version ", "") || "OK") : "Missing");
 
   // Auth
-  setText("#authStatus", h.authRequired ? "Token" : "Local");
+  const authLabel = state.user
+    ? `${state.user.role}`
+    : h.authRequired ? "Token" : "Local";
+  setText("#authStatus", authLabel);
   $("#authStatusDot").dataset.state = "ok";
 
   // Model suggestions
@@ -1430,6 +1527,10 @@ function wireEvents() {
   // Close banner
   $("#closeBanner").addEventListener("click", () => $("#authBanner").classList.add("hidden"));
 
+  // Login / logout
+  $("#loginForm").addEventListener("submit", doLogin);
+  $("#logoutBtn").addEventListener("click", doLogout);
+
   // Review form
   $("#runPreflight").addEventListener("click", runPreflight);
   $$('input[name="mode"]').forEach((input) => input.addEventListener("change", updateScopeControls));
@@ -1610,11 +1711,23 @@ async function poll() {
 async function boot() {
   applyTheme();
   wireEvents();
+  await checkSession();
+  if (state.authRequired && !state.user) {
+    showLoginModal();
+    return;  // hold everything behind the login gate until the user signs in
+  }
   try {
     await refreshEverything();
   } catch (_) {
     // Initial load failure — probably first run; silently continue
   }
+  startPolling();
+}
+
+let _pollStarted = false;
+function startPolling() {
+  if (_pollStarted) return;
+  _pollStarted = true;
   setInterval(poll, 5000);
 }
 

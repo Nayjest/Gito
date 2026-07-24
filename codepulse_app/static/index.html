@@ -110,6 +110,16 @@
             <span class="topbar-sub" id="workspaceLabel">No repository selected</span>
           </div>
           <div class="topbar-right">
+            <div id="userBadge" class="user-badge hidden">
+              <span class="user-badge-avatar" id="userBadgeAvatar">·</span>
+              <span class="user-badge-meta">
+                <span class="user-badge-name" id="userBadgeName">—</span>
+                <span class="user-badge-role" id="userBadgeRole">—</span>
+              </span>
+              <button id="logoutBtn" class="icon-btn" type="button" title="Log out" aria-label="Log out">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+              </button>
+            </div>
             <button id="themeToggle" class="icon-btn theme-toggle" type="button" title="Toggle light/dark theme" aria-label="Toggle light/dark theme">
               <svg class="theme-icon theme-icon--moon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
               <svg class="theme-icon theme-icon--sun" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
@@ -602,6 +612,27 @@
       </div>
     </div>
 
+    <div id="loginModal" class="login-modal hidden">
+      <div class="login-card">
+        <div class="login-brand">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="url(#loginGrad)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <defs><linearGradient id="loginGrad" x1="0" y1="0" x2="24" y2="24"><stop offset="0" stop-color="#3b82f6"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient></defs>
+            <path d="M2 12h4l2-7 4 14 2-7h6"/>
+          </svg>
+          <span>CodePulse</span>
+        </div>
+        <p class="login-subtitle">Sign in to your workspace</p>
+        <form id="loginForm" class="login-form" autocomplete="on">
+          <label class="login-label" for="loginUser">Username</label>
+          <input id="loginUser" class="login-input" type="text" autocomplete="username" required />
+          <label class="login-label" for="loginPass">Password</label>
+          <input id="loginPass" class="login-input" type="password" autocomplete="current-password" required />
+          <div id="loginError" class="login-error hidden"></div>
+          <button id="loginSubmit" class="btn btn-primary login-submit" type="submit">Sign in</button>
+        </form>
+        <p class="login-hint">Service accounts (CI, scripts) authenticate with a bearer token instead.</p>
+      </div>
+    </div>
     <script src="/app.js" type="module"></script>
   </body>
 </html>
