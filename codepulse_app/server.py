@@ -84,6 +84,40 @@ def brand_env(suffix: str, default: str = "") -> str:
     legacy fallback so pre-rename deployments keep working unchanged."""
     return os.getenv(f"CODEPULSE_{suffix}") or os.getenv(f"CODE_DOCTOR_{suffix}") or default
 
+
+def load_env_file(path: Path | None = None) -> int:
+    """Load KEY=VALUE pairs from a project-root ``.env`` into ``os.environ`` so
+    LLM keys (and any other server config) can live in a file instead of being
+    exported by hand. Stdlib-only — no python-dotenv dependency (R7). A real
+    process-environment value always wins over the file, and the file is never
+    read from request input. Returns the count of keys applied."""
+    path = path or (PROJECT_ROOT / ".env")
+    if not path.exists():
+        return 0
+    applied = 0
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return 0
+    for raw in lines:
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[len("export "):].lstrip()
+        key, sep, value = line.partition("=")
+        if not sep:
+            continue
+        key = key.strip()
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
+            value = value[1:-1]
+        if not key or key in os.environ:  # never override the real environment
+            continue
+        os.environ[key] = value
+        applied += 1
+    return applied
+
 # LLM provider registry. Cloud API keys are read from the SERVER environment
 # only (key_env), never from a request payload. `local` providers talk to an
 # OpenAI-compatible endpoint (Ollama) and need no key. `concurrency` is the
@@ -125,6 +159,15 @@ LLM_PROVIDERS: dict[str, dict[str, Any]] = {
         "default_model": "gemini-2.0-flash",
         "local": False,
         "concurrency": 8,
+    },
+    "zyloo": {
+        "label": "Zyloo (Gemini 3 Pro)",
+        "api_type": "openai",  # OpenAI-compatible chat/completions endpoint
+        "base": "https://api.zyloo.io/v1/",
+        "key_env": ("ZYLOO_API_KEY", "CODEPULSE_ZYLOO_KEY"),
+        "default_model": "zyloo/gemini-3-pro-preview-free",
+        "local": False,
+        "concurrency": 6,
     },
 }
 RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
@@ -3669,6 +3712,9 @@ def _auth_mode_label() -> str:
 
 
 def serve(host: str, port: int) -> None:
+    loaded_env = load_env_file()
+    if loaded_env:
+        sys.stderr.write(f"CodePulse: loaded {loaded_env} setting(s) from .env\n")
     RUNS_DIR.mkdir(parents=True, exist_ok=True)
     if store.migrate_legacy(AUDIT_LOG, SUPPRESSIONS_FILE, REPOS_FILE):
         sys.stderr.write("CodePulse: migrated legacy JSON store into SQLite.\n")
