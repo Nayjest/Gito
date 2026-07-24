@@ -161,11 +161,11 @@ LLM_PROVIDERS: dict[str, dict[str, Any]] = {
         "concurrency": 8,
     },
     "zyloo": {
-        "label": "Zyloo (Gemini 3 Pro)",
+        "label": "Zyloo (Gemini 3 Pro, free)",
         "api_type": "openai",  # OpenAI-compatible chat/completions endpoint
         "base": "https://api.zyloo.io/v1/",
         "key_env": ("ZYLOO_API_KEY", "CODEPULSE_ZYLOO_KEY"),
-        "default_model": "zyloo/gemini-3-pro-preview-free",
+        "default_model": "zyloo/gemini-3-pro-free",
         "local": False,
         "concurrency": 6,
     },

@@ -39,7 +39,7 @@ def test_zyloo_provider_builds_openai_compatible_subprocess_env(monkeypatch):
     assert env["LLM_API_TYPE"] == "openai"
     assert env["LLM_API_BASE"] == "https://api.zyloo.io/v1/"
     assert env["LLM_API_KEY"] == "sk-zy-xyz"
-    assert env["MODEL"] == "zyloo/gemini-3-pro-preview-free"
+    assert env["MODEL"] == "zyloo/gemini-3-pro-free"
     # The native key var is also exported for microcore.
     assert env["ZYLOO_API_KEY"] == "sk-zy-xyz"
 

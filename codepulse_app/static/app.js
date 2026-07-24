@@ -258,7 +258,17 @@ function hydrateFormFromMeta(meta) {
   if (!meta) return;
   if (meta.repo_path) $("#repoPath").value = meta.repo_path;
   if (meta.ollama_base) $("#ollamaBase").value = meta.ollama_base;
-  if (meta.model) { $("#model").value = meta.model; setText("#activeModel", meta.model); }
+  // Don't let a past run's model (e.g. a local Ollama model) clobber the field
+  // when the active provider is a cloud one that can't run it — keep the cloud
+  // provider's own default model instead.
+  const provSpec = (state.health?.providers || []).find((p) => p.id === ($("#provider")?.value));
+  if (meta.model && (!provSpec || provSpec.local)) {
+    $("#model").value = meta.model;
+    setText("#activeModel", meta.model);
+  } else if (provSpec && provSpec.defaultModel) {
+    $("#model").value = provSpec.defaultModel;
+    setText("#activeModel", provSpec.defaultModel);
+  }
   if (meta.filters) $("#filters").value = meta.filters;
   if (meta.refs)    $("#refs").value = meta.refs;
   if (meta.against) $("#against").value = meta.against;
@@ -333,7 +343,14 @@ function renderHealth() {
       return `<option value="${esc(p.id)}"${p.configured ? "" : " data-unconfigured=\"1\""}>${esc(p.label)} · ${status}</option>`;
     }).join("");
     sel.dataset.ready = "1";
-    sel.value = providers.find((p) => p.configured)?.id || "ollama";
+    // Prefer the workspace policy's provider, else a configured *cloud* provider
+    // (Zyloo/Anthropic/OpenAI/Gemini) over local Ollama, else Ollama.
+    const policyProvider = state.policies?.provider;
+    const preferred =
+      providers.find((p) => p.id === policyProvider && p.configured) ||
+      providers.find((p) => p.configured && !p.local) ||
+      providers.find((p) => p.configured);
+    sel.value = preferred?.id || "ollama";
     applyProvider(providers);
     sel.addEventListener("change", () => applyProvider(providers));
   }
