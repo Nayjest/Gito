@@ -455,6 +455,20 @@ img { display: block; max-width: 100%; }
 .user-badge[data-role="admin"] .user-badge-role { color: var(--violet); }
 .user-badge[data-role="reviewer"] .user-badge-role { color: var(--blue); }
 
+/* ── Degraded (deterministic-only) note ───────────────────────────────────── */
+.degraded-note {
+  margin-bottom: 10px;
+  padding: 9px 12px;
+  border: 1px solid var(--amber, #d29922);
+  border-left-width: 3px;
+  border-radius: var(--r-md);
+  background: rgba(210, 153, 34, 0.10);
+  color: var(--text);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.degraded-note.hidden { display: none; }
+
 /* ── Login modal ──────────────────────────────────────────────────────────── */
 .login-modal {
   position: fixed;

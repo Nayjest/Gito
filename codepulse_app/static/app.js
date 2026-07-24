@@ -644,6 +644,18 @@ function renderSelectedRun() {
   setText("#findingMeta", trustBits.join(" · "));
 
   setText("#reportRunState", meta?.status || "No Run");
+  // Degraded = the LLM pass timed out or errored but deterministic engines
+  // (static / cross-file / taint / dependency) still produced findings.
+  const degradedNote = $("#degradedNote");
+  if (degradedNote) {
+    if (meta?.degraded) {
+      const why = meta.degraded_reason === "llm-timeout" ? "the AI pass timed out" : "the AI pass errored";
+      degradedNote.textContent = `Deterministic-only — ${why}. Static, cross-file, taint and dependency findings are complete; the LLM review did not finish.`;
+      degradedNote.classList.remove("hidden");
+    } else {
+      degradedNote.classList.add("hidden");
+    }
+  }
   setText("#reportSummary", genSummary || stats.summary || "Select a review run from the sidebar.");
 
   const g  = stats.gate;

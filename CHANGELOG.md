@@ -33,6 +33,19 @@ with no registered users and no `CODEPULSE_TOKEN` behaves exactly as before
   HTTPS directly (stdlib `ssl`, TLS 1.2+); startup fails loudly on a bad
   cert/key rather than silently serving plaintext. The non-loopback bind
   warning now clears when any authentication is configured, not just a token.
+- **Wider taint recall.** New deterministic sinks: arbitrary file
+  delete/move (`os.remove`, `os.unlink`, `os.rename`, `shutil.rmtree`,
+  `shutil.move`, pathlib `Path.unlink`), deserialization RCE (`yaml.load`,
+  `marshal.loads`), SSTI (`Environment.from_string`), and shell execution
+  (`subprocess.getoutput` / `getstatusoutput`). All fire only on
+  request-derived arguments; a self-scan of CodePulse's own source yields zero
+  findings.
+- **Graceful degradation for large reviews.** When the LLM subprocess times
+  out or errors but the deterministic engines already produced findings, the
+  run is now surfaced as **completed (degraded)** with a `degraded` /
+  `degraded_reason` flag and a clear UI note, instead of a bare `failed` that
+  discarded the static/cross-file/taint/dependency results. A whole-repo review
+  that outgrows a local model still returns usable findings.
 
 ## [5.0.0] — 2026-07-16
 

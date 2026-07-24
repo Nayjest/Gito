@@ -379,6 +379,41 @@ def report_path(run_id: str) -> Path:
     return run_dir(run_id) / "code-review-report.json"
 
 
+def classify_review_outcome(
+    exit_code: int, timed_out: bool, have_report: bool, have_findings: bool
+) -> tuple[str, bool, str]:
+    """Decide a review's final status with graceful degradation.
+
+    A clean LLM run (exit 0) with a report is ``completed``. If the LLM pass
+    fails or times out but the deterministic engines still produced findings,
+    the run is ``completed`` and ``degraded`` (the caller surfaces the reason)
+    rather than a bare ``failed`` that discards real results. Only a run with no
+    usable report/findings is ``failed``.
+    """
+    llm_ok = exit_code == 0
+    if have_report and (llm_ok or have_findings):
+        if llm_ok:
+            return "completed", False, ""
+        reason = "llm-timeout" if timed_out else "llm-error"
+        return "completed", True, reason
+    return "failed", False, ""
+
+
+def _report_has_findings(run_id: str) -> bool:
+    """True when the review report contains at least one issue (from any
+    engine). Used to decide whether a failed/timed-out LLM pass still left a
+    usable, deterministic result behind."""
+    report = read_json(report_path(run_id), None)
+    if not isinstance(report, dict):
+        return False
+    issues = report.get("issues")
+    if isinstance(issues, dict):
+        return any(bool(v) for v in issues.values())
+    if isinstance(issues, list):
+        return bool(issues)
+    return False
+
+
 def markdown_path(run_id: str) -> Path:
     return run_dir(run_id) / "code-review-report.md"
 
@@ -1868,13 +1903,25 @@ def run_review(run_id: str, repo_path: Path, payload: dict[str, Any], command: l
     verification_counts: dict[str, int] = {}
     if payload.get("verifyFindings") is not False and report_path(run_id).exists():
         verification_counts = run_verification(run_id, repo_path, payload, env, skip_ids)
-    status = "completed" if exit_code == 0 and report_path(run_id).exists() else "failed"
-    stats = summarize_report(run_id) if report_path(run_id).exists() else {}
+    # Graceful degradation: when the LLM subprocess fails or times out but the
+    # deterministic engines (static / cross-file / taint / dependency) already
+    # produced findings, the review is still useful — surface it as a completed
+    # *degraded* run instead of throwing the deterministic results away as a
+    # bare "failed". A whole-repo review that outgrows a local model no longer
+    # comes back empty-handed.
+    have_report = report_path(run_id).exists()
+    have_findings = have_report and _report_has_findings(run_id)
+    status, degraded, degraded_reason = classify_review_outcome(
+        exit_code, timed_out, have_report, have_findings
+    )
+    stats = summarize_report(run_id) if have_report else {}
     update_meta(
         run_id,
         status=status,
         exit_code=exit_code,
         timed_out=timed_out,
+        degraded=degraded,
+        degraded_reason=degraded_reason,
         static_issues=static_count,
         verification=verification_counts,
         completed_at=utc_now(),
@@ -1888,6 +1935,8 @@ def run_review(run_id: str, repo_path: Path, payload: dict[str, Any], command: l
         status=status,
         exit_code=exit_code,
         timed_out=timed_out,
+        degraded=degraded,
+        degraded_reason=degraded_reason,
         static_issues=static_count,
         verification=verification_counts,
         stats=stats,
