@@ -297,6 +297,12 @@
                       <span><strong>Deep Scan</strong> — maximum depth: reviews every file whole, all engines on, deeper taint tracing, exhaustive prompt, and a skeptical verification pass. Slower and more tokens.</span>
                     </label>
                   </div>
+                  <div class="field wide check-field deep-scan-field">
+                    <label class="check-label">
+                      <input id="adversarialPass" name="adversarialPass" type="checkbox" />
+                      <span><strong>Adversarial re-review</strong> — a second, independent LLM pass that hunts for defects the first review missed. Included automatically in Deep Scan.</span>
+                    </label>
+                  </div>
                   <details class="field wide advanced-models">
                     <summary class="field-label">Advanced: per-pass models</summary>
                     <div class="form-grid">

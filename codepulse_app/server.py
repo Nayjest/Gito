@@ -488,6 +488,10 @@ def verification_path(run_id: str) -> Path:
     return run_dir(run_id) / "verification.json"
 
 
+def adversarial_path(run_id: str) -> Path:
+    return run_dir(run_id) / "adversarial.json"
+
+
 def context_pack_path(run_id: str) -> Path:
     return run_dir(run_id) / "context-pack.json"
 
@@ -2043,6 +2047,13 @@ def run_review(run_id: str, repo_path: Path, payload: dict[str, Any], command: l
                 PROCESSES.pop(run_id, None)
 
     static_count = merge_static()
+    # Adversarial re-review runs before verification so its net-new findings are
+    # verified in the same pass. Never fails the review (R3).
+    if adversarial_pass_requested(payload) and report_path(run_id).exists():
+        try:
+            run_adversarial_pass(run_id, repo_path, payload, env)
+        except Exception as exc:  # noqa: BLE001 - advisory pass, must not fail the run
+            audit_event("adversarial_failed", run_id=run_id, error=str(exc))
     skip_ids: list[Any] = []
     if report_path(run_id).exists():
         # Verdict reuse must never fail a review (R3): fall back to full verification.
@@ -2171,6 +2182,144 @@ def run_verification(
     return counts
 
 
+# New findings from the adversarial re-review pass get their own id range, clear
+# of the LLM (1xxx) and deterministic engines (10000/20000/30000/40000).
+ADVERSARIAL_ISSUE_ID_BASE = 50000
+
+
+def adversarial_pass_requested(payload: dict[str, Any]) -> bool:
+    """Whether to run the adversarial re-review pass. Auto-on in Deep Scan, and
+    independently toggleable via ``adversarialPass``. Off by default otherwise."""
+    value = payload.get("adversarialPass")
+    if value is not None:
+        if isinstance(value, bool):
+            return value
+        return str(value).strip().lower() in {"1", "true", "yes", "on"}
+    return deep_scan_requested(payload)
+
+
+def merge_adversarial_into_report(report: dict[str, Any], findings: list[dict[str, Any]]) -> int:
+    """Merge net-new adversarial findings into the report.
+
+    A finding that lands on a line an existing finding already covers is folded
+    in as a corroboration (same ``corroborated_by`` mechanism the deterministic
+    engines use) rather than added as a duplicate card. Genuinely new findings
+    are appended with ids from ``ADVERSARIAL_ISSUE_ID_BASE`` and a ``pass:
+    "adversarial"`` marker (kept out of ``tags`` so ``issue_fingerprint`` is
+    unaffected). Returns the count of *new* findings added.
+    """
+    issues = report.setdefault("issues", {})
+    next_id = ADVERSARIAL_ISSUE_ID_BASE
+    for file_issues in issues.values():
+        for issue in file_issues:
+            if isinstance(issue.get("id"), int) and issue["id"] >= ADVERSARIAL_ISSUE_ID_BASE:
+                next_id = max(next_id, issue["id"] + 1)
+    added = 0
+    for finding in findings:
+        file = finding["file"]
+        start = finding["start_line"]
+        end = finding.get("end_line", start)
+        existing = issues.get(file) or []
+        line_to_issues: dict[int, list[dict]] = {}
+        for issue in existing:
+            for block in issue.get("affected_lines") or []:
+                s, e = block.get("start_line"), block.get("end_line")
+                if isinstance(s, int) and isinstance(e, int) and e >= s:
+                    for line_no in range(s, e + 1):
+                        line_to_issues.setdefault(line_no, []).append(issue)
+        overlapping = line_to_issues.get(start)
+        if overlapping:
+            entry = {"rule": "adversarial-review", "title": finding["title"]}
+            for issue in overlapping:
+                corr = issue.setdefault("corroborated_by", [])
+                if entry not in corr:
+                    corr.append(entry)
+            continue
+        issues.setdefault(file, []).append(
+            {
+                "id": next_id,
+                "file": file,
+                "title": finding["title"],
+                "details": finding.get("details", ""),
+                "severity": finding.get("severity", 3),
+                "confidence": finding.get("confidence", 2),
+                "tags": list(finding.get("tags") or []),
+                "source": "adversarial",
+                "pass": "adversarial",
+                "affected_lines": [
+                    {
+                        "file": file,
+                        "start_line": start,
+                        "end_line": end,
+                        "affected_code": "",
+                    }
+                ],
+            }
+        )
+        next_id += 1
+        added += 1
+    if added:
+        report["total_issues"] = report.get("total_issues", 0) + added
+    return added
+
+
+def run_adversarial_pass(
+    run_id: str, repo_path: Path, payload: dict[str, Any], env: dict[str, str]
+) -> int:
+    """Second full LLM read that hunts for defects the first pass missed.
+
+    Runs the ``adversarial`` generator with the current report as context, then
+    merges any net-new findings back in. Best-effort: any failure leaves the
+    report exactly as the first pass produced it. Returns new-finding count.
+    """
+    if not report_path(run_id).exists():
+        return 0
+    try:
+        options = review_options(payload)
+    except ValueError:
+        return 0
+    command = build_generation_command("adversarial", repo_path, run_dir(run_id), options)
+    command.extend(["--report", str(report_path(run_id))])
+    if context_pack_path(run_id).exists():
+        command.extend(["--context", str(context_pack_path(run_id))])
+    audit_event("adversarial_started", run_id=run_id, repo_path=str(repo_path))
+    timeout_seconds = int(payload.get("timeoutSeconds") or REVIEW_TIMEOUT_DEFAULT)
+    with log_path(run_id).open("ab") as log_file:
+        log_file.write(b"\nCodePulse: adversarial re-review pass (hunting for missed defects)...\n")
+        try:
+            proc = subprocess.Popen(
+                command, cwd=repo_path, env=env, stdout=log_file, stderr=subprocess.STDOUT
+            )
+            with PROCESS_LOCK:
+                PROCESSES[run_id] = proc
+            try:
+                proc.wait(timeout=timeout_seconds)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait()
+                log_file.write(
+                    f"\nCodePulse: adversarial pass timed out after {timeout_seconds}s; keeping first-pass findings.\n".encode("utf-8")
+                )
+        except Exception as exc:  # noqa: BLE001 - subprocess boundary
+            log_file.write(f"\nCodePulse: adversarial pass failed to start: {exc}\n".encode("utf-8"))
+        finally:
+            with PROCESS_LOCK:
+                PROCESSES.pop(run_id, None)
+    artifact = read_json(adversarial_path(run_id), None)
+    if not artifact:
+        return 0
+    report = read_json(report_path(run_id), {}) or {}
+    added = merge_adversarial_into_report(report, artifact.get("findings") or [])
+    atomic_write_json(report_path(run_id), report)
+    update_meta(run_id, adversarial_added=added)
+    audit_event("adversarial_finished", run_id=run_id, added=added)
+    with log_path(run_id).open("ab") as log_file:
+        log_file.write(
+            f"CodePulse: adversarial pass added {added} new finding(s) the first pass missed.\n".encode("utf-8")
+        )
+    return added
+
+
 def create_review_run(payload: dict[str, Any]) -> tuple[str, Path, dict[str, Any], list[str]]:
     """Validate a review request and materialize its run directory + meta.
 
@@ -2215,6 +2364,7 @@ def create_review_run(payload: dict[str, Any]) -> tuple[str, Path, dict[str, Any
         "source_path": str(source_path),
         "is_snapshot": is_snapshot,
         "deep_scan": deep_scan_requested(payload),
+        "adversarial_pass": adversarial_pass_requested(payload),
         "provider": provider_name,
         "model": (payload.get("model") or provider_spec["default_model"]).strip(),
         "ollama_base": normalize_ollama_base(payload.get("ollamaBase")),

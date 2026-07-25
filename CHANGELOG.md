@@ -58,6 +58,22 @@ with no registered users and no `CODEPULSE_TOKEN` behaves exactly as before
   Reports panel shows how many files were skipped and the estimated tokens
   saved. Pure stdlib, additive; ordinary PRs are byte-identical to before.
 
+- **Adversarial re-review pass (a genuine third LLM pass).** After the first
+  review and the deterministic merge, an optional second, independent LLM read
+  gets the diff, the full files, and the list of findings *already* reported,
+  and is tasked with finding only what the first pass **missed** — subtle
+  multi-step flows, missing authorization, error/failure paths, races — with an
+  explicit instruction to return nothing rather than repeat or invent. New
+  generator kind `adversarial` (`generator.py`); net-new findings merge back
+  with their own id range (`ADVERSARIAL_ISSUE_ID_BASE = 50000`), a `pass:
+  "adversarial"` marker kept out of `tags` (so `issue_fingerprint` is stable),
+  and the same corroborate-on-overlap dedup the deterministic engines use. It
+  runs **before** verification, so its findings are verified in the same run.
+  Auto-on in Deep Scan, independently toggleable via `adversarialPass`; surfaced
+  as an `⚔ adversarial` chip on the finding and an `adversarial_added` count in
+  the run meta. Verified live: on a two-bug endpoint the first pass caught the
+  SQLi + IDOR, and the adversarial pass added a distinct missed failure mode
+  (`float(request.args.get(...))` crashing on `None`/non-numeric input).
 - **Deep Scan mode — one-click maximum-depth review.** A `deepScan` toggle on
   the review form (default off) pushes every lever to the max: the token scope
   gate is turned OFF (nothing skipped), filters widen to every mainstream source

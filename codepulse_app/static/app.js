@@ -274,6 +274,7 @@ function hydrateFormFromMeta(meta) {
   if (meta.against) $("#against").value = meta.against;
   $("#mergeBase").checked = meta.merge_base !== false;
   if ($("#deepScan")) $("#deepScan").checked = !!meta.deep_scan;
+  if ($("#adversarialPass")) $("#adversarialPass").checked = !!meta.adversarial_pass && !meta.deep_scan;
   const mode = meta.mode || "working";
   const modeEl = $(`input[name="mode"][value="${mode}"]`);
   if (modeEl) modeEl.checked = true;
@@ -762,6 +763,9 @@ function renderFindings() {
     const corroboratedChip = corr.length
       ? `<span class="verdict-chip verdict-corroborated" title="Also flagged by deterministic rule(s): ${esc(corr.map((c) => c.rule).filter(Boolean).join(", "))}">✓✓ corroborated</span>`
       : "";
+    const adversarialChip = issue.pass === "adversarial"
+      ? `<span class="verdict-chip verdict-adversarial" title="Found by the adversarial re-review pass — missed by the first review">⚔ adversarial</span>`
+      : "";
 
     return `
       <article class="finding-card fade-in${issue.suppressed ? " suppressed" : ""}" id="finding-${esc(issue.id)}">
@@ -770,7 +774,7 @@ function renderFindings() {
             <div class="finding-title-row">
               <span class="sev-pill ${sevClass(issue.severity)}">S${esc(issue.severity || "?")}</span>
               <h3 class="finding-title">#${esc(issue.id)} ${esc(issue.title)}</h3>
-              ${verdictChip}${corroboratedChip}${carriedChip}
+              ${verdictChip}${corroboratedChip}${adversarialChip}${carriedChip}
               ${issue.suppressed ? `<span class="verdict-chip verdict-suppressed">dismissed</span>` : ""}
             </div>
             <div class="finding-loc">${esc(loc)}</div>
@@ -1352,6 +1356,7 @@ function formPayload() {
     maxConcurrentTasks: Number($("#maxConcurrentTasks").value || 4),
     mergeBase:          $("#mergeBase").checked,
     deepScan:           $("#deepScan")?.checked || false,
+    adversarialPass:    $("#adversarialPass")?.checked || false,
     verifyModel:        $("#verifyModel")?.value.trim() || "",
     generateModel:      $("#generateModel")?.value.trim() || "",
   };

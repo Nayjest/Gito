@@ -1721,6 +1721,7 @@ img { display: block; max-width: 100%; }
 .verdict-suppressed { background: var(--surface-3);  color: var(--text-muted); }
 .verdict-carried    { background: var(--surface-3);  color: var(--text-muted); }
 .verdict-corroborated { background: var(--violet-dim); color: var(--violet); }
+.verdict-adversarial { background: rgba(219, 109, 40, 0.16); color: #db6d28; }
 
 .finding-card.suppressed { opacity: 0.55; }
 .finding-card.suppressed .finding-title { text-decoration: line-through; }

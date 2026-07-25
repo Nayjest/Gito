@@ -67,6 +67,34 @@ Respond with ONLY valid JSON (no prose, no markdown fences) matching:
 
 MAX_VERIFY_FINDINGS = 40
 
+ADVERSARIAL_INSTRUCTIONS = """\
+You are CodePulse's adversarial re-review pass: a second, independent senior security
+engineer. A first reviewer has already gone over this change and reported the findings
+listed below. Assume the first reviewer was competent but rushed and missed things.
+Answer with the JSON immediately; do not include reasoning or commentary.
+
+Your ONLY job is to find ADDITIONAL, DISTINCT defects that are NOT already in the list:
+- Do NOT repeat, rephrase, or split an existing finding. If your issue is the same root
+  cause as one already listed (even on a nearby line), leave it out.
+- Hunt for what a fast first pass misses: multi-step flows where an untrusted value is
+  used several lines or functions later; missing authorization / tenant isolation;
+  error and failure paths (None/undefined, empty, timeout, partial write); concurrency
+  and shared-state races; off-by-one and boundary/overflow; injection reachable only
+  through a helper; secrets in logs; broken invariants on retry.
+- Cite exact line numbers from the provided file content. State the concrete failure
+  scenario (specific input or condition -> observed wrong behavior).
+- Report only genuine defects you are reasonably confident about. If, after a careful
+  read, you find nothing the first pass missed, return an empty findings list. Do not
+  invent issues to fill space.
+
+Respond with ONLY valid JSON (no prose, no markdown fences) matching:
+{"findings": [{"file": "<path>", "start_line": <int>, "end_line": <int>,
+"title": "<short imperative summary>", "details": "<why it is a bug + concrete failure scenario>",
+"severity": <1=critical..4=low>, "confidence": <1=low..3=high>, "tags": ["security"|"bug"|"..."]}]}
+"""
+
+MAX_ADVERSARIAL_FINDINGS = 25
+
 PR_INSTRUCTIONS = """\
 You are CodePulse, a senior engineer drafting a pull request for the change below.
 Answer with the JSON immediately; do not include reasoning or commentary.
@@ -247,6 +275,84 @@ def build_verify_prompt(
     )
 
 
+def existing_findings_digest(report: dict) -> list[dict]:
+    """Compact list of *all* current findings so the adversarial pass knows what
+    is already covered and does not repeat it."""
+    digest: list[dict] = []
+    for file, issues in (report.get("issues") or {}).items():
+        for issue in issues:
+            block = (issue.get("affected_lines") or [{}])[0]
+            digest.append(
+                {
+                    "file": issue.get("file") or file,
+                    "line": block.get("start_line"),
+                    "title": issue.get("title"),
+                }
+            )
+    return digest
+
+
+def build_adversarial_prompt(
+    diff: str, contents: dict[str, str], existing: list[dict], cross_context: str = ""
+) -> str:
+    files_block = "\n\n".join(
+        f"----- {path} -----\n{text}" for path, text in contents.items()
+    )
+    return (
+        f"{ADVERSARIAL_INSTRUCTIONS}\n"
+        f"----FINDINGS ALREADY REPORTED (do not repeat these)----\n"
+        f"{json.dumps(existing, indent=1)}\n\n"
+        f"----DIFF----\n{diff}\n\n"
+        f"{cross_context}"
+        f"----FULL CONTENT OF CHANGED FILES----\n{files_block or '(none)'}\n"
+    )
+
+
+def normalize_adversarial(result: dict) -> dict:
+    findings = []
+    for item in (result.get("findings") or [])[:MAX_ADVERSARIAL_FINDINGS]:
+        if not isinstance(item, dict):
+            continue
+        file = str(item.get("file") or "").strip()
+        title = str(item.get("title") or "").strip()
+        try:
+            start = int(item.get("start_line"))
+        except (TypeError, ValueError):
+            continue
+        if not file or not title or start <= 0:
+            continue
+        try:
+            end = int(item.get("end_line"))
+        except (TypeError, ValueError):
+            end = start
+        end = max(start, end)
+        try:
+            severity = int(item.get("severity"))
+        except (TypeError, ValueError):
+            severity = 3
+        severity = min(4, max(1, severity))
+        try:
+            confidence = int(item.get("confidence"))
+        except (TypeError, ValueError):
+            confidence = 2
+        confidence = min(3, max(1, confidence))
+        tags = [str(t).strip() for t in (item.get("tags") or []) if str(t).strip()][:6]
+        findings.append(
+            {
+                "file": file,
+                "start_line": start,
+                "end_line": end,
+                "title": title[:200],
+                "details": str(item.get("details") or "").strip()[:1200],
+                "severity": severity,
+                "confidence": confidence,
+                "tags": tags,
+            }
+        )
+    # An empty list is a valid, honest outcome ("nothing new found").
+    return {"findings": findings}
+
+
 def normalize_verify(result: dict, findings: list[dict]) -> dict:
     known_ids = {finding["id"] for finding in findings}
     verdicts = []
@@ -357,7 +463,7 @@ def write_pr_artifacts(out_dir: Path, payload: dict) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="CodePulse LLM generator")
-    parser.add_argument("--kind", choices=("tests", "pr", "verify"), required=True)
+    parser.add_argument("--kind", choices=("tests", "pr", "verify", "adversarial"), required=True)
     parser.add_argument("--repo", required=True)
     parser.add_argument("--out", required=True)
     parser.add_argument("--report", default="", help="Review report JSON (verify kind)")
@@ -385,6 +491,7 @@ def main() -> int:
         return 3
 
     findings: list[dict] = []
+    existing: list[dict] = []
     if args.kind == "verify":
         report = json.loads(Path(args.report).read_text(encoding="utf-8")) if args.report else {}
         skip_ids = [item.strip() for item in args.skip_ids.split(",") if item.strip()]
@@ -392,6 +499,9 @@ def main() -> int:
         if not findings:
             print("No LLM findings to verify.")
             return 3
+    elif args.kind == "adversarial":
+        report = json.loads(Path(args.report).read_text(encoding="utf-8")) if args.report else {}
+        existing = existing_findings_digest(report)
 
     mc.configure(USE_LOGGING=True, EMBEDDING_DB_TYPE=mc.EmbeddingDbType.NONE)
     if args.kind == "tests":
@@ -399,6 +509,9 @@ def main() -> int:
     elif args.kind == "verify":
         cross_context = cross_file_context_block(repo, args.context)
         prompt = build_verify_prompt(diff, contents, findings, cross_context)
+    elif args.kind == "adversarial":
+        cross_context = cross_file_context_block(repo, args.context)
+        prompt = build_adversarial_prompt(diff, contents, existing, cross_context)
     else:
         prompt = build_pr_prompt(diff)
     print(f"CodePulse generator: kind={args.kind}, files={len(contents)}, diff_chars={len(diff)}")
@@ -420,6 +533,8 @@ def main() -> int:
                 payload = normalize_tests(parsed)
             elif args.kind == "verify":
                 payload = normalize_verify(parsed, findings)
+            elif args.kind == "adversarial":
+                payload = normalize_adversarial(parsed)
             else:
                 payload = normalize_pr(parsed)
             break
@@ -440,6 +555,11 @@ def main() -> int:
         elif args.kind == "verify":
             artifact = {"kind": "verify", "created_at": utc_now(), **payload}
             (out_dir / "verification.json").write_text(
+                json.dumps(artifact, indent=2), encoding="utf-8"
+            )
+        elif args.kind == "adversarial":
+            artifact = {"kind": "adversarial", "created_at": utc_now(), **payload}
+            (out_dir / "adversarial.json").write_text(
                 json.dumps(artifact, indent=2), encoding="utf-8"
             )
         else:
