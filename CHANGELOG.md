@@ -44,6 +44,19 @@ with no registered users and no `CODEPULSE_TOKEN` behaves exactly as before
   provider (default model `zyloo/gemini-3-pro-free`); the server loads a
   project-root `.env` at startup (stdlib, no python-dotenv). Configured cloud
   providers now win over local Ollama as the review-form default.
+- **Scope gate — token-cost trimming for whole-repo reviews (`scope_gate.py`).**
+  A normal git PR only sends changed diff hunks to the model, but a snapshot or
+  `--all` review sends every file's full content (each file reads as *added*).
+  For that case only, the gate excludes non-source noise from the LLM pass —
+  generated code (`*_pb2.py`, `*.generated.*`, `@generated`/`DO NOT EDIT`
+  markers), vendored trees (`vendor/`, `third_party/`), minified bundles and
+  large single-line blobs, lockfiles, and data assets — while the deterministic
+  engines still scan every file, so recall on real source is unchanged. It
+  reuses Gito's own `GITO_EXTRA_PROJECT_CONFIG` seam (a per-run merged profile
+  that also preserves the deep-review prompt); no Gito code is modified.
+  Auto-on for snapshot/whole-repo reviews, opt-out via `scopeGate: false`. The
+  Reports panel shows how many files were skipped and the estimated tokens
+  saved. Pure stdlib, additive; ordinary PRs are byte-identical to before.
 
 ### Fixed
 - **Findings list rendered empty for any review with proposed fixes.** The

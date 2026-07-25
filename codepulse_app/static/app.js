@@ -673,6 +673,27 @@ function renderSelectedRun() {
       degradedNote.classList.add("hidden");
     }
   }
+  // Scope gate = non-source files (vendored / generated / minified / lockfiles /
+  // data blobs) skipped from the LLM pass on a snapshot/whole-repo review to
+  // save tokens. Deterministic engines still scan them.
+  const scopeNote = $("#scopeGateNote");
+  if (scopeNote) {
+    const sg = meta?.scope_gate;
+    if (sg && sg.enabled && sg.excluded_count > 0) {
+      const reasons = Object.entries(sg.reasons || {})
+        .sort((a, b) => b[1] - a[1])
+        .map(([r, n]) => `${n} ${r}`)
+        .join(", ");
+      scopeNote.textContent =
+        `Scope gate: ${sg.excluded_count} non-source file(s) skipped from the AI pass ` +
+        `(~${(sg.est_tokens_saved || 0).toLocaleString()} tokens saved), ` +
+        `${sg.kept_count} reviewed${reasons ? ` — ${reasons}` : ""}. ` +
+        `Deterministic engines still scanned every file.`;
+      scopeNote.classList.remove("hidden");
+    } else {
+      scopeNote.classList.add("hidden");
+    }
+  }
   setText("#reportSummary", genSummary || stats.summary || "Select a review run from the sidebar.");
 
   const g  = stats.gate;

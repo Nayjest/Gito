@@ -36,6 +36,7 @@ from . import (
     patcher,
     publisher,
     sarif,
+    scope_gate,
     semantic_js,
     snapshot,
     static_analysis,
@@ -1804,9 +1805,54 @@ def note_ollama_warning(run_id: str) -> None:
         pass
 
 
+def apply_scope_gate(
+    run_id: str, repo_path: Path, payload: dict[str, Any], env: dict[str, str]
+) -> None:
+    """Trim non-source noise from the LLM pass on snapshot / whole-repo reviews.
+
+    Auto-on only where every file reads as *added* (a snapshot or an ``--all``
+    review), which is the case where Gito sends whole files to the model. The
+    deterministic engines still scan everything, so recall on real source is
+    unaffected. Best-effort: any failure leaves the review exactly as it was.
+    """
+    try:
+        options = review_options(payload)
+        if not scope_gate.should_gate(payload, options):
+            return
+        files = read_json(meta_path(run_id), {}).get("changed_files") or []
+        plan = scope_gate.plan_exclusions(repo_path, files)
+        if not plan.excluded or plan.kept_count <= 0:
+            # Never leave Gito with nothing to review.
+            return
+        profile = scope_gate.write_run_profile(
+            REVIEW_PROFILE, run_dir(run_id), plan.exclude_paths()
+        )
+        env["GITO_EXTRA_PROJECT_CONFIG"] = str(profile)
+        update_meta(run_id, scope_gate=plan.to_meta())
+        with log_path(run_id).open("ab") as log_file:
+            log_file.write(
+                (
+                    f"CodePulse: scope gate skipped {len(plan.excluded)} non-source "
+                    f"file(s) from the LLM pass (~{plan.est_tokens_saved} tokens saved); "
+                    f"{plan.kept_count} file(s) still reviewed. Deterministic engines "
+                    f"scan all files regardless.\n"
+                ).encode("utf-8")
+            )
+        audit_event(
+            "scope_gate_applied",
+            run_id=run_id,
+            excluded=len(plan.excluded),
+            kept=plan.kept_count,
+            est_tokens_saved=plan.est_tokens_saved,
+        )
+    except Exception as exc:  # noqa: BLE001 - gating must never fail a review
+        audit_event("scope_gate_failed", run_id=run_id, error=str(exc))
+
+
 def run_review(run_id: str, repo_path: Path, payload: dict[str, Any], command: list[str]) -> None:
     started = time.monotonic()
     env = subprocess_env(payload)
+    apply_scope_gate(run_id, repo_path, payload, env)
 
     update_meta(run_id, status="running", started_at=utc_now())
     note_ollama_warning(run_id)
