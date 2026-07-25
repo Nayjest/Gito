@@ -157,6 +157,11 @@ def test_merge_into_report_assigns_taint_id_range_and_skips_covered():
         {"title": "traversal", "affected_lines": [{"start_line": 9, "end_line": 9}], "tags": []},
     ]}
     added = ta.merge_into_report(report, taint)
-    assert added == 1  # line 4 already covered by the LLM finding
+    assert added == 1  # line 4 already covered by the LLM finding (corroborated, not added)
     new = [i for i in report["issues"]["svc.py"] if i.get("id", 0) >= ta.TAINT_ISSUE_ID_BASE]
     assert len(new) == 1 and new[0]["affected_lines"][0]["start_line"] == 9
+    # The overlapping LLM finding is corroborated by the taint rule rather than
+    # the taint finding being silently dropped.
+    llm = report["issues"]["svc.py"][0]
+    assert llm["id"] == 1
+    assert (llm.get("corroborated_by") or [])  # non-empty corroboration list

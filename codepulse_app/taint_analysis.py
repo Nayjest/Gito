@@ -844,22 +844,39 @@ def _repo_summaries(repo_path: Path) -> dict[str, _FuncSummary]:
 
 
 def merge_into_report(report: dict[str, Any], taint_issues: dict[str, list[dict]]) -> int:
-    """Merge taint findings into a report, skipping lines already flagged."""
+    """Merge taint findings into a report.
+
+    When a taint finding lands on a line the LLM already flagged, corroborate
+    that finding (record the agreeing rule in ``corroborated_by``) instead of
+    dropping the high-confidence dataflow signal silently. The field is separate
+    from ``tags``, so ``issue_fingerprint`` is unaffected. Returns the number of
+    *new* findings added (corroborations are not counted).
+    """
     issues = report.setdefault("issues", {})
     next_id = TAINT_ISSUE_ID_BASE
     added = 0
     for file, findings in taint_issues.items():
         existing = issues.get(file) or []
-        covered: set[int] = set()
+        line_to_issues: dict[int, list[dict]] = {}
         for issue in existing:
             for block in issue.get("affected_lines") or []:
                 start, end = block.get("start_line"), block.get("end_line")
                 if isinstance(start, int) and isinstance(end, int) and end >= start:
-                    covered.update(range(start, end + 1))
+                    for line_no in range(start, end + 1):
+                        line_to_issues.setdefault(line_no, []).append(issue)
         kept = []
         for finding in findings:
             line = finding["affected_lines"][0]["start_line"]
-            if line in covered:
+            overlapping = line_to_issues.get(line)
+            if overlapping:
+                entry = {
+                    "rule": finding.get("rule") or finding.get("id"),
+                    "title": finding.get("title"),
+                }
+                for issue in overlapping:
+                    corr = issue.setdefault("corroborated_by", [])
+                    if entry not in corr:
+                        corr.append(entry)
                 continue
             kept.append({**finding, "id": next_id, "file": file})
             next_id += 1
