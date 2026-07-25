@@ -734,6 +734,10 @@ function renderFindings() {
     const carriedChip = issue.carried_from
       ? `<span class="verdict-chip verdict-carried" title="Verdict reused from run ${esc(issue.carried_from)}">carried</span>`
       : "";
+    const corr = issue.corroborated_by || [];
+    const corroboratedChip = corr.length
+      ? `<span class="verdict-chip verdict-corroborated" title="Also flagged by deterministic rule(s): ${esc(corr.map((c) => c.rule).filter(Boolean).join(", "))}">✓✓ corroborated</span>`
+      : "";
 
     return `
       <article class="finding-card fade-in${issue.suppressed ? " suppressed" : ""}" id="finding-${esc(issue.id)}">
@@ -742,7 +746,7 @@ function renderFindings() {
             <div class="finding-title-row">
               <span class="sev-pill ${sevClass(issue.severity)}">S${esc(issue.severity || "?")}</span>
               <h3 class="finding-title">#${esc(issue.id)} ${esc(issue.title)}</h3>
-              ${verdictChip}${carriedChip}
+              ${verdictChip}${corroboratedChip}${carriedChip}
               ${issue.suppressed ? `<span class="verdict-chip verdict-suppressed">dismissed</span>` : ""}
             </div>
             <div class="finding-loc">${esc(loc)}</div>
@@ -796,6 +800,58 @@ function renderFindings() {
   });
 
   renderFindingQueue(issues);
+}
+
+// Fix controls for a finding that carries a proposed change. Wired to the
+// backend patcher (plan / apply / revert). These were referenced by the
+// finding-card template (renderFixControls) and the click wiring
+// (handleFixAction) but never defined — so issues.map() threw a ReferenceError
+// on any run whose findings carry proposals (e.g. every LLM review), which left
+// the whole Findings list empty (the throw was swallowed by Promise.allSettled,
+// so there was no console error). Defining them fixes that crash.
+function renderFixControls(issue) {
+  const id = esc(issue.id);
+  return `
+    <div class="fix-controls" data-fix-for="${id}">
+      <button class="btn btn-sm btn-secondary fix-action" data-issue="${id}" data-fix-action="plan" type="button">Preview fix</button>
+      <button class="btn btn-sm btn-secondary fix-action" data-issue="${id}" data-fix-action="apply" type="button">Apply to file</button>
+      <button class="btn btn-sm btn-ghost fix-action" data-issue="${id}" data-fix-action="revert" type="button">Revert</button>
+      <div class="fix-status" id="fix-status-${id}"></div>
+    </div>`;
+}
+
+async function handleFixAction(issueId, action) {
+  if (!state.selectedRunId) return;
+  const statusEl = $(`#fix-status-${issueId}`);
+  const setStatus = (html, cls = "") => {
+    if (statusEl) { statusEl.innerHTML = html; statusEl.className = `fix-status ${cls}`; }
+  };
+  setStatus("Working…");
+  try {
+    const res = await api(
+      `/api/reviews/${encodeURIComponent(state.selectedRunId)}/fixes/${action}`,
+      { method: "POST", body: JSON.stringify({ issueId }) },
+    );
+    if (action === "plan") {
+      if (res.applicable) {
+        setStatus(
+          `<div class="code-block-label">Current (${esc(res.file)}:${esc(res.start_line)}–${esc(res.end_line)})</div>` +
+          `<pre class="code-block">${esc((res.before || []).join("\n"))}</pre>` +
+          `<div class="code-block-label">Proposed</div>` +
+          `<pre class="code-block proposal">${esc((res.after || []).join("\n"))}</pre>`,
+          "ok",
+        );
+      } else {
+        setStatus(`Not auto-applicable: ${esc(res.reason || "unknown")}`, "warn");
+      }
+    } else if (action === "apply") {
+      setStatus(`✓ Applied to ${esc(res.file || "file")}. Re-run the review to confirm.`, "ok");
+    } else if (action === "revert") {
+      setStatus(`↩ Reverted ${esc(res.file || "file")}.`, "ok");
+    }
+  } catch (err) {
+    setStatus(esc(err.message), "err");
+  }
 }
 
 // ── Render: generated test cases ────────────────────────────────────────────

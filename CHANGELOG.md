@@ -40,6 +40,29 @@ with no registered users and no `CODEPULSE_TOKEN` behaves exactly as before
   (`subprocess.getoutput` / `getstatusoutput`). All fire only on
   request-derived arguments; a self-scan of CodePulse's own source yields zero
   findings.
+- **Zyloo LLM provider + `.env` loader.** New OpenAI-compatible `zyloo`
+  provider (default model `zyloo/gemini-3-pro-free`); the server loads a
+  project-root `.env` at startup (stdlib, no python-dotenv). Configured cloud
+  providers now win over local Ollama as the review-form default.
+
+### Fixed
+- **Findings list rendered empty for any review with proposed fixes.** The
+  finding-card template called `renderFixControls(issue)` and the click wiring
+  called `handleFixAction(...)`, but neither function was ever defined — so
+  `issues.map()` threw a `ReferenceError` on every finding that carried a
+  proposal (i.e. every LLM review). The throw was swallowed by
+  `Promise.allSettled`, so there was no console error and the Findings view just
+  showed "No run" with an empty list. Both functions are now defined and wired
+  to the backend patcher (preview / apply / revert), so findings render and
+  proposed fixes are actionable.
+- **Deterministic findings on LLM-flagged lines are now corroborated, not
+  dropped.** `merge_into_report` previously discarded a high-confidence static
+  finding whenever the LLM flagged the same line. It now records the agreeing
+  rule in a `corroborated_by` field on the LLM finding (surfaced as a
+  "✓✓ corroborated" chip) instead of hiding it. The field is separate from
+  `tags`, so `issue_fingerprint` is unchanged and stored suppressions keep
+  matching.
+
 - **Graceful degradation for large reviews.** When the LLM subprocess times
   out or errors but the deterministic engines already produced findings, the
   run is now surfaced as **completed (degraded)** with a `degraded` /

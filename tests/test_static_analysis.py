@@ -196,9 +196,17 @@ def test_merge_into_report_dedupes_lines_llm_already_flagged():
 
     added = sa.merge_into_report(report, static_issues)
 
+    # No duplicate card, count unchanged...
     assert added == 0
     assert report["total_issues"] == 1
     assert len(report["issues"]["svc/run.py"]) == 1
+    # ...but the overlapping LLM finding is now corroborated by the static rule
+    # (recorded in a separate field so issue_fingerprint / tags are untouched).
+    llm_issue = report["issues"]["svc/run.py"][0]
+    assert llm_issue["tags"] == ["security"]  # tags unchanged -> fingerprint stable
+    corroborated = llm_issue.get("corroborated_by") or []
+    assert len(corroborated) == 1
+    assert corroborated[0]["rule"]  # the deterministic rule that agreed
 
 
 def test_merge_into_report_appends_new_findings_with_stable_ids():

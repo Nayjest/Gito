@@ -952,25 +952,43 @@ def empty_report() -> dict:
 
 
 def merge_into_report(report: dict, static_issues: dict[str, list[dict]]) -> int:
-    """Merge static findings into a Gito report, skipping lines the LLM already flagged.
+    """Merge static findings into a Gito report.
 
-    Returns the number of findings added.
+    When a deterministic finding lands on a line the LLM already flagged, we do
+    not add a duplicate card — but instead of dropping the high-confidence
+    signal silently, we **corroborate** the overlapping LLM finding: the static
+    rule is recorded in its ``corroborated_by`` list (a separate field, so
+    ``issue_fingerprint`` — which hashes tags/title/file — is unaffected and
+    stored suppressions keep matching). Engine agreement raises confidence
+    rather than hiding one engine behind the other.
+
+    Returns the number of *new* findings added (corroborations are not counted).
     """
     issues = report.setdefault("issues", {})
     next_id = STATIC_ISSUE_ID_BASE
     added = 0
     for file, findings in static_issues.items():
         existing = issues.get(file) or []
-        covered: set[int] = set()
+        line_to_issues: dict[int, list[dict]] = {}
         for issue in existing:
             for block in issue.get("affected_lines") or []:
                 start, end = block.get("start_line"), block.get("end_line")
                 if isinstance(start, int) and isinstance(end, int) and end >= start:
-                    covered.update(range(start, end + 1))
+                    for line_no in range(start, end + 1):
+                        line_to_issues.setdefault(line_no, []).append(issue)
         kept = []
         for finding in findings:
             line = finding["affected_lines"][0]["start_line"]
-            if line in covered:
+            overlapping = line_to_issues.get(line)
+            if overlapping:
+                entry = {
+                    "rule": finding.get("rule") or finding.get("id"),
+                    "title": finding.get("title"),
+                }
+                for issue in overlapping:
+                    corr = issue.setdefault("corroborated_by", [])
+                    if entry not in corr:
+                        corr.append(entry)
                 continue
             kept.append({**finding, "id": next_id, "file": file})
             next_id += 1
