@@ -500,6 +500,24 @@ img { display: block; max-width: 100%; }
 }
 .scope-gate-note.hidden { display: none; }
 
+.deep-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #fff;
+  background: linear-gradient(135deg, var(--violet, #8957e5), var(--accent, #2f81f7));
+  box-shadow: 0 0 0 1px rgba(137, 87, 229, 0.35);
+}
+.deep-badge.hidden { display: none; }
+
+.deep-scan-field .check-label { align-items: flex-start; }
+.deep-scan-field span { line-height: 1.4; }
+
 /* ── Login modal ──────────────────────────────────────────────────────────── */
 .login-modal {
   position: fixed;

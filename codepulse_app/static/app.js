@@ -273,6 +273,7 @@ function hydrateFormFromMeta(meta) {
   if (meta.refs)    $("#refs").value = meta.refs;
   if (meta.against) $("#against").value = meta.against;
   $("#mergeBase").checked = meta.merge_base !== false;
+  if ($("#deepScan")) $("#deepScan").checked = !!meta.deep_scan;
   const mode = meta.mode || "working";
   const modeEl = $(`input[name="mode"][value="${mode}"]`);
   if (modeEl) modeEl.checked = true;
@@ -676,6 +677,8 @@ function renderSelectedRun() {
   // Scope gate = non-source files (vendored / generated / minified / lockfiles /
   // data blobs) skipped from the LLM pass on a snapshot/whole-repo review to
   // save tokens. Deterministic engines still scan them.
+  const deepBadge = $("#deepBadge");
+  if (deepBadge) deepBadge.classList.toggle("hidden", !meta?.deep_scan);
   const scopeNote = $("#scopeGateNote");
   if (scopeNote) {
     const sg = meta?.scope_gate;
@@ -1348,6 +1351,7 @@ function formPayload() {
     filters:            $("#filters").value.trim(),
     maxConcurrentTasks: Number($("#maxConcurrentTasks").value || 4),
     mergeBase:          $("#mergeBase").checked,
+    deepScan:           $("#deepScan")?.checked || false,
     verifyModel:        $("#verifyModel")?.value.trim() || "",
     generateModel:      $("#generateModel")?.value.trim() || "",
   };

@@ -19,6 +19,9 @@ from typing import Callable, Iterator
 STATIC_ISSUE_ID_BASE = 10000
 MAX_FINDINGS_PER_RULE_PER_FILE = 5
 MAX_TOTAL_FINDINGS = 200
+# Deep Scan raises the caps so an exhaustive audit is not truncated.
+DEEP_MAX_FINDINGS_PER_RULE_PER_FILE = 50
+DEEP_MAX_TOTAL_FINDINGS = 2000
 MAX_LINE_LENGTH = 2000  # skip minified / generated lines
 EMPTY_TREE_SHA = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
 
@@ -122,6 +125,11 @@ _SECRET_CONTEXT_RE = re.compile(
 
 def _secret_context(_match: re.Match, line: str) -> bool:
     return bool(_SECRET_CONTEXT_RE.search(line))
+
+
+def _yaml_unsafe(_match: re.Match, line: str) -> bool:
+    # yaml.load(...) is only a finding without a safe loader.
+    return "safe" not in line.lower()
 
 
 RULES: tuple[Rule, ...] = (
@@ -633,6 +641,132 @@ RULES: tuple[Rule, ...] = (
         tags=("security",),
         pattern=re.compile(r"chmod\s*\([^)]*0o?[67]{3}\b|chmod\s+[67]{3}\b"),
     ),
+    # ── Deep-audit additions ─────────────────────────────────────────────
+    Rule(
+        id="yaml-unsafe-load",
+        title="yaml.load() without a safe loader can execute arbitrary code.",
+        details=(
+            "yaml.load() with the default loader can instantiate arbitrary Python "
+            "objects from the document — remote code execution if the YAML is "
+            "attacker-influenced. Use yaml.safe_load()."
+        ),
+        severity=2,
+        confidence=2,
+        tags=("security", "deserialization"),
+        pattern=re.compile(r"\byaml\.load\s*\("),
+        file_patterns=PY_FILES,
+        validator=_yaml_unsafe,
+    ),
+    Rule(
+        id="pickle-load-untyped",
+        title="pickle load can execute arbitrary code on untrusted data.",
+        details=(
+            "pickle.load()/loads() reconstructs arbitrary Python objects; on data "
+            "that ever crosses a trust boundary this is remote code execution. Use "
+            "JSON or a schema-validated format for external data."
+        ),
+        severity=3,
+        confidence=2,
+        tags=("security", "deserialization"),
+        pattern=re.compile(r"\bpickle\.loads?\s*\("),
+        file_patterns=PY_FILES,
+    ),
+    Rule(
+        id="archive-extractall",
+        title="Archive extractall() is vulnerable to path traversal (zip-slip).",
+        details=(
+            "tarfile/zipfile extractall() writes member paths as-is; a crafted "
+            "archive with '../' members can overwrite files outside the target "
+            "directory. Validate each member resolves inside the destination."
+        ),
+        severity=2,
+        confidence=2,
+        tags=("security", "path-traversal"),
+        pattern=re.compile(r"\.extractall\s*\("),
+        file_patterns=PY_FILES,
+    ),
+    Rule(
+        id="django-debug-true",
+        title="Django DEBUG is enabled.",
+        details=(
+            "DEBUG = True in Django serves detailed error pages that leak source, "
+            "settings, and environment to anyone who triggers an exception. Drive it "
+            "from an environment variable and default to False."
+        ),
+        severity=2,
+        confidence=2,
+        tags=("security",),
+        pattern=re.compile(r"^\s*DEBUG\s*=\s*True\b"),
+        file_patterns=PY_FILES,
+    ),
+    Rule(
+        id="django-allowed-hosts-wildcard",
+        title="ALLOWED_HOSTS allows any host (*).",
+        details=(
+            "ALLOWED_HOSTS = ['*'] disables Django's Host-header validation, "
+            "enabling host-header poisoning (password-reset links, cache keys). "
+            "List the exact hostnames the app serves."
+        ),
+        severity=3,
+        confidence=2,
+        tags=("security",),
+        pattern=re.compile(r"ALLOWED_HOSTS\s*=\s*\[[^\]]*['\"]\*['\"]"),
+        file_patterns=PY_FILES,
+    ),
+    Rule(
+        id="jwt-none-algorithm",
+        title="JWT configured to accept the 'none' algorithm.",
+        details=(
+            "Allowing alg 'none' (or listing it among accepted algorithms) lets an "
+            "attacker forge tokens with no signature. Pin a specific asymmetric or "
+            "HMAC algorithm and never accept 'none'."
+        ),
+        severity=1,
+        confidence=2,
+        tags=("security",),
+        pattern=re.compile(r"alg(?:orithms?)?\s*[=:]\s*\[?\s*['\"]none['\"]", re.IGNORECASE),
+        file_patterns=PY_FILES + JS_FILES,
+    ),
+    Rule(
+        id="debug-breakpoint-left",
+        title="Debugger breakpoint left in the code.",
+        details=(
+            "pdb.set_trace()/breakpoint() halts the process waiting for a console; "
+            "shipped to production it hangs the request or worker. Remove it."
+        ),
+        severity=2,
+        confidence=1,
+        tags=("bug",),
+        pattern=re.compile(r"\b(?:pdb\.set_trace|breakpoint)\s*\("),
+        file_patterns=PY_FILES,
+    ),
+    Rule(
+        id="react-dangerous-html",
+        title="dangerouslySetInnerHTML renders raw HTML.",
+        details=(
+            "dangerouslySetInnerHTML bypasses React's escaping; user-derived content "
+            "here is cross-site scripting. Sanitize the HTML first or render text."
+        ),
+        severity=2,
+        confidence=2,
+        tags=("security", "xss"),
+        pattern=re.compile(r"dangerouslySetInnerHTML"),
+        file_patterns=JS_FILES,
+    ),
+    Rule(
+        id="js-document-write",
+        title="document.write() is an XSS sink.",
+        details=(
+            "document.write()/writeln() injects its argument into the page as HTML; "
+            "user-derived input is cross-site scripting. Build DOM nodes and set "
+            "textContent instead."
+        ),
+        severity=3,
+        confidence=2,
+        tags=("security", "xss"),
+        pattern=re.compile(r"\bdocument\.write(?:ln)?\s*\("),
+        file_patterns=JS_FILES,
+    ),
 )
 
 _HUNK_RE = re.compile(r"^@@ -\d+(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
@@ -717,13 +851,19 @@ def _finding(rule: Rule, file: str, line_no: int, line: str, match: re.Match) ->
 def analyze_diff(
     diff_text: str,
     filters: str | list[str] | tuple[str, ...] | None = None,
+    max_total: int = MAX_TOTAL_FINDINGS,
+    max_per_rule: int = MAX_FINDINGS_PER_RULE_PER_FILE,
 ) -> dict[str, list[dict]]:
-    """Run the rule pack over the added lines of a unified diff."""
+    """Run the rule pack over the added lines of a unified diff.
+
+    ``max_total`` / ``max_per_rule`` bound the finding volume; Deep Scan raises
+    both so a large audit is not silently capped.
+    """
     issues: dict[str, list[dict]] = {}
     rule_hits: Counter = Counter()
     total = 0
     for file, line_no, line in iter_added_lines(diff_text):
-        if total >= MAX_TOTAL_FINDINGS:
+        if total >= max_total:
             break
         if (
             not file
@@ -738,7 +878,7 @@ def analyze_diff(
                 continue
             if not _file_matches(file, rule.file_patterns):
                 continue
-            if rule_hits[(file, rule.id)] >= MAX_FINDINGS_PER_RULE_PER_FILE:
+            if rule_hits[(file, rule.id)] >= max_per_rule:
                 continue
             match = rule.pattern.search(line)
             if not match:
@@ -905,6 +1045,7 @@ def analyze_repo_changes(
     against: str = "",
     use_merge_base: bool = True,
     filters: str | list[str] | tuple[str, ...] | None = None,
+    deep: bool = False,
 ) -> dict[str, list[dict]]:
     diff_text = collect_diff(
         repo_path,
@@ -916,6 +1057,12 @@ def analyze_repo_changes(
     )
     if not diff_text:
         return {}
+    if deep:
+        return analyze_diff(
+            diff_text, filters=filters,
+            max_total=DEEP_MAX_TOTAL_FINDINGS,
+            max_per_rule=DEEP_MAX_FINDINGS_PER_RULE_PER_FILE,
+        )
     return analyze_diff(diff_text, filters=filters)
 
 

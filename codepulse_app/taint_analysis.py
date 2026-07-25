@@ -311,6 +311,68 @@ SINKS: dict[str, SinkSpec] = {
         "fixed root first.",
         ("security", "path-traversal"), 1, arg_indexes=(), check_receiver=True,
     ),
+    "dill.loads": SinkSpec(
+        "Untrusted input deserialized with dill (RCE).",
+        "dill.loads() on request-derived bytes executes arbitrary code, like "
+        "pickle. Use JSON or a schema-validated format across trust boundaries.",
+        ("security", "deserialization"), 1, arg_indexes=(0,),
+    ),
+    "cloudpickle.loads": SinkSpec(
+        "Untrusted input deserialized with cloudpickle (RCE).",
+        "cloudpickle.loads() on request-derived bytes is remote code execution. "
+        "Do not unpickle data from a trust boundary; use a validated schema.",
+        ("security", "deserialization"), 1, arg_indexes=(0,),
+    ),
+    "jsonpickle.decode": SinkSpec(
+        "Untrusted input deserialized with jsonpickle (RCE).",
+        "jsonpickle.decode() can reconstruct arbitrary Python objects from "
+        "request-derived input. Use plain json with an explicit schema instead.",
+        ("security", "deserialization"), 1, arg_indexes=(0,),
+    ),
+    "os.execl": SinkSpec(
+        "Untrusted input reaches process execution.",
+        "os.execl()/exec* replaces the process image using a request-derived "
+        "path or argument; an attacker controls what runs. Use an allowlist and "
+        "never pass user input as the program or its arguments.",
+        ("security", "command-injection"), 1,
+    ),
+    "os.execlp": SinkSpec(
+        "Untrusted input reaches process execution.",
+        "os.execlp() runs a request-derived program name resolved on PATH. Use "
+        "a fixed absolute path from an allowlist.",
+        ("security", "command-injection"), 1,
+    ),
+    "os.execv": SinkSpec(
+        "Untrusted input reaches process execution.",
+        "os.execv() executes a request-derived program path/arguments. Validate "
+        "against an allowlist and never pass user input here.",
+        ("security", "command-injection"), 1, arg_indexes=(0, 1),
+    ),
+    "os.execve": SinkSpec(
+        "Untrusted input reaches process execution.",
+        "os.execve() executes a request-derived program path/arguments. Validate "
+        "against an allowlist.",
+        ("security", "command-injection"), 1, arg_indexes=(0, 1),
+    ),
+    "os.execvp": SinkSpec(
+        "Untrusted input reaches process execution.",
+        "os.execvp() runs a request-derived program name on PATH. Use a fixed "
+        "absolute path from an allowlist.",
+        ("security", "command-injection"), 1, arg_indexes=(0, 1),
+    ),
+    "pty.spawn": SinkSpec(
+        "Untrusted input reaches process execution.",
+        "pty.spawn() launches a request-derived command in a pseudo-terminal; "
+        "this is command execution. Use an allowlist and a fixed program.",
+        ("security", "command-injection"), 1, arg_indexes=(0,),
+    ),
+    "os.rmdir": SinkSpec(
+        "Untrusted input used as a directory path (arbitrary delete).",
+        "os.rmdir() with a request-derived path lets an attacker remove "
+        "directories outside the intended root via traversal. Resolve against a "
+        "fixed root and reject escapes.",
+        ("security", "path-traversal"), 1, arg_indexes=(0,),
+    ),
 }
 
 # Calls that pass their tainted argument through (taint propagates to result).
@@ -638,6 +700,9 @@ def _summarize_function(
 
 
 _MAX_FIXPOINT_ROUNDS = 4
+# Deep Scan trades time for reach: more fixpoint rounds resolve longer helper
+# chains (a -> b -> c -> d -> sink) that the standard depth stops short of.
+_DEEP_FIXPOINT_ROUNDS = 8
 MAX_REPO_SUMMARY_FILES = 4000
 
 
@@ -657,35 +722,45 @@ def _summary_targets(tree: ast.Module) -> list[ast.FunctionDef | ast.AsyncFuncti
 def _summaries_fixpoint(
     functions: list[ast.FunctionDef | ast.AsyncFunctionDef],
     seed: dict[str, _FuncSummary] | None = None,
+    rounds: int = _MAX_FIXPOINT_ROUNDS,
 ) -> dict[str, _FuncSummary]:
     """Fixpoint over function summaries so helper chains (a→b→sink) resolve.
 
+    ``rounds`` bounds how deep a helper chain is followed; Deep Scan raises it.
     When two functions share a name but summarize to different shapes, the
     name is dropped from the lookup table — an ambiguous cross-file target is
     never assumed dangerous, keeping false positives rare.
     """
-    summaries: dict[str, _FuncSummary] = dict(seed or {})
-    computed: dict[str, _FuncSummary] = {}
+    base: dict[str, _FuncSummary] = dict(seed or {})
+    summaries: dict[str, _FuncSummary] = dict(base)
     ambiguous: set[str] = set()
-    for _ in range(_MAX_FIXPOINT_ROUNDS):
-        changed = False
+    for _ in range(max(1, rounds)):
+        this_round: dict[str, _FuncSummary] = {}
         for func in functions:
-            summary = _summarize_function(func, summaries)
             name = func.name
-            previous = computed.get(name)
             if name in ambiguous:
                 continue
-            if previous is not None and previous.shape() != summary.shape():
-                # Same name, conflicting behavior across definitions → drop it.
+            summary = _summarize_function(func, summaries)
+            existing = this_round.get(name)
+            if existing is not None and existing.shape() != summary.shape():
+                # Two *different* definitions share this name and disagree in the
+                # same round → a genuinely ambiguous target; drop it so it is
+                # never assumed dangerous. (A single definition whose summary
+                # merely *refines* across rounds is the normal fixpoint path and
+                # must not trip this — hence the within-round comparison.)
                 ambiguous.add(name)
-                computed.pop(name, None)
-                summaries.pop(name, None)
-                changed = True
+                this_round.pop(name, None)
                 continue
-            if previous is None or previous.shape() != summary.shape():
-                changed = True
-            computed[name] = summary
-            summaries[name] = summary
+            this_round[name] = summary
+        # A name that became ambiguous this round must not linger from a prior one.
+        for name in ambiguous:
+            this_round.pop(name, None)
+        next_summaries = dict(base)
+        next_summaries.update(this_round)
+        changed = {k: v.shape() for k, v in next_summaries.items()} != {
+            k: v.shape() for k, v in summaries.items()
+        }
+        summaries = next_summaries
         if not changed:
             break
     return summaries
@@ -714,17 +789,20 @@ def analyze_source(
     source: str,
     filename: str = "<unknown>",
     repo_summaries: dict[str, _FuncSummary] | None = None,
+    deep: bool = False,
 ) -> list[dict[str, Any]]:
     """Return taint findings (with 1-based ``line``) for one Python module.
 
     ``repo_summaries`` (from :func:`build_repo_summaries`) enables cross-module
     detection; without it the analysis is file-local but still interprocedural.
+    ``deep`` follows longer interprocedural helper chains (more fixpoint rounds).
     """
     try:
         tree = ast.parse(source, filename=filename)
     except (SyntaxError, ValueError):
         return []
-    summaries = _summaries_fixpoint(_summary_targets(tree), seed=repo_summaries)
+    rounds = _DEEP_FIXPOINT_ROUNDS if deep else _MAX_FIXPOINT_ROUNDS
+    summaries = _summaries_fixpoint(_summary_targets(tree), seed=repo_summaries, rounds=rounds)
     findings: list[dict[str, Any]] = []
     for node in ast.walk(tree):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -773,6 +851,7 @@ def analyze_repo_changes(
     against: str = "",
     use_merge_base: bool = True,
     filters: str | list[str] | tuple[str, ...] | None = None,
+    deep: bool = False,
 ) -> dict[str, list[dict[str, Any]]]:
     """Run the taint pass over the changed Python files of a review scope.
 
@@ -817,7 +896,7 @@ def analyze_repo_changes(
         if not source:
             continue
         lines = source.splitlines()
-        for finding in analyze_source(source, file, repo_summaries=repo_summaries):
+        for finding in analyze_source(source, file, repo_summaries=repo_summaries, deep=deep):
             if finding["line"] not in added_lines:
                 continue
             text = lines[finding["line"] - 1] if finding["line"] <= len(lines) else ""

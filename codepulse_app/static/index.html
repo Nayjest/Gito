@@ -291,6 +291,12 @@
                       <span>Use merge base</span>
                     </label>
                   </div>
+                  <div class="field wide check-field deep-scan-field">
+                    <label class="check-label">
+                      <input id="deepScan" name="deepScan" type="checkbox" />
+                      <span><strong>Deep Scan</strong> — maximum depth: reviews every file whole, all engines on, deeper taint tracing, exhaustive prompt, and a skeptical verification pass. Slower and more tokens.</span>
+                    </label>
+                  </div>
                   <details class="field wide advanced-models">
                     <summary class="field-label">Advanced: per-pass models</summary>
                     <div class="form-grid">
@@ -464,6 +470,7 @@
               <div class="panel">
                 <div class="panel-header">
                   <h2 class="panel-title">Selected Run</h2>
+                  <span class="deep-badge hidden" id="deepBadge" title="Reviewed in Deep Scan mode: max coverage, deeper engines, verification pass">DEEP SCAN</span>
                   <span class="state-pill" id="reportRunState">No Run</span>
                 </div>
                 <div class="panel-body">

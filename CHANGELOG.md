@@ -58,6 +58,35 @@ with no registered users and no `CODEPULSE_TOKEN` behaves exactly as before
   Reports panel shows how many files were skipped and the estimated tokens
   saved. Pure stdlib, additive; ordinary PRs are byte-identical to before.
 
+- **Deep Scan mode — one-click maximum-depth review.** A `deepScan` toggle on
+  the review form (default off) pushes every lever to the max: the token scope
+  gate is turned OFF (nothing skipped), filters widen to every mainstream source
+  language, all deterministic engines run, the skeptical verification second
+  pass is forced on, and Gito swaps to an exhaustive profile
+  (`review_profile.deep.toml`: `max_code_tokens` 96k so whole large files fit
+  without head-truncation, `retries` 5, and a tracing "audit everything" prompt).
+  Surfaced as a `deep_scan` flag in the run meta and a **DEEP SCAN** badge in the
+  Selected-Run panel. Slower and more tokens by design.
+- **Deeper interprocedural taint (fixes a real fixpoint bug).** The summary
+  fixpoint previously mistook a *single* function's summary refining across
+  rounds (empty → dangerous — the normal way a fixpoint converges) for *two*
+  different functions sharing a name, and dropped it as "ambiguous." As a result
+  only one-hop helper-wrapped sinks resolved and raising the round count did
+  nothing. The ambiguity check now compares definitions *within a round*, so
+  multi-hop forwarder chains (`a→b→c→…→sink`) resolve — a correctness gain for
+  every review. Deep Scan additionally raises the fixpoint depth (4→8 rounds),
+  reaching chains up to ~7 hops. The same-name false-positive guard is preserved.
+- **New deterministic sinks and rules.** Taint: `dill.loads`,
+  `cloudpickle.loads`, `jsonpickle.decode` (deserialization RCE), the `os.exec*`
+  family + `pty.spawn` (process execution), and `os.rmdir` (arbitrary delete).
+  Static: `yaml.load` without a safe loader, `pickle.load(s)`, archive
+  `extractall()` (zip-slip), Django `DEBUG = True` and wildcard `ALLOWED_HOSTS`,
+  JWT `alg=none`, leftover `breakpoint()`/`pdb.set_trace()`,
+  `dangerouslySetInnerHTML`, and `document.write`. Deep Scan also raises the
+  static finding caps (5→50 per rule, 200→2000 total) so an exhaustive audit is
+  not silently truncated. All verified to add zero false positives on
+  CodePulse's own source.
+
 ### Fixed
 - **Findings list rendered empty for any review with proposed fixes.** The
   finding-card template called `renderFixControls(issue)` and the click wiring

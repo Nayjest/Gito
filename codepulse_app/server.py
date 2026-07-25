@@ -75,7 +75,16 @@ POLICIES_FILE = DATA_DIR / "policies.json"
 SUPPRESSIONS_FILE = DATA_DIR / "suppressions.json"
 SNAPSHOTS_DIR = DATA_DIR / "snapshots"
 REVIEW_PROFILE = Path(__file__).resolve().parent / "review_profile.toml"
+REVIEW_PROFILE_DEEP = Path(__file__).resolve().parent / "review_profile.deep.toml"
 DEFAULT_FILTERS = "*.py,*.js,*.jsx,*.ts,*.tsx,*.mjs,*.cjs"
+# Deep Scan widens the LLM's reach to every mainstream source language, not just
+# the JS/TS/Python default. Non-source noise is still handled by the profile's
+# exclude_files, so this only adds real code the normal filter would skip.
+DEEP_FILTERS = (
+    "*.py,*.js,*.jsx,*.ts,*.tsx,*.mjs,*.cjs,*.go,*.rb,*.php,*.java,*.kt,*.kts,"
+    "*.scala,*.rs,*.c,*.cc,*.cpp,*.h,*.hpp,*.m,*.cs,*.swift,*.sh,*.bash,*.sql,"
+    "*.tf,*.yaml,*.yml"
+)
 DEFAULT_OLLAMA_BASE = "http://localhost:11434"
 DEFAULT_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
 
@@ -794,6 +803,45 @@ def resolve_review_payload(
         payload["against"] = ""
         payload["mergeBase"] = False
     return review_path, source_path, is_snapshot, payload
+
+
+def deep_scan_requested(payload: dict[str, Any]) -> bool:
+    """Whether this review was started in Deep Scan mode. Defaults to off."""
+    value = payload.get("deepScan")
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def apply_deep_scan_defaults(payload: dict[str, Any]) -> dict[str, Any]:
+    """Deep Scan (``deepScan=true``): push every coverage/depth lever to maximum.
+
+    - Turn the token scope gate OFF so nothing is skipped from the LLM pass.
+    - Force the skeptical verification second pass on.
+    - Force all deterministic engines on.
+    - Widen filters to every mainstream source language, unless the caller pinned
+      an explicit filter (a deliberately narrower scope is respected).
+    - Give the review and verifier generous timeouts (deep runs are slower).
+
+    Returns a copy; the deep Gito profile and the deterministic engines' depth
+    are selected elsewhere off the same ``deepScan`` flag. A non-deep payload is
+    returned unchanged, so ordinary reviews behave exactly as before.
+    """
+    if not deep_scan_requested(payload):
+        return payload
+    deep = dict(payload)
+    deep["deepScan"] = True
+    deep["scopeGate"] = False
+    deep["verifyFindings"] = True
+    for engine in ("staticAnalysis", "crossFileAnalysis", "taintAnalysis", "dependencyScan"):
+        deep[engine] = True
+    if not str(payload.get("filters") or "").strip():
+        deep["filters"] = DEEP_FILTERS
+    deep.setdefault("timeoutSeconds", REVIEW_TIMEOUT_DEFAULT)
+    deep.setdefault("verifyTimeoutSeconds", VERIFY_TIMEOUT_DEFAULT)
+    return deep
 
 
 def build_review_command(
@@ -1763,12 +1811,16 @@ def subprocess_env(payload: dict[str, Any], model_override: str = "") -> dict[st
     _, spec = resolve_provider(payload)
     model = (model_override or payload.get("model") or spec["default_model"]).strip()
     concurrency = int(payload.get("maxConcurrentTasks") or spec.get("concurrency") or 4)
+    # Deep Scan swaps in the exhaustive profile (bigger token budget, more
+    # retries, deeper prompt). The scope gate is off in Deep Scan, so nothing
+    # later overrides this pointer.
+    profile = REVIEW_PROFILE_DEEP if deep_scan_requested(payload) else REVIEW_PROFILE
     llm_env = {
         "PYTHONPATH": python_path,
         "LLM_API_TYPE": spec["api_type"],
         "MODEL": model,
         "MAX_CONCURRENT_TASKS": str(concurrency),
-        "GITO_EXTRA_PROJECT_CONFIG": str(REVIEW_PROFILE),
+        "GITO_EXTRA_PROJECT_CONFIG": str(profile),
     }
     if spec.get("local"):
         llm_env["LLM_API_KEY"] = "ollama"
@@ -1864,6 +1916,7 @@ def run_review(run_id: str, repo_path: Path, payload: dict[str, Any], command: l
     )
 
     # Deterministic passes run up front so their findings survive even a failed LLM run.
+    deep = deep_scan_requested(payload)
     static_issues: dict[str, list[dict[str, Any]]] = {}
     if payload.get("staticAnalysis") is not False:
         try:
@@ -1876,6 +1929,7 @@ def run_review(run_id: str, repo_path: Path, payload: dict[str, Any], command: l
                 against=options["against"],
                 use_merge_base=options["use_merge_base"],
                 filters=options["filters"],
+                deep=deep,
             )
         except Exception as exc:
             audit_event("static_analysis_failed", run_id=run_id, error=str(exc))
@@ -1910,6 +1964,7 @@ def run_review(run_id: str, repo_path: Path, payload: dict[str, Any], command: l
                 against=options["against"],
                 use_merge_base=options["use_merge_base"],
                 filters=options["filters"],
+                deep=deep,
             )
         except Exception as exc:
             audit_event("taint_analysis_failed", run_id=run_id, error=str(exc))
@@ -2128,6 +2183,9 @@ def create_review_run(payload: dict[str, Any]) -> tuple[str, Path, dict[str, Any
             raise ValueError("Registered repository not found.")
         payload = dict(payload) | {"repoPath": repo.get("path")}
     review_path, source_path, is_snapshot, payload = resolve_review_payload(payload)
+    # Deep Scan rewrites the payload (gate off, verify on, all engines, wider
+    # filters) before anything derives options/command/meta from it.
+    payload = apply_deep_scan_defaults(payload)
     repo_path = review_path
     provider_name, provider_spec = resolve_provider(payload)
     if not provider_configured(provider_spec):
@@ -2156,6 +2214,7 @@ def create_review_run(payload: dict[str, Any]) -> tuple[str, Path, dict[str, Any
         "repo_path": str(repo_path),
         "source_path": str(source_path),
         "is_snapshot": is_snapshot,
+        "deep_scan": deep_scan_requested(payload),
         "provider": provider_name,
         "model": (payload.get("model") or provider_spec["default_model"]).strip(),
         "ollama_base": normalize_ollama_base(payload.get("ollamaBase")),
