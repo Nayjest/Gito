@@ -166,6 +166,11 @@ LLM_PROVIDERS: dict[str, dict[str, Any]] = {
         "base": "https://api.zyloo.io/v1/",
         "key_env": ("ZYLOO_API_KEY", "CODEPULSE_ZYLOO_KEY"),
         "default_model": "zyloo/gemini-3-pro-free",
+        # tiktoken can't map namespaced model names (zyloo/…) to an encoding and
+        # logs a warning per file, falling back to a stale default. Pin the
+        # modern GPT-4o/4.1/Gemini-class encoding so token budgeting is accurate
+        # and the logs stay quiet.
+        "tiktoken_encoding": "o200k_base",
         "local": False,
         "concurrency": 6,
     },
@@ -1777,6 +1782,8 @@ def subprocess_env(payload: dict[str, Any], model_override: str = "") -> dict[st
                 llm_env[env_name] = key
         if spec.get("base"):
             llm_env["LLM_API_BASE"] = spec["base"]
+    if spec.get("tiktoken_encoding"):
+        llm_env["TIKTOKEN_ENCODING"] = spec["tiktoken_encoding"]
     env.update(llm_env)
     return env
 

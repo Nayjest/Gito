@@ -42,6 +42,16 @@ def test_zyloo_provider_builds_openai_compatible_subprocess_env(monkeypatch):
     assert env["MODEL"] == "zyloo/gemini-3-pro-free"
     # The native key var is also exported for microcore.
     assert env["ZYLOO_API_KEY"] == "sk-zy-xyz"
+    # tiktoken can't resolve namespaced model names, so the provider pins the
+    # encoding to keep token budgeting accurate and the logs quiet.
+    assert env["TIKTOKEN_ENCODING"] == "o200k_base"
+
+
+def test_openai_provider_does_not_pin_tiktoken_encoding(monkeypatch):
+    # tiktoken already knows real OpenAI model names, so no override is needed.
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-openai")
+    env = server.subprocess_env({"provider": "openai"})
+    assert "TIKTOKEN_ENCODING" not in env
 
 
 def test_zyloo_configured_only_with_key(monkeypatch):
