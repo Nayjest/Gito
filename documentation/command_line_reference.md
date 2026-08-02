@@ -34,6 +34,7 @@ $ gito [OPTIONS] COMMAND [ARGS]...
 * `connect`: Deploy Gito to repository&#x27;s CI pipeline...
 * `init`: Deploy Gito to repository&#x27;s CI pipeline...
 * `deploy`: Create and deploy Gito workflows to your...
+* `populate-project-config`: Copy Gito&#x27;s bundled configuration to...
 * `version`: Show Gito version.
 * `run`
 * `review`: Perform a code review of the target...
@@ -277,6 +278,20 @@ $ gito deploy [OPTIONS]
 * `--to-branch TEXT`: Branch name for new PR containing Gito CI workflows  [default: gito-ci]
 * `--token TEXT`: GitHub token (or set GITHUB_TOKEN env var)
 * `--model TEXT`: Language model to use (interactive if omitted; &quot;default&quot; selects the recommended model)
+* `--help`: Show this message and exit.
+
+## `gito populate-project-config`
+
+Copy Gito&#x27;s bundled configuration to .gito/config.toml in the current repository.
+
+**Usage**:
+
+```console
+$ gito populate-project-config [OPTIONS]
+```
+
+**Options**:
+
 * `--help`: Show this message and exit.
 
 ## `gito version`
