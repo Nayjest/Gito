@@ -33,6 +33,21 @@ def test_prompt_vars_merging(tmp_path):
     assert cfg.retries == 7
 
 
+def test_load_config_with_utf8_bom(tmp_path):
+    sample = textwrap.dedent(
+        """
+    retries = 7
+    [prompt_vars]
+    foo = "bar"
+    """
+    )
+    toml_path = tmp_path / "config.toml"
+    toml_path.write_bytes(b"\xef\xbb\xbf" + sample.encode("utf-8"))
+    cfg = ProjectConfig.load(config_path=toml_path)
+    assert cfg.retries == 7
+    assert cfg.prompt_vars["foo"] == "bar"
+
+
 def test_merge_pipeline_steps():
     file = Path(__file__).parent / "fixtures" / "config-disable-jira.toml"
     cfg = ProjectConfig.load(config_path=file)

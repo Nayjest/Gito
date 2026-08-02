@@ -63,9 +63,9 @@ class ProjectConfig:
         Returns:
             dict: The default project configuration.
         """
-        with open(PROJECT_CONFIG_BUNDLED_DEFAULTS_FILE, "rb") as f:
-            config = tomllib.load(f)
-        return config
+        return tomllib.loads(
+            Path(PROJECT_CONFIG_BUNDLED_DEFAULTS_FILE).read_text(encoding="utf-8-sig")
+        )
 
     @staticmethod
     def load_for_repo(repo: Repo) -> "ProjectConfig":
@@ -100,8 +100,8 @@ class ProjectConfig:
             )
             default_prompt_vars = config["prompt_vars"]
             default_pipeline_steps = config["pipeline_steps"]
-            with open(config_path, "rb") as f:
-                config.update(tomllib.load(f))
+            # utf-8-sig strips the BOM written by PowerShell / Notepad on Windows
+            config.update(tomllib.loads(config_path.read_text(encoding="utf-8-sig")))
             # overriding prompt_vars config section will not empty default values
             config["prompt_vars"] = default_prompt_vars | config["prompt_vars"]
             # merge individual pipeline steps

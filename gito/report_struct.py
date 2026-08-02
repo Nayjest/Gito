@@ -223,14 +223,14 @@ class Report:
     def save(self, file_name: str = ""):
         """Save the report to a JSON file."""
         file_name = file_name or JSON_REPORT_FILE_NAME
-        with open(file_name, "w") as f:
+        with open(file_name, "w", encoding="utf-8") as f:
             json.dump(asdict(self), f, indent=4)
         logging.info(f"Report saved to {mc.utils.file_link(file_name)}")
 
     @staticmethod
     def load(file_name: str | Path = ""):
         """Load the report from a JSON file."""
-        with open(file_name or JSON_REPORT_FILE_NAME, "r") as f:
+        with open(file_name or JSON_REPORT_FILE_NAME, "r", encoding="utf-8-sig") as f:
             data = json.load(f)
         data.pop("total_issues", None)
         return Report(**data)
