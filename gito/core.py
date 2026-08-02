@@ -158,9 +158,11 @@ def get_diff(
     logging.info(
         f"Making {comparison} diff: {ui.green(what or 'INDEX')} vs {ui.yellow(against)}"
     )
+    # Unquote non-ASCII paths (core.quotePath) so is_binary_file() gets real paths.
+    git = repo.git(c="core.quotePath=false")
     if use_merge_base:
         try:
-            comparison_base = repo.git.merge_base(against, what or "HEAD")
+            comparison_base = git.merge_base(against, what or "HEAD")
             closed_review_base = None
             if not review_subject_is_index(what) and comparison_base == repo.commit(what).hexsha:
                 closed_review_base = get_closed_review_base(repo, what, against)
@@ -170,13 +172,13 @@ def get_diff(
                     f"Reviewing merged ref {ui.green(what)} from its pre-merge base "
                     f"{ui.cyan(comparison_base[:8])}"
                 )
-                diff_content = repo.git.diff(comparison_base, what)
+                diff_content = git.diff(comparison_base, what)
             elif review_subject_is_index(what):
                 # With one commit, Git compares the working tree to the merge
                 # base of that commit and HEAD. This preserves local changes.
-                diff_content = repo.git.diff("--merge-base", against)
+                diff_content = git.diff("--merge-base", against)
             else:
-                diff_content = repo.git.diff("--merge-base", against, what)
+                diff_content = git.diff("--merge-base", against, what)
         except GitCommandError as e:
             raise MergeBaseError(
                 f"Cannot determine a merge base between '{against}' and '{what or 'HEAD'}'. "
@@ -184,7 +186,7 @@ def get_diff(
             ) from e
     else:
         comparison_base = against
-        diff_content = repo.git.diff(against, what)
+        diff_content = git.diff(against, what)
     diff = PatchSet.from_string(diff_content)
 
     # Filter out binary files
