@@ -171,3 +171,35 @@ def test_deploy_rewrite_overwrites_existing(github_repo, monkeypatch):
 
     assert "OPENAI_API_KEY" in content
     assert "gpt-3.5-turbo" in content
+
+
+def test_deploy_commit_checks_out_existing_branch(github_repo, monkeypatch):
+    """
+    Re-running deploy with --commit must not crash with
+    "fatal: a branch named 'gito-ci' already exists" when the
+    target branch was created by a previous deploy.
+    """
+    bootstrap()
+    monkeypatch.setattr("builtins.input", lambda _: "")
+    monkeypatch.setattr("gito.commands.deploy.identify_git_platform", lambda _: PlatformType.GITHUB)
+
+    # Create the gito-ci branch (as a previous deploy would have)
+    original_branch = github_repo.active_branch.name
+    github_repo.git.checkout("-b", "gito-ci")
+    github_repo.git.checkout(original_branch)
+
+    # Workflow file already exists from the previous deploy
+    workflow_dir = Path(".github/workflows")
+    workflow_dir.mkdir(parents=True, exist_ok=True)
+    (workflow_dir / "gito-code-review.yml").write_text("# existing\n", encoding="utf-8")
+
+    # Must not raise GitCommandError
+    deploy(
+        api_type="anthropic",
+        model="claude-opus-4-6",
+        commit=True,
+        rewrite=True,
+    )
+
+    # The command checked out the existing branch instead of crashing
+    assert github_repo.active_branch.name == "gito-ci"

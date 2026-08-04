@@ -146,6 +146,9 @@ def react_to_comment(
         if cfg.answer_github_comments:
             question = cleanup_comment_addressed_to_gito(comment.body)
             response = answer(question, repo=repo, pr=pr)
+            if not response:
+                ui.error("No answer produced (no changes in context to answer about).")
+                return
             post_gh_comment(
                 gh_repository=f"{owner}/{repo_name}",
                 pr_or_issue_number=pr,

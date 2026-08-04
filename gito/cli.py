@@ -241,12 +241,18 @@ def cmd_answer(
         aux_files=aux_files,
     )
     if post_to == "linear":
-        logging.info("Posting answer to Linear...")
-        linear_comment(remove_html_comments(out))
+        if out:
+            logging.info("Posting answer to Linear...")
+            linear_comment(remove_html_comments(out))
+        else:
+            logging.warning("No answer produced, nothing to post to Linear.")
     if save_to:
-        with open(save_to, "w", encoding="utf-8") as f:
-            f.write(out)
-        logging.info(f"Answer saved to {mc.utils.file_link(save_to)}")
+        if out is None:
+            logging.warning("No answer produced, nothing to save.")
+        else:
+            with open(save_to, "w", encoding="utf-8") as f:
+                f.write(out)
+            logging.info(f"Answer saved to {mc.utils.file_link(save_to)}")
 
     return out
 
