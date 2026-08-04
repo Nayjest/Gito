@@ -24,6 +24,7 @@ from .utils.cli import make_streaming_function
 from .pipeline import Pipeline
 from .env import Env
 from .gh_api import gh_api
+from .review_context import discover_project_instructions, format_project_instructions
 
 
 def review_subject_is_index(what):
@@ -500,7 +501,23 @@ async def review(
                     else str(file_diff.path) + ":\n" + lines[file_diff.path]
                 ),
                 file_lines=lines[file_diff.path] if input_is_diff(file_diff) else None,
-                **cfg.prompt_vars,
+                **(
+                    cfg.prompt_vars
+                    | {
+                        "project_instructions": (
+                            format_project_instructions(
+                                discover_project_instructions(
+                                    repo.working_tree_dir,
+                                    file_diff.path,
+                                    patterns=cfg.review_context.instruction_files,
+                                    max_tokens=cfg.review_context.max_instruction_tokens,
+                                )
+                            )
+                            if cfg.review_context.discover_instructions
+                            else ""
+                        )
+                    }
+                ),
             )
             for file_diff in diff
         ],
