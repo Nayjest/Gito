@@ -510,7 +510,23 @@ async def review(
     )
     processing_warnings: list[ProcessingWarning] = []
     for i, (res_or_error, file) in enumerate(zip(responses, diff)):
-        if isinstance(res_or_error, Exception):
+        if res_or_error is None:
+            # JSON parsing or validation failed (allow_failures=True returns None,
+            # not an Exception). Surface this silently-dropped failure as a warning
+            # so the report doesn't misleadingly show 0 issues.
+            message = (
+                f"File {file.path} was skipped: "
+                f"LLM response failed JSON parsing or validation. "
+                f"The model output was malformed or did not pass the response validator."
+            )
+            processing_warnings.append(
+                ProcessingWarning(
+                    message=message,
+                    file=file.path,
+                )
+            )
+            responses[i] = []
+        elif isinstance(res_or_error, Exception):
             if isinstance(res_or_error, mc.LLMContextLengthExceededError):
                 message = f'File "{file.path}" was skipped due to large size: {str(res_or_error)}.'
             else:
