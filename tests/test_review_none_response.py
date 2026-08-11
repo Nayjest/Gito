@@ -15,7 +15,6 @@ import os
 import tempfile
 
 import git
-import microcore as mc
 from unittest.mock import AsyncMock, patch
 
 from gito.bootstrap import bootstrap
