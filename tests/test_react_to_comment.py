@@ -1,6 +1,9 @@
 """
 Tests for the PR-comment reaction flow (react_to_comment).
 """
+import pytest
+import typer
+
 from gito.commands.gh_react_to_comment import react_to_comment
 
 
@@ -79,12 +82,23 @@ def test_react_to_comment_posts_answer(monkeypatch):
     assert posted.get("text", "").endswith("The answer")
 
 
-def test_react_to_comment_no_answer_does_not_crash(monkeypatch):
+def test_react_to_comment_no_changes_posts_fallback(monkeypatch):
     """
-    When answer() returns None (e.g. no changes in context),
-    the bot must not crash with AttributeError and must not
-    post a comment constructed from None.
+    When answer() returns None (empty diff context), the bot must not crash
+    with AttributeError and must reply with an explanation instead of
+    exiting silently with a green run.
     """
     posted = _patch_env(monkeypatch, answer_result=None)
     react_to_comment(comment_id=12)  # must not raise
+    assert "Nothing to answer" in posted.get("text", "")
+
+
+def test_react_to_comment_empty_llm_answer_fails(monkeypatch):
+    """
+    An empty LLM answer is a malfunction: the run must fail
+    and no comment should be posted.
+    """
+    posted = _patch_env(monkeypatch, answer_result="  ")
+    with pytest.raises(typer.Exit):
+        react_to_comment(comment_id=12)
     assert "text" not in posted

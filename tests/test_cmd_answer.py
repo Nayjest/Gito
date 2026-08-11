@@ -1,7 +1,34 @@
 """
 Tests for the `answer` CLI command edge cases.
 """
+import pytest
+from git import Repo
+
 from gito.cli import cmd_answer
+from gito.core import answer
+
+
+def test_answer_returns_none_when_no_changes(tmp_path, monkeypatch):
+    """
+    Contract relied upon by react_to_comment: answer() returns None
+    (and never calls the LLM) when the diff context is empty.
+    """
+    repo = Repo.init(tmp_path)
+    with repo.config_writer() as cw:
+        cw.set_value("user", "name", "Test")
+        cw.set_value("user", "email", "test@test.com")
+    (tmp_path / "a.txt").write_text("hello\n", encoding="utf-8")
+    repo.index.add(["a.txt"])
+    repo.index.commit("init")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        "gito.core.mc.llm",
+        lambda *args, **kwargs: pytest.fail("LLM must not be called on empty diff"),
+    )
+
+    out = answer("q", repo=repo, against=repo.active_branch.name, use_pipeline=False)
+
+    assert out is None
 
 
 def test_cmd_answer_none_with_linear(monkeypatch):

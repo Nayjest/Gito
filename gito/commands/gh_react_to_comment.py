@@ -146,9 +146,13 @@ def react_to_comment(
         if cfg.answer_github_comments:
             question = cleanup_comment_addressed_to_gito(comment.body)
             response = answer(question, repo=repo, pr=pr)
-            if not response:
-                ui.error("No answer produced (no changes in context to answer about).")
-                return
+            if response is None:
+                # answer() returns None only when the diff context is empty
+                # (NoChangesInContextError); reply instead of failing silently.
+                response = "Nothing to answer: no reviewable code changes in the current context."
+            elif not response.strip():
+                ui.error("LLM returned an empty answer.")
+                raise typer.Exit(1)
             post_gh_comment(
                 gh_repository=f"{owner}/{repo_name}",
                 pr_or_issue_number=pr,
