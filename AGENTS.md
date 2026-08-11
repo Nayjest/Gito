@@ -60,4 +60,4 @@ On a **minor or major** bump, also update the install pins in docs (patch releas
 
 (The `gito/tpl/workflows/**` templates interpolate `~={{ major }}.{{ minor }}` at deploy time and need no edits.)
 
-Release process: bump `pyproject.toml` on `main`, then create a GitHub release with tag `vX.Y.Z`. Publishing the release triggers `.github/workflows/pypi-release.yml` (tests → build → PyPI upload); creating it triggers `.github/workflows/windows-installer.yml` (PyInstaller + Inno Setup installer attached to the release).
+Release process: bump `pyproject.toml` on `main`, then create a GitHub release with tag `vX.Y.Z`. **Mandatory:** write human-readable release notes — a one-line summary (patch/minor, upgrade safety), then grouped sections (Bug Fixes / Features / CI & Security / Documentation) describing user-visible impact with PR links and credited authors; don't leave the auto-generated commit list as-is. Publishing the release triggers `.github/workflows/pypi-release.yml` (tests → build → PyPI upload); creating it triggers `.github/workflows/windows-installer.yml` (PyInstaller + Inno Setup installer attached to the release).
