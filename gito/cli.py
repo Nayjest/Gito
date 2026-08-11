@@ -240,6 +240,9 @@ def cmd_answer(
         pr=pr,
         aux_files=aux_files,
     )
+    if out is None:
+        logging.warning("No answer produced, nothing to post or save.")
+        return None
     if post_to == "linear":
         logging.info("Posting answer to Linear...")
         linear_comment(remove_html_comments(out))

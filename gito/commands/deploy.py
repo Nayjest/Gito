@@ -246,7 +246,10 @@ def deploy(
         except TypeError:
             active_branch_name = ""
         if active_branch_name != to_branch:
-            repo.git.checkout("-b", to_branch)
+            # -B creates or resets the branch at current HEAD without touching
+            # the working tree, so freshly generated workflow files survive and
+            # re-running deploy does not fail when the branch already exists.
+            repo.git.checkout("-B", to_branch)
         repo.git.add([str(file) for file in created_files])
         is_committed = _try_commit_workflow_changes(repo)
         if is_committed:
