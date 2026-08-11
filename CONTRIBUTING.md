@@ -81,7 +81,7 @@ GitHub disables GitHub Actions on new forks by default. To run CI privately befo
 
 What to expect on a fork:
 - **`Tests` and `Code Style` run out of the box** — they need no secrets, and the test suite is designed to pass without LLM credentials. These are the checks worth validating.
-- **The AI-review workflows (`Gito: AI Code Reviewer`, react-to-comments) will fail** — they need an `ANTHROPIC_API_KEY` secret your fork doesn't have. Either add your own key in your fork's *Settings → Secrets and variables → Actions*, or simply ignore/disable these workflows on the fork.
+- **The AI-review workflows (`Gito: AI Code Reviewer`, react-to-comments) will fail** — they need LLM credentials your fork doesn't have. In this repo they are configured for Anthropic (`LLM_API_TYPE: anthropic` + an `ANTHROPIC_API_KEY` secret), but Gito is vendor-agnostic: either add that secret in your fork's *Settings → Secrets and variables → Actions*, edit the workflow's `env` block to point at your own LLM provider, or simply ignore/disable these workflows on the fork.
 
 <img width="560" alt="Enabling workflows in the Actions tab of a fork" src="https://github.com/user-attachments/assets/d37eac21-4aaf-4013-b24f-be5f8ec5a063" />
 
