@@ -55,4 +55,17 @@ Run tests:
 pytest
 ```
 
+### Tests must not call a live LLM
+
+All inference goes through microcore (`mc.llm`, `mc.allm`, `mc.llm_parallel`,
+`mc.prompt(...).to_llm()`) — mock at that level, and remember the code path may
+hit it more than once (`review()` runs per-file prompts *and* a summary prompt).
+
+A missed mock is invisible locally: `~/.gito/.env` makes the test pass on a real
+API call, then it fails in CI. Check against an empty environment:
+
+```bash
+HOME=/tmp/empty USERPROFILE=/tmp/empty LLM_API_KEY= LLM_API_TYPE= pytest
+```
+
 🚀 **Happy coding**!
