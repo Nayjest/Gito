@@ -49,3 +49,15 @@ Running the tool locally: `gito review` (current branch vs base), `gito ask "<qu
 - Prompt/template strings live in config TOML and `gito/tpl/*.j2`, not in Python. To change review behavior, edit `gito/config.toml` (or document how users override it via `.gito/config.toml`) rather than hardcoding in `core.py`.
 - `post_process` and prompts are executed/rendered with user-controlled strings by design — this is the extensibility model, not a bug.
 - Windows is a first-class target (standalone PyInstaller installer via `gito.spec` / `make windows-build`); keep encoding-sensitive code UTF-8 safe.
+
+## Releasing
+
+The version lives in **one place**: `version = "X.Y.Z"` in `pyproject.toml`. Everything at runtime (`gito version`, `gito/env.py`, `gito/utils/package_metadata.py`, deploy workflow templates) reads it via `importlib.metadata` from the installed package — no code files to edit.
+
+On a **minor or major** bump, also update the install pins in docs (patch releases don't touch them):
+- `README.md`, `documentation/github_setup.md`, `documentation/gitlab_setup.md` — `pip install gito.bot~=X.Y`
+- `documentation/documentation_generation.md` — `pip install gito.bot~=X.Y.0`
+
+(The `gito/tpl/workflows/**` templates interpolate `~={{ major }}.{{ minor }}` at deploy time and need no edits.)
+
+Release process: bump `pyproject.toml` on `main`, then create a GitHub release with tag `vX.Y.Z`. Publishing the release triggers `.github/workflows/pypi-release.yml` (tests → build → PyPI upload); creating it triggers `.github/workflows/windows-installer.yml` (PyInstaller + Inno Setup installer attached to the release).
