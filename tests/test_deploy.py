@@ -173,33 +173,30 @@ def test_deploy_rewrite_overwrites_existing(github_repo, monkeypatch):
     assert "gpt-3.5-turbo" in content
 
 
-def test_deploy_commit_checks_out_existing_branch(github_repo, monkeypatch):
+def test_deploy_commit_reruns_when_branch_exists(github_repo, monkeypatch):
     """
-    Re-running deploy with --commit must not crash with
-    "fatal: a branch named 'gito-ci' already exists" when the
-    target branch was created by a previous deploy.
+    Re-running deploy with --commit must not crash when the target branch
+    already exists with workflow files committed by a previous deploy run
+    (previously: "fatal: a branch named 'gito-ci' already exists" or
+    "untracked working tree files would be overwritten by checkout").
     """
     bootstrap()
     monkeypatch.setattr("builtins.input", lambda _: "")
     monkeypatch.setattr("gito.commands.deploy.identify_git_platform", lambda _: PlatformType.GITHUB)
+    monkeypatch.setattr("gito.commands.deploy._try_push_branch", lambda repo, branch: False)
+    with github_repo.config_writer() as cw:
+        cw.set_value("user", "name", "Test")
+        cw.set_value("user", "email", "test@test.com")
 
-    # Create the gito-ci branch (as a previous deploy would have)
+    # First deploy commits workflow files to gito-ci
     original_branch = github_repo.active_branch.name
-    github_repo.git.checkout("-b", "gito-ci")
+    deploy(api_type="anthropic", model="claude-opus-4-6", commit=True, to_branch="gito-ci")
+    assert github_repo.active_branch.name == "gito-ci"
     github_repo.git.checkout(original_branch)
 
-    # Workflow file already exists from the previous deploy
-    workflow_dir = Path(".github/workflows")
-    workflow_dir.mkdir(parents=True, exist_ok=True)
-    (workflow_dir / "gito-code-review.yml").write_text("# existing\n", encoding="utf-8")
+    # Re-run with a different model regenerates differing workflow files
+    deploy(api_type="openai", model="gpt-3.5-turbo", commit=True, to_branch="gito-ci")
 
-    # Must not raise GitCommandError
-    deploy(
-        api_type="anthropic",
-        model="claude-opus-4-6",
-        commit=True,
-        rewrite=True,
-    )
-
-    # The command checked out the existing branch instead of crashing
     assert github_repo.active_branch.name == "gito-ci"
+    committed = github_repo.git.show("HEAD:.github/workflows/gito-code-review.yml")
+    assert "OPENAI_API_KEY" in committed

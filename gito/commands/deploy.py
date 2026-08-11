@@ -164,10 +164,6 @@ def deploy(
     ),
 ) -> bool:
     """Deploy Gito to repository's CI pipeline for automatic code reviews."""
-    # When called programmatically (e.g. from tests or other commands), typer's
-    # OptionInfo default is not resolved — fall back to the declared default.
-    if isinstance(to_branch, typer.models.OptionInfo):
-        to_branch = to_branch.default
     print(logo())
     repo: Repo = get_cwd_repo_or_fail()
     console = Console()
@@ -250,11 +246,10 @@ def deploy(
         except TypeError:
             active_branch_name = ""
         if active_branch_name != to_branch:
-            if to_branch in [b.name for b in repo.branches]:
-                logging.info(f"Branch '{to_branch}' already exists, checking it out")
-                repo.git.checkout(to_branch)
-            else:
-                repo.git.checkout("-b", to_branch)
+            # -B creates or resets the branch at current HEAD without touching
+            # the working tree, so freshly generated workflow files survive and
+            # re-running deploy does not fail when the branch already exists.
+            repo.git.checkout("-B", to_branch)
         repo.git.add([str(file) for file in created_files])
         is_committed = _try_commit_workflow_changes(repo)
         if is_committed:

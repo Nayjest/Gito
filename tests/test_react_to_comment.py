@@ -1,8 +1,6 @@
 """
 Tests for the PR-comment reaction flow (react_to_comment).
 """
-import pytest
-
 from gito.commands.gh_react_to_comment import react_to_comment
 
 
@@ -14,17 +12,11 @@ class FakeComment:
 
 
 class FakeReactions:
-    def __init__(self):
-        self.called = False
-
     def create_for_issue_comment(self, **kwargs):
-        self.called = True
+        pass
 
 
 class FakeIssues:
-    def __init__(self):
-        self.reactions = FakeReactions()
-
     def get_comment(self, comment_id):
         return FakeComment()
 
@@ -32,6 +24,7 @@ class FakeIssues:
 class FakeApi:
     def __init__(self, **kwargs):
         self.issues = FakeIssues()
+        self.reactions = FakeReactions()
 
 
 class FakeConfig:
@@ -39,7 +32,7 @@ class FakeConfig:
     answer_github_comments = True
 
 
-def _patch_env(monkeypatch, answer_result=None, trigger="gito"):
+def _patch_env(monkeypatch, answer_result=None):
     monkeypatch.setattr(
         "gito.commands.gh_react_to_comment.get_cwd_repo_or_fail",
         lambda: object(),

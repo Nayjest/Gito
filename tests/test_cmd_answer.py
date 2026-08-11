@@ -10,9 +10,6 @@ def test_cmd_answer_none_with_linear(monkeypatch):
     monkeypatch.setattr(
         "gito.cli.answer", lambda *args, **kwargs: None
     )
-    monkeypatch.setattr(
-        "gito.cli.remove_html_comments", lambda text: text
-    )
     posted = {}
     monkeypatch.setattr(
         "gito.cli.linear_comment",
