@@ -38,6 +38,8 @@ This lets you catch failures early and keep your upstream PR clean.
 
 - Send coherent history. Make sure each individual commit in your pull request is meaningful. If you had to make multiple intermediate commits while developing, please squash them before submitting.
 
+- Don't be alarmed if the "review" check on your fork PR fails or stays pending — it requires maintainer approval and doesn't reflect your code.
+
 
 Run code formatter:
 ```bash
