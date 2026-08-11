@@ -58,7 +58,11 @@ def test_review_surfaces_none_response_as_warning():
         # Mock llm_parallel to return [None] — simulating JSON parse failure
         mock_llm = AsyncMock(return_value=[None])
 
-        with patch("gito.core.mc.llm_parallel", mock_llm):
+        # review() also calls make_cr_summary(), which hits a live LLM;
+        # patch it so the test does not require LLM configuration.
+        with patch("gito.core.mc.llm_parallel", mock_llm), patch(
+            "gito.core.make_cr_summary", AsyncMock(return_value="summary")
+        ):
             import asyncio
 
             target = ReviewTarget(
@@ -105,7 +109,11 @@ def test_review_still_handles_exception_response():
     try:
         mock_llm = AsyncMock(return_value=[RuntimeError("LLM API timeout")])
 
-        with patch("gito.core.mc.llm_parallel", mock_llm):
+        # review() also calls make_cr_summary(), which hits a live LLM;
+        # patch it so the test does not require LLM configuration.
+        with patch("gito.core.mc.llm_parallel", mock_llm), patch(
+            "gito.core.make_cr_summary", AsyncMock(return_value="summary")
+        ):
             import asyncio
 
             target = ReviewTarget(
