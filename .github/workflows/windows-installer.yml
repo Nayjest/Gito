@@ -36,7 +36,13 @@ jobs:
     
     - name: Build installer
       run: |
-        & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
+        $version = python -c "from importlib.metadata import version; print(version('gito.bot'))"
+        if ($LASTEXITCODE -ne 0 -or -not $version) {
+          Write-Error "Could not resolve gito.bot version from package metadata."
+          Exit 1
+        }
+        Write-Host "Building installer for version $version"
+        & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/DMyAppVersion=$version" installer.iss
       shell: pwsh
     
     - name: Generate checksum

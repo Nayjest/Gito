@@ -52,7 +52,7 @@ Running the tool locally: `gito review` (current branch vs base), `gito ask "<qu
 
 ## Releasing
 
-The version lives in **one place**: `version = "X.Y.Z"` in `pyproject.toml`. Everything at runtime (`gito version`, `gito/env.py`, `gito/utils/package_metadata.py`, deploy workflow templates) reads it via `importlib.metadata` from the installed package — no code files to edit.
+The version lives in **one place**: `version = "X.Y.Z"` in `pyproject.toml`. Everything at runtime (`gito version`, `gito/env.py`, `gito/utils/package_metadata.py`, deploy workflow templates) reads it via `importlib.metadata` from the installed package — no code files to edit. The Windows installer gets it the same way: `windows-installer.yml` reads the installed metadata and passes `/DMyAppVersion=` to `ISCC.exe`, so `installer.iss` must **not** hardcode a version (its `#ifndef` fallback of `0.0.0` only applies to local builds).
 
 On a **minor or major** bump, also update the install pins in docs (patch releases don't touch them):
 - `README.md`, `documentation/github_setup.md`, `documentation/gitlab_setup.md` — `pip install gito.bot~=X.Y`
