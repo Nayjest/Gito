@@ -14,6 +14,9 @@
 AppId={{B8E3F2A1-5C7D-4E9F-A2B1-3D6E8F0C9A4B}}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
+; Stamps the setup binary's own file/product version resource, so the version is
+; visible in the .exe properties dialog and to installer inventory tooling.
+VersionInfoVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
