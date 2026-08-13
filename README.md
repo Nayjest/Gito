@@ -285,6 +285,14 @@ Project settings follow a layered override model:
 
 Any values defined in your project's `.gito/config.toml` are merged on top of the built-in defaults. You only need to specify the settings you want to change—everything else falls back to sensible defaults.
 
+To create a complete, editable copy of the bundled defaults in the current repository, run:
+
+```bash
+gito populate-project-config
+```
+
+The command creates `.gito/config.toml` and refuses to replace an existing project configuration.
+
 #### Common Customizations
 
 - **Review prompts** — Tailor AI instructions, review criteria, and quality thresholds
