@@ -43,6 +43,12 @@ def test_no_subcommand():
         assert no_subcommand(app) is True
         sys.argv = ["c:\\Gito\\gito\\__main__.py", "--verbose", "cmd2"]
         assert no_subcommand(app) is False
+
+        # Values of root options are not mistaken for a subcommand
+        sys.argv = ["script.py", "--project-config", "cfg.toml", "cmd2"]
+        assert no_subcommand(app) is False
+        sys.argv = ["script.py", "-c", "cfg.toml"]
+        assert no_subcommand(app) is True
     finally:
         sys.argv = original_argv
 

@@ -27,7 +27,9 @@ from .cli_base import (
     get_repo_context,
     command_requires_llm,
     runs_without_llm,
+    resolve_project_config_path,
 )
+from .env import Env
 from .report_struct import Report, ReviewTarget
 from .constants import HOME_ENV_PATH, GITHUB_MD_REPORT_FILE_NAME, REFS_VALUE_ALL
 from .bootstrap import bootstrap
@@ -88,7 +90,17 @@ def cli(
         "\n--no-verbose is equivalent to -v0. "
         "\n(!) Can't be used together with -v or --verbosity.",
     ),
+    project_config: str = typer.Option(
+        None,
+        "--project-config",
+        "-c",
+        show_default=False,
+        help="Path to the project configuration file to use "
+        "instead of <project>/.gito/config.toml",
+    ),
 ):
+    if project_config:
+        Env.project_config_path = resolve_project_config_path(project_config)
     if verbose is not None and verbosity is not None:
         raise typer.BadParameter("Please specify either --verbose or --verbosity, not both.")
     if verbose is not None:
