@@ -1,6 +1,6 @@
 import logging
 import tomllib
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from pathlib import Path
 
 import microcore as mc
@@ -56,6 +56,22 @@ class ProjectConfig:
         }
 
     @staticmethod
+    def _warn_on_prompt_vars_field_collision(prompt_vars: dict) -> None:
+        """
+        [prompt_vars] is an open dict with no schema of its own, so a field
+        meant to be set at the top level (e.g. `post_process`) that ends up
+        nested inside [prompt_vars] by mistake is otherwise absorbed silently.
+        """
+        known_fields = {f.name for f in fields(ProjectConfig) if f.name != "prompt_vars"}
+        for key in prompt_vars:
+            if key in known_fields:
+                logging.warning(
+                    f"[prompt_vars] in the project config defines '{key}', which is also"
+                    f" the name of a top-level ProjectConfig setting. If you meant to set"
+                    f" '{key}' itself, move it out of the [prompt_vars] section."
+                )
+
+    @staticmethod
     def _read_bundled_defaults() -> dict:
         """
         Read the bundled default project configuration,
@@ -101,7 +117,11 @@ class ProjectConfig:
             default_prompt_vars = config["prompt_vars"]
             default_pipeline_steps = config["pipeline_steps"]
             # utf-8-sig strips the BOM written by PowerShell / Notepad on Windows
-            config.update(tomllib.loads(config_path.read_text(encoding="utf-8-sig")))
+            project_config = tomllib.loads(config_path.read_text(encoding="utf-8-sig"))
+            ProjectConfig._warn_on_prompt_vars_field_collision(
+                project_config.get("prompt_vars", {})
+            )
+            config.update(project_config)
             # overriding prompt_vars config section will not empty default values
             config["prompt_vars"] = default_prompt_vars | config["prompt_vars"]
             # merge individual pipeline steps

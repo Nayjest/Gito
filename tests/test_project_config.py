@@ -33,6 +33,26 @@ def test_prompt_vars_merging(tmp_path):
     assert cfg.retries == 7
 
 
+def test_prompt_vars_field_collision_warns(tmp_path, caplog):
+    sample = textwrap.dedent(
+        """
+    [prompt_vars]
+    foo = "bar"
+    post_process = "fn:my_module:my_hook"
+    """
+    )
+    toml_path = tmp_path / "config.toml"
+    toml_path.write_text(sample)
+    with caplog.at_level(logging.WARNING):
+        cfg = ProjectConfig.load(config_path=toml_path)
+    assert cfg.post_process != "fn:my_module:my_hook"
+    assert cfg.prompt_vars["post_process"] == "fn:my_module:my_hook"
+    assert any(
+        "post_process" in record.message and "prompt_vars" in record.message
+        for record in caplog.records
+    )
+
+
 def test_load_config_with_utf8_bom(tmp_path):
     sample = textwrap.dedent(
         """
