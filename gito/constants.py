@@ -9,6 +9,7 @@ PROJECT_GITO_FOLDER = ".gito"
 PROJECT_CONFIG_FILE_NAME = "config.toml"
 # Standard project config file path relative to the current project root
 PROJECT_CONFIG_FILE_PATH = Path(".gito") / PROJECT_CONFIG_FILE_NAME
+GLOBAL_PROJECT_CONFIG_FILE_PATH = Path.home() / PROJECT_CONFIG_FILE_PATH
 PROJECT_CONFIG_BUNDLED_DEFAULTS_FILE = Path(__file__).resolve().parent / PROJECT_CONFIG_FILE_NAME
 HOME_ENV_PATH = Path("~/.gito/.env").expanduser()
 JSON_REPORT_FILE_NAME = "code-review-report.json"
