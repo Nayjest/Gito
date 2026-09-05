@@ -238,11 +238,12 @@ gito remote --help
 
 ## 🔧 Configuration<a id="-configuration"></a>
 
-Gito uses a two-layer configuration model:
+Gito separates LLM environment settings from review configuration:
 
 | Scope | Location | Purpose |
 |-------|----------|---------|
 | **Environment** | `~/.gito/.env` or OS environment variables | LLM provider, model, API keys, concurrency |
+| **Global review settings** | `~/.gito/config.toml` | Personal review defaults shared across repositories |
 | **Project** | `<repo>/.gito/config.toml` | Review behavior, prompts, templates, integrations |
 
 > **Note:** Environment configuration defines external resources and credentials — it's machine-specific and never committed to version control. Project configuration defines review behavior and can be shared across your team.
@@ -275,15 +276,17 @@ In CI workflows, configure LLM settings via workflow environment variables. Use 
 
 ### Project Configuration
 
-Gito supports per-repository customization through a `.gito/config.toml` file placed at the root of your project. This allows you to tailor code review behavior to your specific codebase, coding standards, and workflow requirements.
+Gito supports personal review defaults in `~/.gito/config.toml` and per-repository customization through a `.gito/config.toml` file placed at the root of your project. Both files use the same format, so you can set common review preferences once and tailor them to each codebase.
 
 #### Configuration Inheritance Model
 
 Project settings follow a layered override model:
 
-**Bundled Defaults** ([config.toml](https://github.com/Nayjest/Gito/blob/main/gito/config.toml)) → **Project Config** (`<your-repo>/.gito/config.toml`)
+**Bundled Defaults** ([config.toml](https://github.com/Nayjest/Gito/blob/main/gito/config.toml)) → **Global Config** (`~/.gito/config.toml`) → **Project Config** (`<your-repo>/.gito/config.toml`) → **CLI Override** (`--project-config <path>`)
 
-Any values defined in your project's `.gito/config.toml` are merged on top of the built-in defaults. You only need to specify the settings you want to change—everything else falls back to sensible defaults.
+Each file overrides only the settings it defines; missing global and repository files are skipped. A file explicitly passed through `--project-config` must exist. Prompt variables merge by key, and pipeline steps merge by name and field. Other settings, including lists, replace the inherited value. The CLI file is applied last, retaining global and repository settings it does not override.
+
+For example, put `retries = 5` in `~/.gito/config.toml` to use that default across repositories. A repository can set `retries = 2`, and a file passed through `--project-config` can override it for one invocation. LLM credentials remain in `~/.gito/.env` or environment variables.
 
 To create a complete, editable copy of the bundled defaults in the current repository, run:
 

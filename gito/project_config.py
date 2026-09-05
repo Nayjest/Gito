@@ -7,7 +7,11 @@ import microcore as mc
 from microcore import ui
 from git import Repo
 
-from .constants import PROJECT_CONFIG_BUNDLED_DEFAULTS_FILE, PROJECT_CONFIG_FILE_PATH
+from .constants import (
+    GLOBAL_PROJECT_CONFIG_FILE_PATH,
+    PROJECT_CONFIG_BUNDLED_DEFAULTS_FILE,
+    PROJECT_CONFIG_FILE_PATH,
+)
 from .env import Env
 from .pipeline import PipelineStep
 from .utils.git_platform.github import detect_github_env
@@ -95,13 +99,10 @@ class ProjectConfig:
     @staticmethod
     def load(config_path: str | Path | None = None) -> "ProjectConfig":
         """
-        Load the project configuration from the specified path.
-        A config path given via the `--project-config` CLI option takes precedence.
-        If no path is provided, it defaults to the standard project config file path
-        (<current_project>/.gito/config.toml).
-        If the file exists, it merges the project-specific
-        configuration with the bundled defaults.
-        If not found, it uses only the defaults.
+        Merge bundled defaults, ~/.gito/config.toml, the project configuration,
+        and the `--project-config` CLI file, in increasing order of precedence.
+        Missing files leave inherited settings intact. Prompt variables and
+        individual pipeline steps are merged; other settings replace earlier values.
         Args:
             config_path (str | Path | None): Alternative path to the project configuration file.
         Returns:
@@ -111,11 +112,20 @@ class ProjectConfig:
         github_env = detect_github_env()
         config["prompt_vars"] |= github_env | dict(github_env=github_env)
 
-        config_path = Path(Env.project_config_path or config_path or PROJECT_CONFIG_FILE_PATH)
-        if config_path.exists():
-            logging.info(
-                f"Loading project-specific configuration from {mc.utils.file_link(config_path)}..."
-            )
+        config_paths = [
+            ("global", GLOBAL_PROJECT_CONFIG_FILE_PATH),
+            ("project-specific", Path(config_path or PROJECT_CONFIG_FILE_PATH)),
+        ]
+        if Env.project_config_path:
+            config_paths.append(("CLI override", Path(Env.project_config_path)))
+
+        for scope, config_path in config_paths:
+            if not config_path.exists():
+                logging.info(
+                    f"No {scope} config found at {ui.blue(config_path)}, keeping inherited settings"
+                )
+                continue
+            logging.info(f"Loading {scope} configuration from {mc.utils.file_link(config_path)}...")
             default_prompt_vars = config["prompt_vars"]
             default_pipeline_steps = config["pipeline_steps"]
             # utf-8-sig strips the BOM written by PowerShell / Notepad on Windows
@@ -131,7 +141,4 @@ class ProjectConfig:
                 config["pipeline_steps"][k] = default_pipeline_steps.get(k, {}) | v
             # merge pipeline steps dict
             config["pipeline_steps"] = default_pipeline_steps | config["pipeline_steps"]
-        else:
-            logging.info(f"No project config found at {ui.blue(config_path)}, using defaults")
-
         return ProjectConfig(**config)
