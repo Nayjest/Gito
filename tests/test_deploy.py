@@ -20,6 +20,7 @@ from gito.utils.git_platform.platform_types import PlatformType
     [
         ("deploy", False),  # marked @runs_without_llm
         ("init", False),  # alias shares the marker
+        ("populate-project-config", False),
         ("version", False),  # another marked command
         ("review", True),  # performs inference
         ("repl", True),  # exposes live LLM access

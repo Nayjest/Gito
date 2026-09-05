@@ -44,7 +44,14 @@ from .commands.gitlab_post_review_comment import post_gitlab_cr_comment
 from .commands.linear_comment import linear_comment
 
 # Imported for registering commands
-from .commands import fix, gh_react_to_comment, repl, deploy, version  # noqa
+from .commands import (  # noqa: F401
+    fix,
+    gh_react_to_comment,
+    repl,
+    deploy,
+    populate_project_config,
+    version,
+)
 
 app_no_subcommand = typer.Typer(pretty_exceptions_show_locals=False)
 
