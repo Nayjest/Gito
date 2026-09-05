@@ -128,7 +128,7 @@ jobs:
       uses: actions/setup-python@v6
       with: { python-version: "3.13" }
     - name: Install AI Code Review tool
-      run: pip install gito.bot~=4.4
+      run: pip install gito.bot~=4.5
     - name: Run AI code analysis
       env:
         LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
