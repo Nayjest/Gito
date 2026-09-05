@@ -10,6 +10,13 @@ Then it merges project-specific configuration (if exists) with the
 [bundled configuration defaults](https://github.com/Nayjest/Gito/blob/main/gito/config.toml).  
 This allows you to customize the behavior of the AI code review tool according to your project's needs.
 
+## How to use a shared configuration file for multiple projects?
+Use the `--project-config` (`-c`) option to point Gito at a configuration file
+outside the reviewed repository. It takes precedence over `.gito/config.toml`:
+```bash
+gito --project-config ~/.gito/nestjs-review-config.toml review
+```
+
 
 ## How to add custom code review rule?
 ```toml

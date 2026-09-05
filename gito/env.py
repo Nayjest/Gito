@@ -20,3 +20,8 @@ class Env:
     verbosity: int = 1
     gito_version: str = gito_version()
     working_folder = "."
+    project_config_path = None
+    """
+    Explicit project configuration file path (`--project-config`).
+    When set, it takes precedence over `<project>/.gito/config.toml`.
+    """

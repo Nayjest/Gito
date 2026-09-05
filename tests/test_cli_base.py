@@ -1,8 +1,19 @@
 import pytest
 import typer
 
-from gito.cli_base import args_to_target
+from gito.cli_base import args_to_target, resolve_project_config_path
 from gito.constants import REFS_VALUE_ALL
+
+
+def test_resolve_project_config_path(tmp_path, monkeypatch):
+    cfg = tmp_path / "config.toml"
+    cfg.write_text("retries = 1\n")
+    assert resolve_project_config_path(str(cfg)) == cfg
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
+    assert resolve_project_config_path("~/config.toml") == cfg
+    with pytest.raises(typer.BadParameter):
+        resolve_project_config_path(str(tmp_path / "missing.toml"))
 
 
 def test_args_to_target_all():

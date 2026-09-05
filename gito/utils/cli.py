@@ -38,19 +38,31 @@ def make_streaming_function(handler: Optional[Callable] = None) -> Callable:
     return stream
 
 
+ROOT_OPTIONS_WITH_VALUE = ("-v", "--verbosity", "-c", "--project-config")
+"""Root-level options taking a separate value argument, e.g. `gito -c cfg.toml review`."""
+
+
 def no_subcommand(app: typer.Typer) -> bool:
     """
     Check if no subcommand was provided to the target Typer application.
     """
-    return not (
-        (first_arg := next((a for a in sys.argv[1:] if not a.startswith("-")), ""))
-        and first_arg
-        in (
-            cmd.name or (cmd.callback.__name__.replace("_", "-") if cmd.callback else "")
-            for cmd in app.registered_commands
-        )
-        or "--help" in sys.argv
-    )
+    if "--help" in sys.argv:
+        return False
+    command_names = {
+        cmd.name or (cmd.callback.__name__.replace("_", "-") if cmd.callback else "")
+        for cmd in app.registered_commands
+    }
+    skip_next = False
+    for arg in sys.argv[1:]:
+        if skip_next:
+            skip_next = False
+            continue
+        if arg.startswith("-"):
+            # skip the value of options like `--verbosity 2`
+            skip_next = arg in ROOT_OPTIONS_WITH_VALUE
+            continue
+        return arg not in command_names
+    return True
 
 
 def logo(indent=2) -> str:

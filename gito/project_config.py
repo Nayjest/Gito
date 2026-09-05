@@ -8,6 +8,7 @@ from microcore import ui
 from git import Repo
 
 from .constants import PROJECT_CONFIG_BUNDLED_DEFAULTS_FILE, PROJECT_CONFIG_FILE_PATH
+from .env import Env
 from .pipeline import PipelineStep
 from .utils.git_platform.github import detect_github_env
 
@@ -79,6 +80,7 @@ class ProjectConfig:
     def load(config_path: str | Path | None = None) -> "ProjectConfig":
         """
         Load the project configuration from the specified path.
+        A config path given via the `--project-config` CLI option takes precedence.
         If no path is provided, it defaults to the standard project config file path
         (<current_project>/.gito/config.toml).
         If the file exists, it merges the project-specific
@@ -93,7 +95,7 @@ class ProjectConfig:
         github_env = detect_github_env()
         config["prompt_vars"] |= github_env | dict(github_env=github_env)
 
-        config_path = Path(config_path or PROJECT_CONFIG_FILE_PATH)
+        config_path = Path(Env.project_config_path or config_path or PROJECT_CONFIG_FILE_PATH)
         if config_path.exists():
             logging.info(
                 f"Loading project-specific configuration from {mc.utils.file_link(config_path)}..."

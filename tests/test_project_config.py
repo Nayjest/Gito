@@ -2,6 +2,7 @@ import logging
 import textwrap
 from pathlib import Path
 
+from gito.env import Env
 from gito.project_config import ProjectConfig
 from gito.pipeline import PipelineStep
 
@@ -46,6 +47,17 @@ def test_load_config_with_utf8_bom(tmp_path):
     cfg = ProjectConfig.load(config_path=toml_path)
     assert cfg.retries == 7
     assert cfg.prompt_vars["foo"] == "bar"
+
+
+def test_env_project_config_path_overrides(tmp_path, monkeypatch):
+    override = tmp_path / "global-config.toml"
+    override.write_text("retries = 42\n")
+    project = tmp_path / "config.toml"
+    project.write_text("retries = 7\n")
+    monkeypatch.setattr(Env, "project_config_path", override)
+    assert ProjectConfig.load().retries == 42
+    # explicit per-repo path is superseded by the CLI-provided one
+    assert ProjectConfig.load(config_path=project).retries == 42
 
 
 def test_merge_pipeline_steps():
