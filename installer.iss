@@ -1,6 +1,10 @@
 #define MyAppName "Gito AI Code Reviewer"
-; NOTE: Keep version in sync with pyproject.toml
-#define MyAppVersion "4.4.0"
+; Version is injected by CI: ISCC.exe /DMyAppVersion=X.Y.Z (read from the installed
+; package metadata, which comes from pyproject.toml). The fallback below is used only
+; for local builds without /D and is intentionally not a real release version.
+#ifndef MyAppVersion
+  #define MyAppVersion "0.0.0"
+#endif
 #define MyAppPublisher "Vitalii Stepanenko"
 #define MyAppURL "https://github.com/Nayjest/Gito"
 #define MyAppExeName "gito.exe"
@@ -10,6 +14,9 @@
 AppId={{B8E3F2A1-5C7D-4E9F-A2B1-3D6E8F0C9A4B}}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
+; Stamps the setup binary's own file/product version resource, so the version is
+; visible in the .exe properties dialog and to installer inventory tooling.
+VersionInfoVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}

@@ -5,6 +5,7 @@ Common CLI arguments and utilities for Gito commands.
 import contextlib
 import logging
 import tempfile
+from pathlib import Path
 from typing import Iterator
 
 import microcore as mc
@@ -39,6 +40,20 @@ def command_requires_llm(ctx: typer.Context) -> bool:
         return True
     command = ctx.command.commands.get(subcommand)
     return not getattr(getattr(command, "callback", None), _RUNS_WITHOUT_LLM_ATTR, False)
+
+
+def resolve_project_config_path(path: str) -> Path:
+    """
+    Resolve the value of the `--project-config` option to an existing file path.
+    `~` is expanded here, since it is not necessarily expanded by the shell.
+    """
+    resolved = Path(path).expanduser()
+    if not resolved.is_file():
+        raise typer.BadParameter(
+            f"Project configuration file not found: {resolved}",
+            param_hint="--project-config",
+        )
+    return resolved
 
 
 def args_to_target(refs, what, against) -> tuple[str | None, str | None]:

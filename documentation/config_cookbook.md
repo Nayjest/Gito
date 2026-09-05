@@ -21,6 +21,13 @@ Keep in mind that such a copy pins **all** settings to the current Gito version,
 so improved prompts and templates from future releases will not reach your project.
 Prefer keeping only the options you actually override, and let the rest fall back to the defaults.
 
+## How to use a shared configuration file for multiple projects?
+Use the `--project-config` (`-c`) option to point Gito at a configuration file
+outside the reviewed repository. It takes precedence over `.gito/config.toml`:
+```bash
+gito --project-config ~/.gito/nestjs-review-config.toml review
+```
+
 
 ## How to add custom code review rule?
 ```toml

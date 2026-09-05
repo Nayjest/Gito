@@ -10,6 +10,9 @@ on:
 jobs:
   review:
     runs-on: ubuntu-latest
+    # Fork PRs require maintainer approval before any fork code touches the secrets below.
+    # Same-repo PRs resolve to an empty environment name, which is a no-op, and run unattended.
+    environment: ${{ github.event.pull_request.head.repo.full_name != github.repository && 'external-pr' || '' }}
     permissions: { contents: read, pull-requests: write } # 'write' for leaving the summary comment
     steps:
     - uses: actions/checkout@v7
@@ -17,11 +20,16 @@ jobs:
         fetch-depth: 0
         # Checkout PR head to process actual changes (including forks).
         #
-        # ⚠️ SECURITY: This exposes secrets to fork code. Mitigate by:
-        #   1. Requiring approval for running fork pull request workflows from all external contributors
-        #      (Settings → Actions → General → Approval for running fork pull request workflows from contributors)
-        #   2. Reviewing PRs for secret exfiltration and other malicious code before approving workflow runs.
+        # ⚠️ SECURITY: This exposes secrets to fork code. Mitigated by the 'external-pr'
+        # environment on this job, which requires maintainer approval before the job starts.
+        #
+        # Note: the "Approval for running fork pull request workflows" setting
+        # (Settings → Actions → General) does NOT gate 'pull_request_target' — it only applies
+        # to 'pull_request'. The environment is what actually holds the run.
+        #
+        # Review PRs for secret exfiltration and other malicious code before approving.
         ref: ${{ github.event.pull_request.head.sha }}
+        allow-unsafe-pr-checkout: true
 
     - name: Set up Python
       uses: actions/setup-python@v6

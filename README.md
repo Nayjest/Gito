@@ -6,6 +6,7 @@
 <img src="https://raw.githubusercontent.com/Nayjest/Gito/coverage-badge/coverage.svg" alt="Code Coverage">
 <a href="https://github.com/vshymanskyy/StandWithUkraine/blob/main/README.md" target="_blank"><img src="https://raw.githubusercontent.com/vshymanskyy/StandWithUkraine/refs/heads/main/badges/StandWithUkraine.svg" alt="Stand With Ukraine"></a>
 <a href="https://github.com/Nayjest/Gito/blob/main/LICENSE" target="_blank"><img src="https://img.shields.io/static/v1?label=license&message=MIT&color=d08aff" alt="License"></a>
+  <a href="https://inspect.software/software/Nayjest/Gito"><img src="https://raw.githubusercontent.com/inspect-software/badges/main/v1/n/Nayjest/Gito.svg" alt="inspect.software score badge for Nayjest/Gito" /></a>
 </p>
 
 **Gito** is an open-source **AI code reviewer** that works with any language model provider.

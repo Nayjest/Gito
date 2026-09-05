@@ -170,13 +170,14 @@ def get_diff(
                     f"Reviewing merged ref {ui.green(what)} from its pre-merge base "
                     f"{ui.cyan(comparison_base[:8])}"
                 )
-                diff_content = repo.git.diff(comparison_base, what)
+                diff_args = (comparison_base, what)
             elif review_subject_is_index(what):
                 # With one commit, Git compares the working tree to the merge
                 # base of that commit and HEAD. This preserves local changes.
-                diff_content = repo.git.diff("--merge-base", against)
+                diff_args = ("--merge-base", against)
             else:
-                diff_content = repo.git.diff("--merge-base", against, what)
+                diff_args = ("--merge-base", against, what)
+            diff_content = repo.git(c="core.quotePath=false").diff(*diff_args)
         except GitCommandError as e:
             raise MergeBaseError(
                 f"Cannot determine a merge base between '{against}' and '{what or 'HEAD'}'. "
@@ -184,7 +185,7 @@ def get_diff(
             ) from e
     else:
         comparison_base = against
-        diff_content = repo.git.diff(against, what)
+        diff_content = repo.git(c="core.quotePath=false").diff(against, what)
     diff = PatchSet.from_string(diff_content)
 
     # Filter out binary files
@@ -510,7 +511,23 @@ async def review(
     )
     processing_warnings: list[ProcessingWarning] = []
     for i, (res_or_error, file) in enumerate(zip(responses, diff)):
-        if isinstance(res_or_error, Exception):
+        if res_or_error is None:
+            # JSON parsing or validation failed (allow_failures=True returns None,
+            # not an Exception). Surface this silently-dropped failure as a warning
+            # so the report doesn't misleadingly show 0 issues.
+            message = (
+                f"File {file.path} was skipped: "
+                f"LLM response failed JSON parsing or validation. "
+                f"The model output was malformed or did not pass the response validator."
+            )
+            processing_warnings.append(
+                ProcessingWarning(
+                    message=message,
+                    file=file.path,
+                )
+            )
+            responses[i] = []
+        elif isinstance(res_or_error, Exception):
             if isinstance(res_or_error, mc.LLMContextLengthExceededError):
                 message = f'File "{file.path}" was skipped due to large size: {str(res_or_error)}.'
             else:

@@ -1,6 +1,6 @@
 import logging
 import tomllib
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from pathlib import Path
 
 import microcore as mc
@@ -8,6 +8,7 @@ from microcore import ui
 from git import Repo
 
 from .constants import PROJECT_CONFIG_BUNDLED_DEFAULTS_FILE, PROJECT_CONFIG_FILE_PATH
+from .env import Env
 from .pipeline import PipelineStep
 from .utils.git_platform.github import detect_github_env
 
@@ -56,6 +57,22 @@ class ProjectConfig:
         }
 
     @staticmethod
+    def _warn_on_prompt_vars_field_collision(prompt_vars: dict) -> None:
+        """
+        [prompt_vars] is an open dict with no schema of its own, so a field
+        meant to be set at the top level (e.g. `post_process`) that ends up
+        nested inside [prompt_vars] by mistake is otherwise absorbed silently.
+        """
+        known_fields = {f.name for f in fields(ProjectConfig) if f.name != "prompt_vars"}
+        for key in prompt_vars:
+            if key in known_fields:
+                logging.warning(
+                    f"[prompt_vars] in the project config defines '{key}', which is also"
+                    f" the name of a top-level ProjectConfig setting. If you meant to set"
+                    f" '{key}' itself, move it out of the [prompt_vars] section."
+                )
+
+    @staticmethod
     def _read_bundled_defaults() -> dict:
         """
         Read the bundled default project configuration,
@@ -63,9 +80,9 @@ class ProjectConfig:
         Returns:
             dict: The default project configuration.
         """
-        with open(PROJECT_CONFIG_BUNDLED_DEFAULTS_FILE, "rb") as f:
-            config = tomllib.load(f)
-        return config
+        return tomllib.loads(
+            Path(PROJECT_CONFIG_BUNDLED_DEFAULTS_FILE).read_text(encoding="utf-8-sig")
+        )
 
     @staticmethod
     def load_for_repo(repo: Repo) -> "ProjectConfig":
@@ -79,6 +96,7 @@ class ProjectConfig:
     def load(config_path: str | Path | None = None) -> "ProjectConfig":
         """
         Load the project configuration from the specified path.
+        A config path given via the `--project-config` CLI option takes precedence.
         If no path is provided, it defaults to the standard project config file path
         (<current_project>/.gito/config.toml).
         If the file exists, it merges the project-specific
@@ -93,15 +111,19 @@ class ProjectConfig:
         github_env = detect_github_env()
         config["prompt_vars"] |= github_env | dict(github_env=github_env)
 
-        config_path = Path(config_path or PROJECT_CONFIG_FILE_PATH)
+        config_path = Path(Env.project_config_path or config_path or PROJECT_CONFIG_FILE_PATH)
         if config_path.exists():
             logging.info(
                 f"Loading project-specific configuration from {mc.utils.file_link(config_path)}..."
             )
             default_prompt_vars = config["prompt_vars"]
             default_pipeline_steps = config["pipeline_steps"]
-            with open(config_path, "rb") as f:
-                config.update(tomllib.load(f))
+            # utf-8-sig strips the BOM written by PowerShell / Notepad on Windows
+            project_config = tomllib.loads(config_path.read_text(encoding="utf-8-sig"))
+            ProjectConfig._warn_on_prompt_vars_field_collision(
+                project_config.get("prompt_vars", {})
+            )
+            config.update(project_config)
             # overriding prompt_vars config section will not empty default values
             config["prompt_vars"] = default_prompt_vars | config["prompt_vars"]
             # merge individual pipeline steps

@@ -136,6 +136,15 @@ def test_report_save_load(tmp_path):
     assert loaded_report.issues["file.py"][0].title == "Bug"
 
 
+def test_report_load_with_utf8_bom(tmp_path):
+    bootstrap()
+    file_name = tmp_path / "report.json"
+    Report(summary="SUMMARY").save(file_name)
+    file_name.write_bytes(b"\xef\xbb\xbf" + file_name.read_bytes())
+    loaded_report = Report.load(file_name)
+    assert loaded_report.summary == "SUMMARY"
+
+
 def get_issue_with_affected_lines():
     return {
         "id": "x",

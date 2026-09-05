@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 import git
@@ -18,6 +19,7 @@ def diverged_repo(tmp_path):
     with repo.config_writer() as config:
         config.set_value("user", "name", "Gito tests")
         config.set_value("user", "email", "gito-tests@example.invalid")
+        config.set_value("core", "quotePath", True)
 
     commit_file(repo, "shared.txt", "initial\n", "Initial commit")
     repo.git.branch("-M", "main")
@@ -70,3 +72,16 @@ def test_merge_base_failure_does_not_fall_back_to_direct_diff(diverged_repo):
 
     with pytest.raises(MergeBaseError, match="Cannot determine a merge base"):
         get_diff(diverged_repo, what="feature", against="unrelated")
+
+
+def test_deleted_non_ascii_file_is_not_misclassified_as_binary(diverged_repo, caplog):
+    commit_file(diverged_repo, "файл.json", "{}", "Add non-ASCII file")
+    diverged_repo.git.checkout("-b", "delete-non-ascii")
+    diverged_repo.git.rm("файл.json")
+    diverged_repo.index.commit("Delete non-ASCII file")
+
+    with caplog.at_level(logging.ERROR):
+        diff = get_diff(diverged_repo, what="delete-non-ascii", against="main")
+
+    assert [patched_file.path for patched_file in diff] == ["файл.json"]
+    assert not caplog.records

@@ -19,6 +19,7 @@ $ gito [OPTIONS] COMMAND [ARGS]...
 * `--verbose / --no-verbose`: --verbose is equivalent to -v2, 
 --no-verbose is equivalent to -v0. 
 (!) Can&#x27;t be used together with -v or --verbosity.
+* `-c, --project-config TEXT`: Path to the project configuration file to use instead of &lt;project&gt;/.gito/config.toml
 * `--help`: Show this message and exit.
 
 **Commands**:
