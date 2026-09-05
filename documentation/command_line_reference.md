@@ -292,6 +292,7 @@ $ gito populate-project-config [OPTIONS]
 
 **Options**:
 
+* `--force`: Overwrite an existing project configuration
 * `--help`: Show this message and exit.
 
 ## `gito version`

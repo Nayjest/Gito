@@ -290,7 +290,9 @@ To create a complete, editable copy of the bundled defaults in the current repos
 gito populate-project-config
 ```
 
-The command creates `.gito/config.toml` and refuses to replace an existing project configuration.
+The command creates `.gito/config.toml` and refuses to replace an existing project configuration (pass `--force` to overwrite it).
+
+Note that a full copy pins every setting to the current Gito version: prompts and templates improved in future releases will no longer reach your project. If you only need a few tweaks, keep the config minimal and let the rest fall back to the defaults.
 
 #### Common Customizations
 

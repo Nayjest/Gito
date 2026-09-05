@@ -35,7 +35,33 @@ def test_populate_project_config_does_not_overwrite_existing(tmp_path, monkeypat
 
     assert result.exit_code == 1
     assert config_path.read_text(encoding="utf-8") == "retries = 7\n"
-    assert "Project configuration already exists" in result.stdout
+    assert "Can't write" in result.stdout
+
+
+def test_populate_project_config_force_overwrites_existing(tmp_path, monkeypatch):
+    """--force replaces an existing project configuration with the bundled defaults."""
+    Repo.init(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    config_path = tmp_path / PROJECT_CONFIG_FILE_PATH
+    config_path.parent.mkdir()
+    config_path.write_text("retries = 7\n", encoding="utf-8")
+
+    result = runner.invoke(app, ["populate-project-config", "--force"])
+
+    assert result.exit_code == 0
+    assert config_path.read_bytes() == PROJECT_CONFIG_BUNDLED_DEFAULTS_FILE.read_bytes()
+
+
+def test_populate_project_config_reports_unwritable_path(tmp_path, monkeypatch):
+    """A .gito file blocking the config directory is reported instead of raised."""
+    Repo.init(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / PROJECT_CONFIG_FILE_PATH.parent).write_text("not a directory", encoding="utf-8")
+
+    result = runner.invoke(app, ["populate-project-config"])
+
+    assert result.exit_code == 1
+    assert "Can't write" in result.stdout
 
 
 def test_populate_project_config_requires_repository(tmp_path, monkeypatch):
