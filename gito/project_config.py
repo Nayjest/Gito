@@ -11,6 +11,16 @@ from .constants import PROJECT_CONFIG_BUNDLED_DEFAULTS_FILE, PROJECT_CONFIG_FILE
 from .env import Env
 from .pipeline import PipelineStep
 from .utils.git_platform.github import detect_github_env
+from .review_context import DEFAULT_INSTRUCTION_PATTERNS
+
+
+@dataclass
+class ReviewContextConfig:
+    discover_instructions: bool = True
+    instruction_files: list[str] = field(
+        default_factory=lambda: DEFAULT_INSTRUCTION_PATTERNS.copy()
+    )
+    max_instruction_tokens: int = 12000
 
 
 @dataclass
@@ -49,8 +59,11 @@ class ProjectConfig:
     If True, previously added code review comments in the pull request
     will be collapsed automatically when a new comment is added.
     """
+    review_context: ReviewContextConfig | dict = field(default_factory=ReviewContextConfig)
 
     def __post_init__(self):
+        if isinstance(self.review_context, dict):
+            self.review_context = ReviewContextConfig(**self.review_context)
         self.pipeline_steps = {
             k: PipelineStep(**v) if isinstance(v, dict) else v
             for k, v in self.pipeline_steps.items()

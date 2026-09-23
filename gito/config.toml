@@ -162,6 +162,11 @@ Review the provided code diff carefully and identify *only* highly confident iss
 {{ file_lines }}
 {%- endif %}
 
+{% if project_instructions -%}
+----APPLICABLE PROJECT INSTRUCTIONS----
+{{ project_instructions }}
+{%- endif %}
+
 ----TASK GUIDELINES----
 - Only report issues you are **100% confident** are relevant to any context.
 - Never report issues related to software versions, model names, or similar details that you believe have not yet been released—you cannot reliably determine this.
@@ -283,6 +288,21 @@ If there are concerns about how thoroughly the code covers the requirements and 
 answer_github_comments = true
 answer_prompt = "tpl:answer.j2"
 aux_files = []
+[review_context]
+discover_instructions = true
+instruction_files = [
+    "AGENTS.md",
+    "ARCHITECTURE.md",
+    "CODE_GUIDELINES.md",
+    "CODE_STYLE.md",
+    "CONTRIBUTING.md",
+    "DEVELOPMENT.md",
+    "SECURITY.md",
+    ".github/copilot-instructions.md",
+    ".github/instructions/**/*.md",
+    ".github/instructions/**/*.instructions.md",
+]
+max_instruction_tokens = 12000
 [pipeline_steps.jira] # Jira integration step, fetches associated issue details for the review context.
 call="gito.pipeline_steps.jira.fetch_associated_issue"
 envs=["local","ci"]
