@@ -145,8 +145,8 @@ def get_diff(
 ) -> PatchSet | list[PatchedFile]:
     repo = repo or Repo(".")
     if what == REFS_VALUE_ALL:
-        what = get_base_branch(repo, pr=pr)
-        # Git's canonical empty tree hash
+        # Whole codebase: the working copy compared to Git's canonical empty tree
+        what = None
         against = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
         use_merge_base = False
     if not against:

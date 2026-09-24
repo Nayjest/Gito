@@ -4,6 +4,7 @@ from pathlib import Path
 import git
 import pytest
 
+from gito.constants import REFS_VALUE_ALL
 from gito.core import MergeBaseError, get_diff
 
 
@@ -54,6 +55,22 @@ def test_merge_base_diff_includes_staged_and_unstaged_worktree_changes(diverged_
     diff = get_diff(diverged_repo, against="main")
 
     assert {patched_file.path for patched_file in diff} == {"feature_only.txt", "staged.txt"}
+
+
+def test_full_codebase_diff_uses_working_copy(diverged_repo):
+    diverged_repo.git.checkout("feature")
+    workdir = Path(diverged_repo.working_tree_dir)
+    (workdir / "shared.txt").write_text("modified locally\n", encoding="utf-8")
+    (workdir / "staged.txt").write_text("staged\n", encoding="utf-8")
+    diverged_repo.index.add(["staged.txt"])
+    (workdir / "untracked.txt").write_text("untracked\n", encoding="utf-8")
+
+    diff = get_diff(diverged_repo, what=REFS_VALUE_ALL)
+
+    files = {patched_file.path: patched_file for patched_file in diff}
+    assert set(files) == {"shared.txt", "feature_only.txt", "staged.txt"}
+    assert all(patched_file.is_added_file for patched_file in diff)
+    assert "+modified locally" in str(files["shared.txt"])
 
 
 def test_merged_feature_ref_uses_its_pre_merge_base(diverged_repo):

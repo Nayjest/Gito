@@ -330,10 +330,16 @@ def files(
         except NoChangesInContextError:
             patch_set = []
 
+        if _what == REFS_VALUE_ALL:
+            title = f"Files: {mc.ui.green('whole codebase (working copy)')}"
+        else:
+            title = (
+                f"Changed files: "
+                f"{mc.ui.green(_what or 'INDEX')} vs "
+                f"{mc.ui.yellow(_against or get_base_branch(repo))}"
+            )
         print(
-            f"Changed files: "
-            f"{mc.ui.green(_what or 'INDEX')} vs "
-            f"{mc.ui.yellow(_against or get_base_branch(repo))}"
+            f"{title}"
             f"{' filtered by ' + mc.ui.cyan(filters) if filters else ''} --> "
             f"{mc.ui.cyan(len(patch_set))} file(s)."
         )

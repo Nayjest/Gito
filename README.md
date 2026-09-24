@@ -227,6 +227,17 @@ gito review
 > Files that are not staged for commit will be ignored.  
 > See `gito --help` for more options.
 
+**Reviewing specific files in full**
+
+To review the entire content of selected files as they are in your working copy (not just the changes), combine `--all` (whole codebase) with `--filters`:
+```bash
+gito review --all --filters="src/app.py,src/utils/*.py"
+```
+- Filters are comma-separated glob patterns matched against paths relative to the repository root: `src/app.py`, not `app.py`. `*` also matches across folders, so `*.md` selects Markdown files at any depth.
+- Uncommitted changes are included; new (untracked) files must be staged with `git add` first.
+- On Windows, pass wildcard patterns as `--filters="..."`: the short `-f "src/*.py"` form may be expanded into file names and fail with *Got unexpected extra arguments*.
+- The same options work with `gito files` (preview the selection without calling the LLM) and `gito ask`.
+
 **Reviewing remote repository**
 ```bash
 gito remote git@github.com:owner/repo.git <FEATURE_BRANCH>..<MAIN_BRANCH>
