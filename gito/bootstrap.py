@@ -8,6 +8,7 @@ from datetime import datetime
 from pathlib import Path
 
 import microcore as mc
+import tiktoken
 
 from .utils.git_platform.gitlab import is_running_in_gitlab_ci
 from .utils.git_platform.github import is_running_in_github_action
@@ -37,6 +38,27 @@ def setup_logging(log_level: int = logging.INFO):
     handler = logging.StreamHandler()
     handler.setFormatter(CustomFormatter())
     logging.basicConfig(level=log_level, handlers=[handler])
+
+
+def configure_tiktoken_encoding():
+    """Silence microcore's tiktoken warnings by picking the default encoding.
+
+    ai-microcore logs a warning every time it cannot map the active model to a
+    tiktoken encoding (e.g. for Claude or Gemini models) and silently falls back
+    to a default. Selecting that default explicitly keeps CLI output clean, while
+    models that do have a dedicated encoding (e.g. OpenAI's) keep their precise
+    mapping. A user-provided ``TIKTOKEN_ENCODING`` always wins.
+    """
+    config = mc.config()
+    if config.TIKTOKEN_ENCODING:
+        return
+    model = (config.LLM_DEFAULT_ARGS or {}).get("model", None) or config.MODEL
+    if not model:
+        return
+    try:
+        tiktoken.encoding_name_for_model(model)
+    except KeyError:
+        config.TIKTOKEN_ENCODING = "cl100k_base"
 
 
 def bootstrap(verbosity: int = 1, require_llm_config: bool = True):
@@ -79,6 +101,7 @@ def bootstrap(verbosity: int = 1, require_llm_config: bool = True):
             # a missing key no longer aborts bootstrap.
             configure_kwargs.update(LLM_API_TYPE=mc.ApiType.NONE, LLM_CLI=None)
         mc.configure(**configure_kwargs)
+        configure_tiktoken_encoding()
         if mc.config().MAX_CONCURRENT_TASKS is None:
             mc.config().MAX_CONCURRENT_TASKS = DEFAULT_MAX_CONCURRENT_TASKS
         if verbosity > 1:
