@@ -64,6 +64,7 @@ packages = [
 [tool.poetry.dependencies]
 python = "^3.11"
 ai-microcore = "~6.7.0"
+tiktoken = ">=0.7.0,<1.0"
 GitPython = "^3.1.58"
 unidiff = "^0.7.5"
 google-genai = "~2.10.0"
