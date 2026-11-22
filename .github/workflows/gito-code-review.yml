@@ -1,5 +1,6 @@
 name: "Gito: AI Code Reviewer"
 on:
+  # `pull_request_target` (unlike `pull_request`) gives fork PRs access to secrets.
   pull_request_target:
     types: [opened, synchronize, reopened]
   workflow_dispatch:
@@ -31,6 +32,19 @@ jobs:
         # Review PRs for secret exfiltration and other malicious code before approving.
         ref: ${{ github.event.pull_request.head.sha }}
         allow-unsafe-pr-checkout: true
+        persist-credentials: false
+
+    # Gito executes code from .gito/config.toml (`post_process`) and renders templates
+    # from .gito/, so the PR must not be able to change them while secrets are available.
+    - name: Use .gito from the base branch
+      if: github.event_name == 'pull_request_target'
+      env:
+        BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      run: |
+        rm -rf .gito
+        if git rev-parse -q --verify "$BASE_SHA:.gito" >/dev/null; then
+          git checkout "$BASE_SHA" -- .gito
+        fi
 
     - name: Set up Python
       uses: actions/setup-python@v6
