@@ -5,6 +5,7 @@ from pathlib import Path
 import click
 import microcore as mc
 import pytest
+import yaml
 from git import Repo
 from typer.main import get_command
 
@@ -124,6 +125,34 @@ def test_deploy_github_creates_workflow_files(github_repo, monkeypatch):
     content = workflow.read_text(encoding="utf-8")
     assert "ANTHROPIC_API_KEY" in content
     assert "gito" in content.lower()
+
+
+def test_deploy_github_workflow_gates_fork_prs(github_repo, monkeypatch):
+    """The deployed workflow reviews fork PRs, and holds them for approval first (#359).
+
+    `pull_request` gets no secrets on fork PRs, so the review cannot run. `pull_request_target`
+    does, which is only defensible while fork code waits behind an environment. Same rule as
+    tests/test_workflow_security.py, applied to the workflow shipped to every install.
+    """
+    bootstrap()
+    monkeypatch.setattr("builtins.input", lambda _: "")
+    monkeypatch.setattr("gito.commands.deploy.identify_git_platform", lambda _: PlatformType.GITHUB)
+
+    deploy(api_type="anthropic", commit=False, model="claude-opus-4-6")
+
+    workflow = yaml.safe_load(
+        Path(".github/workflows/gito-code-review.yml").read_text(encoding="utf-8")
+    )
+    job = workflow["jobs"]["review"]
+    checkout = next(s for s in job["steps"] if "checkout" in str(s.get("uses", "")))["with"]
+
+    # PyYAML follows YAML 1.1, where the unquoted key `on:` is the boolean True.
+    assert "pull_request_target" in workflow[True]
+    assert "external-pr" in job["environment"]
+    assert checkout["ref"] == "${{ github.event.pull_request.head.sha }}"
+    assert checkout["allow-unsafe-pr-checkout"] is True
+    # Gito execs post_process from .gito/config.toml, so the PR must not supply it.
+    assert any(step.get("name") == "Use .gito from the base branch" for step in job["steps"])
 
 
 def test_deploy_gitlab_creates_workflow_files(gitlab_repo, monkeypatch):

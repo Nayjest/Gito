@@ -1,6 +1,7 @@
 name: "Gito: AI Code Reviewer"
 on:
-  pull_request:
+  # `pull_request_target` (unlike `pull_request`) gives fork PRs access to secrets.
+  pull_request_target:
     types: [opened, synchronize, reopened]
   workflow_dispatch:
     inputs:
@@ -11,17 +12,49 @@ jobs:
   review:
     if: github.actor != 'dependabot[bot]'  # no review for dependency bumps
     runs-on: ubuntu-latest
+    # Fork PRs require maintainer approval before any fork code touches the secrets below.
+    # Create the 'external-pr' environment with a required reviewer, or the gate holds nothing.
+    # Same-repo PRs resolve to an empty environment name, which is a no-op, and run unattended.
+    environment: {% raw %}${{ github.event.pull_request.head.repo.full_name != github.repository && 'external-pr' || '' }}{% endraw %}
     permissions: { contents: read, pull-requests: write } # 'write' for leaving the summary comment
     steps:
     - uses: actions/checkout@v7
-      with: { fetch-depth: 0 }
+      with:
+        fetch-depth: 0
+        # Checkout PR head to process actual changes (including forks).
+        #
+        # ⚠️ SECURITY: This exposes secrets to fork code. Mitigated by the 'external-pr'
+        # environment on this job, which requires maintainer approval before the job starts.
+        #
+        # Note: the "Approval for running fork pull request workflows" setting
+        # (Settings → Actions → General) does NOT gate 'pull_request_target' — it only applies
+        # to 'pull_request'. The environment is what actually holds the run.
+        #
+        # Review PRs for secret exfiltration and other malicious code before approving.
+        ref: {% raw %}${{ github.event.pull_request.head.sha }}{% endraw %}
+        allow-unsafe-pr-checkout: true
+        persist-credentials: false
+
+    # Gito executes code from .gito/config.toml (`post_process`) and renders templates from .gito/,
+    # so the PR must not be able to change them while secrets are available.
+    - name: Use .gito from the base branch
+      if: github.event_name == 'pull_request_target'
+      env:
+        BASE_SHA: {% raw %}${{ github.event.pull_request.base.sha }}{% endraw %}
+      run: |
+        rm -rf .gito
+        if git rev-parse -q --verify "$BASE_SHA:.gito" >/dev/null; then
+          git checkout "$BASE_SHA" -- .gito
+        fi
 
     {%- include("workflows/github/components/installs.j2") %}
 
     - name: Run AI code review
       env:
         {%- include("workflows/github/components/env-vars.j2") %}
-        PR_NUMBER_FROM_WORKFLOW_DISPATCH: {% raw %}${{ github.event.inputs.pr_number }}{% endraw %}
+        # On `pull_request_target`, GITHUB_REF is the base branch, so Gito reads the PR number
+        # from this variable instead.
+        PR_NUMBER_FROM_WORKFLOW_DISPATCH: {% raw %}${{ github.event.inputs.pr_number || github.event.pull_request.number }}{% endraw %}
       run: |{% raw %}
         gito --verbose review
         gito github-comment{% endraw %}
