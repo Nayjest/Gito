@@ -9,6 +9,7 @@ on:
         required: true
 jobs:
   review:
+    if: github.actor != 'dependabot[bot]'  # no review for dependency bumps
     runs-on: ubuntu-latest
     permissions: { contents: read, pull-requests: write } # 'write' for leaving the summary comment
     steps:
