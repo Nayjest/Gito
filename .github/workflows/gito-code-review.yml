@@ -9,6 +9,7 @@ on:
         required: true
 jobs:
   review:
+    if: github.actor != 'dependabot[bot]'  # no review for dependency bumps
     runs-on: ubuntu-latest
     # Fork PRs require maintainer approval before any fork code touches the secrets below.
     # Same-repo PRs resolve to an empty environment name, which is a no-op, and run unattended.
