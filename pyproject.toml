@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "gito.bot"
-version = "4.5.0"
+version = "4.5.1"
 description = "AI code review tool that works with any language model provider. It detects issues in GitHub pull requests or local changes—instantly, reliably, and without vendor lock-in."
 readme = "README.md"
 license = "MIT"
@@ -63,7 +63,7 @@ packages = [
 "Bug Tracker" = "https://github.com/Nayjest/Gito/issues"
 [tool.poetry.dependencies]
 python = "^3.11"
-ai-microcore = "~6.7.0"
+ai-microcore = "~6.10.0"
 GitPython = "^3.1.58"
 unidiff = "^0.7.5"
 google-genai = "~2.10.0"
