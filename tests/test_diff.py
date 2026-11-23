@@ -58,6 +58,9 @@ def test_merge_base_diff_includes_staged_and_unstaged_worktree_changes(diverged_
 
 
 def test_full_codebase_diff_uses_working_copy(diverged_repo):
+    # A default branch on the remote must not be what gets reviewed
+    diverged_repo.create_remote("origin", diverged_repo.working_tree_dir).fetch()
+    diverged_repo.git.remote("set-head", "origin", "main")
     diverged_repo.git.checkout("feature")
     workdir = Path(diverged_repo.working_tree_dir)
     (workdir / "shared.txt").write_text("modified locally\n", encoding="utf-8")
