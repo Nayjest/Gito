@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 from itertools import chain
 from time import sleep
 
@@ -71,12 +72,92 @@ def post_github_cr_comment(
         logging.error("Could not resolve PR number from environment variables.")
         raise typer.Exit(3)
 
+    # Deduplicate: filter out issues that were already reported in a previous review
+    body = _filter_duplicate_issues(body, gh_repo, pr, token)
+
     if not post_gh_comment(gh_repo, pr, token, body):
         raise typer.Exit(5)
 
     if config.collapse_previous_code_review_comments:
         sleep(1)
         collapse_gh_outdated_cr_comments(gh_repo, pr, token)
+
+
+def _extract_issue_titles(body: str) -> set[str]:
+    """Extract issue titles from a Gito review comment body."""
+    titles = set()
+    for match in re.finditer(r"## `#\d+`\s+(.+?)(?:\n|$)", body):
+        titles.add(match.group(1).strip())
+    return titles
+
+
+def _filter_duplicate_issues(body: str, gh_repo: str, pr: int, token: str) -> str:
+    """
+    Filter out issues that were already reported in a previous Gito review comment.
+    Returns the filtered body, or the original body if no previous review is found.
+    """
+    if not gh_repo or not pr:
+        return body
+
+    try:
+        owner, repo = gh_repo.split("/")
+        api = GhApi(owner, repo, token=token)
+
+        comments = list(chain.from_iterable(paged(api.issues.list_comments, pr)))
+        review_marker = HTML_CR_COMMENT_MARKER
+
+        previous_titles: set[str] = set()
+        for comment in comments:
+            if comment.body and review_marker in comment.body:
+                previous_titles.update(_extract_issue_titles(comment.body))
+
+        if not previous_titles:
+            return body
+
+        # Filter out sections for issues that were already reported
+        filtered_body = _remove_duplicate_sections(body, previous_titles)
+
+        if filtered_body != body:
+            logging.info(
+                "Filtered %d duplicate issue(s) from previous review",
+                len(previous_titles),
+            )
+
+        return filtered_body
+
+    except Exception as e:
+        logging.warning(f"Failed to deduplicate issues: {e}")
+        return body
+
+
+def _remove_duplicate_sections(body: str, previous_titles: set[str]) -> str:
+    """
+    Remove issue sections from the review body whose titles match previous_titles.
+    Returns the filtered body.
+    """
+    # Split body into sections delimited by ## `#<num>` <title>
+    sections = re.split(r"(?=## `#\d+`)", body)
+
+    kept_sections = []
+    for section in sections:
+        match = re.match(r"## `#\d+`\s+(.+?)(?:\n|$)", section)
+        if match:
+            title = match.group(1).strip()
+            if title in previous_titles:
+                continue
+        kept_sections.append(section)
+
+    result = "".join(kept_sections)
+
+    # If all issues were filtered out, return a minimal message
+    if not re.search(r"## `#\d+`", result):
+        # Check if there was a summary section
+        summary_match = re.search(r"I've Reviewed the Code.*?(\n\n|\Z)", result, re.DOTALL)
+        if summary_match:
+            return result.strip() + "\n\n✅ No new issues found since the previous review."
+        return result.strip()
+
+    return result
 
 
 def collapse_gh_outdated_cr_comments(
