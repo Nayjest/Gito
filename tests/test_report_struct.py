@@ -1,7 +1,8 @@
 import json
 import os
 from gito.bootstrap import bootstrap
-from gito.report_struct import Report, Issue
+from gito.report_struct import Report, Issue, ReviewTarget
+from gito.utils.git_platform.platform_types import PlatformType
 
 
 def test_report_plain_issues():
@@ -197,6 +198,22 @@ def test_have_fix_proposal():
     with_proposal = Issue(**get_issue_with_affected_lines())
     assert with_proposal.have_fix_proposal() is True
     assert Issue(id="x", title="T", tags=[], file="X.py").have_fix_proposal() is False
+
+
+def test_code_link_uses_commit_sha_not_local_branch_name():
+    # active_branch is a locally-renamed checkout (e.g. `git fetch origin
+    # pull/106/head:review-106`); it doesn't exist on the remote, so a link built
+    # from it 404s. commit_sha always resolves there and must win.
+    issue = Issue(id="x", title="T", tags=[], file="gito/core.py")
+    target = ReviewTarget(
+        git_platform_type=PlatformType.GITHUB,
+        repo_url="https://github.com/Nayjest/Gito",
+        active_branch="review-106",
+        commit_sha="a" * 40,
+    )
+    link = issue.code_link(target)
+    assert "review-106" not in link
+    assert f"/blob/{'a' * 40}/gito/core.py" in link
 
 
 def test_get_issue_by_id():

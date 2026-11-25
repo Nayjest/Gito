@@ -130,7 +130,10 @@ class Issue(RawIssue):
             return ""
         if not (platform := review_target.get_platform_adapter(raise_exceptions=False)):
             return ""
-        branch = review_target.active_branch or "main"
+        # active_branch is the LOCALLY checked-out branch name, which commonly differs
+        # from the actual remote branch (e.g. `git fetch origin pull/N/head:<local-name>`),
+        # producing a 404 link. commit_sha always resolves on the platform, so prefer it.
+        branch = review_target.commit_sha or review_target.active_branch or "main"
         if platform.is_running_in_ci() and (ci_branch := platform.ci_src_branch()):
             branch = ci_branch
         return (
