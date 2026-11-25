@@ -29,7 +29,7 @@ Running the tool locally: `gito review` (current branch vs base), `gito ask "<qu
 
 **Two-layer configuration:**
 - *Environment* (`~/.gito/.env` or OS env) → LLM credentials/model. Machine-specific, never committed. See `gito/env.py`.
-- *Project* (`<repo>/.gito/config.toml`) → review behavior, prompts, templates, pipeline steps. Merged on top of the bundled defaults in **`gito/config.toml`**, which is the canonical source of all prompt text, report templates, tags, severity/confidence scales, and `post_process`/`prompt_vars`. `ProjectConfig` (`gito/project_config.py`) loads and merges these.
+- *Project* → review behavior, prompts, templates, pipeline steps. `ProjectConfig` (`gito/project_config.py`) merges **`gito/config.toml`** bundled defaults, `~/.gito/config.toml` personal defaults, `<repo>/.gito/config.toml`, and an explicit `--project-config` file, in that order. Prompt variables merge by key and pipeline steps by name and field; other fields replace inherited values. The bundled defaults remain the canonical source of prompt text, report templates, tags, severity/confidence scales, and `post_process`/`prompt_vars`.
 
 **Review flow** (`gito/core.py`, the heart of the codebase):
 1. `get_diff` / `get_target_diff` build a `unidiff.PatchSet` from git. Most complexity lives in `get_base_branch` and the merge-base logic in `get_diff` — it resolves the comparison base across local branches, already-merged branches (walks merge commits to find the first common ancestor), GitHub Actions env, and full-codebase reviews (`--all` → `REFS_VALUE_ALL`). Binary files are filtered out; `filter_diff` applies fnmatch include/exclude filters.

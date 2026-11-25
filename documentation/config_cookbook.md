@@ -5,10 +5,36 @@ This document provides a comprehensive guide on how to configure and tune [Gito 
 
 ## Project-specific configuration
 When run locally or via GitHub/GitLab actions, [Gito](https://pypi.org/project/gito.bot/)
-looks for `.gito/config.toml` file in the root directory of reviewed project / repository.  
-Then it merges project-specific configuration (if exists) with the
-[bundled configuration defaults](https://github.com/Nayjest/Gito/blob/main/gito/config.toml).  
+loads the [bundled configuration defaults](https://github.com/Nayjest/Gito/blob/main/gito/config.toml),
+then `~/.gito/config.toml`, then `.gito/config.toml` in the root directory of the reviewed repository.
+An explicit `--project-config` file is merged last and must exist.
+Missing global and repository files are skipped.
 This allows you to customize the behavior of the AI code review tool according to your project's needs.
+
+## How to set personal defaults for every repository?
+
+Create `~/.gito/config.toml` with only the settings you want to override:
+
+```toml
+# ~/.gito/config.toml
+retries = 5
+
+[prompt_vars]
+summary_requirements = "Keep the review summary concise."
+
+[pipeline_steps.jira]
+enabled = false
+```
+
+Repository settings take precedence over these personal defaults. For example,
+`retries = 2` in `<repo>/.gito/config.toml` overrides the global value without
+discarding the global summary instruction or Jira setting.
+
+`prompt_vars` merges by key, and `pipeline_steps` merges by step name and field,
+so setting `enabled = false` keeps an inherited step's `call` intact.
+Other fields, including lists such as `exclude_files`, are replaced rather than appended.
+Both configuration files support UTF-8, with or without a BOM.
+Keep LLM provider settings and credentials in `~/.gito/.env` or environment variables.
 
 ## How to get a project configuration file to start from?
 ```bash
@@ -23,7 +49,8 @@ Prefer keeping only the options you actually override, and let the rest fall bac
 
 ## How to use a shared configuration file for multiple projects?
 Use the `--project-config` (`-c`) option to point Gito at a configuration file
-outside the reviewed repository. It takes precedence over `.gito/config.toml`:
+outside the reviewed repository. Its settings override both `~/.gito/config.toml`
+and the repository's `.gito/config.toml`, retaining settings the override file does not define:
 ```bash
 gito --project-config ~/.gito/nestjs-review-config.toml review
 ```

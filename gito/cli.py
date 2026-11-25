@@ -103,7 +103,7 @@ def cli(
         "-c",
         show_default=False,
         help="Path to the project configuration file to use "
-        "instead of <project>/.gito/config.toml",
+        "on top of global and <project>/.gito/config.toml settings",
     ),
 ):
     if project_config:
@@ -154,13 +154,11 @@ def cmd_review(
     ),
     pr: int = typer.Option(
         default=None,
-        help=textwrap.dedent(
-            """\n
+        help=textwrap.dedent("""\n
         GitHub Pull Request number or GitLab Merge Request ID to post the comment to
         (for local usage together with --post-comment,
         in the GitHub/GitLab actions PR/MR is resolved from the environment)
-        """
-        ),
+        """),
     ),
     out: str = arg_out(),
     all: bool = arg_all(),
